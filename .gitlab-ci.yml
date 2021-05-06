@@ -46,7 +46,7 @@ type-check:
   stage: tests
   script:
     - pip install mypy sqlalchemy-stubs pydantic
-    - mypy --config-file .mypy.ini app tests
+    - mypy --config-file .mypy.ini app
 # not deployed yet
 # dev:
 #   stage: dev
