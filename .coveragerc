@@ -1,0 +1,12 @@
+[run]
+omit = *test*
+       *alembic*
+        app/version.py
+        app/tests
+        app/api/healthz.py
+        app/core/reporting.py
+branch = True
+
+[report]
+fail_under = 85
+exclude_lines = pragma: no cover
