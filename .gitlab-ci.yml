@@ -47,58 +47,58 @@ type-check:
   script:
     - pip install mypy sqlalchemy-stubs pydantic
     - mypy --config-file .mypy.ini app
-# not deployed yet
-# dev:
-#   stage: dev
-#   image: docker:latest
-#   services:
-#     - docker:dind
-#   environment:
-#     name: dev
-#   before_script:
-#     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-#   script:
-#     - export CTAG="develop-$(date +%F-%H%M%S)"
-#     - docker build --pull -t "$CI_REGISTRY/vela:$CTAG" .
-#     - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$CI_REGISTRY/aqua-scanner:5.0" scan --local "$CI_REGISTRY/vela:$CTAG" --host https://aqua.uksouth.bink.sh:30001/ --user scanner --password $AQUA_PASSWORD --show-negligible --policies Bink --text
-#     - docker push "$CI_REGISTRY/vela:$CTAG"
-#   only:
-#     - develop
 
-# staging:
-#   stage: staging
-#   image: docker:latest
-#   services:
-#     - docker:dind
-#   environment:
-#     name: staging
-#   before_script:
-#     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-#   script:
-#     - docker build --pull -t "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" .
-#     - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$CI_REGISTRY/aqua-scanner:5.0" scan --local "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --host https://aqua.uksouth.bink.sh:30001/ --user scanner --password $AQUA_PASSWORD --show-negligible --policies Bink --text
-#     - docker push "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG"
-#   only:
-#     - tags
+dev:
+  stage: dev
+  image: docker:latest
+  services:
+    - docker:dind
+  environment:
+    name: dev
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - export CTAG="develop-$(date +%F-%H%M%S)"
+    - docker build --pull -t "$CI_REGISTRY/vela:$CTAG" .
+    - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$CI_REGISTRY/aqua-scanner:5.0" scan --local "$CI_REGISTRY/vela:$CTAG" --host https://aqua.uksouth.bink.sh:30001/ --user scanner --password $AQUA_PASSWORD --show-negligible --policies Bink --text
+    - docker push "$CI_REGISTRY/vela:$CTAG"
+  only:
+    - develop
 
-# preprod:
-#   stage: preprod
-#   image: binkops.azurecr.io/tagbot:latest
-#   environment:
-#     name: preprod
-#   script:
-#     - tagbot --username "$CI_REGISTRY_USER" --password "$CI_REGISTRY_PASSWORD" --source "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --tag "preprod-$CI_COMMIT_TAG"
-#   when: manual
-#   only:
-#     - tags
+staging:
+  stage: staging
+  image: docker:latest
+  services:
+    - docker:dind
+  environment:
+    name: staging
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker build --pull -t "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" .
+    - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$CI_REGISTRY/aqua-scanner:5.0" scan --local "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --host https://aqua.uksouth.bink.sh:30001/ --user scanner --password $AQUA_PASSWORD --show-negligible --policies Bink --text
+    - docker push "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG"
+  only:
+    - tags
 
-# prod:
-#   stage: prod
-#   image: binkops.azurecr.io/tagbot:latest
-#   environment:
-#     name: prod
-#   script:
-#     - tagbot --username "$CI_REGISTRY_USER" --password "$CI_REGISTRY_PASSWORD" --source "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --tag "prod-$CI_COMMIT_TAG"
-#   when: manual
-#   only:
-#     - tags
+preprod:
+  stage: preprod
+  image: binkops.azurecr.io/tagbot:latest
+  environment:
+    name: preprod
+  script:
+    - tagbot --username "$CI_REGISTRY_USER" --password "$CI_REGISTRY_PASSWORD" --source "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --tag "preprod-$CI_COMMIT_TAG"
+  when: manual
+  only:
+    - tags
+
+prod:
+  stage: prod
+  image: binkops.azurecr.io/tagbot:latest
+  environment:
+    name: prod
+  script:
+    - tagbot --username "$CI_REGISTRY_USER" --password "$CI_REGISTRY_PASSWORD" --source "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --tag "prod-$CI_COMMIT_TAG"
+  when: manual
+  only:
+    - tags

@@ -34,7 +34,7 @@ class LogLevel(str):
 
 
 class Settings(BaseSettings):
-    API_PREFIX: str = "/bpl/loyalty"
+    API_PREFIX: str = "/bpl/rewards"
     SECRET_KEY: str = "-2WtbW-ApKgrnf02B3Ufl32UCLg3Bfvc2NB6kFGZqBA"
     SERVER_NAME: str = "test"
     SERVER_HOST: str = "http://localhost:8000"
