@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, func
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, text
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base
@@ -28,8 +28,13 @@ class Campaign(Base):
     status = Column(Enum(CampaignStatuses), nullable=False, server_default="DRAFT")
     name = Column(String(128), nullable=False)
     slug = Column(String(32), index=True, unique=True, nullable=False)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=datetime.utcnow(), nullable=False)
+    created_at = Column(DateTime, server_default=text("TIMEZONE('utc', CURRENT_TIMESTAMP)"), nullable=False)
+    updated_at = Column(
+        DateTime,
+        server_default=text("TIMEZONE('utc', CURRENT_TIMESTAMP)"),
+        onupdate=text("TIMEZONE('utc', CURRENT_TIMESTAMP)"),
+        nullable=False,
+    )
     retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"))
 
     retailer = relationship("RetailerRewards", back_populates="campaigns")
