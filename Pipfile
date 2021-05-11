@@ -10,6 +10,7 @@ sqlalchemy = "*"
 psycopg2-binary = "*"
 alembic = "*"
 typing-extensions = "*"
+gunicorn = "*"
 
 [dev-packages]
 pytest = "*"
