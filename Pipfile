@@ -6,10 +6,12 @@ name = "pypi"
 [packages]
 fastapi = "*"
 uvicorn = { extras = ["standard"], version = "*" }
+ujson = "*"
 sqlalchemy = "*"
 psycopg2-binary = "*"
 alembic = "*"
 typing-extensions = "*"
+gunicorn = "*"
 
 [dev-packages]
 pytest = "*"

@@ -2,8 +2,8 @@ from typing import List, Tuple, Union
 
 from fastapi import Request, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import UJSONResponse
 from starlette.exceptions import HTTPException
-from starlette.responses import UJSONResponse
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY
 
 

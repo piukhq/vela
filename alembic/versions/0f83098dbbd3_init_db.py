@@ -1,8 +1,8 @@
 """init_db
 
-Revision ID: 68e369858366
+Revision ID: 0f83098dbbd3
 Revises: 
-Create Date: 2021-05-05 17:03:48.261866
+Create Date: 2021-05-10 17:19:51.692642
 
 """
 import sqlalchemy as sa
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "68e369858366"
+revision = "0f83098dbbd3"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -37,8 +37,12 @@ def upgrade() -> None:
         ),
         sa.Column("name", sa.String(length=128), nullable=False),
         sa.Column("slug", sa.String(length=32), nullable=False),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(), server_default=sa.text("TIMEZONE('utc', CURRENT_TIMESTAMP)"), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), server_default=sa.text("TIMEZONE('utc', CURRENT_TIMESTAMP)"), nullable=False
+        ),
         sa.Column("retailer_id", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["retailer_id"], ["retailer_rewards.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
