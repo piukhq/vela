@@ -8,7 +8,6 @@ from app.enums import CampaignStatuses
 class RetailerRewards(Base):
     __tablename__ = "retailer_rewards"
 
-    id = Column(Integer, primary_key=True, index=True)
     slug = Column(String(32), index=True, unique=True, nullable=False)
 
     campaigns = relationship("Campaign", back_populates="retailer")
@@ -22,7 +21,6 @@ class RetailerRewards(Base):
 class Campaign(Base):
     __tablename__ = "campaign"
 
-    id = Column(Integer, primary_key=True, index=True)
     status = Column(Enum(CampaignStatuses), nullable=False, server_default="DRAFT")
     name = Column(String(128), nullable=False)
     slug = Column(String(32), index=True, unique=True, nullable=False)
