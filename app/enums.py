@@ -11,11 +11,8 @@ class CampaignStatuses(Enum):
 
 
 class HttpErrors(Enum):
-    NO_ACCOUNT_FOUND = HTTPException(
-        detail={
-            "display_message": "Account not found for provided credentials.",
-            "error": "NO_ACCOUNT_FOUND",
-        },
+    NO_ACTIVE_CAMPAIGNS = HTTPException(
+        detail={"display_message": "No active campaigns found for retailer.", "error": "NO_ACTIVE_CAMPAIGNS"},
         status_code=status.HTTP_404_NOT_FOUND,
     )
     INVALID_RETAILER = HTTPException(
@@ -24,14 +21,6 @@ class HttpErrors(Enum):
             "error": "INVALID_RETAILER",
         },
         status_code=status.HTTP_403_FORBIDDEN,
-    )
-    ACCOUNT_EXISTS = HTTPException(
-        detail={
-            "display_message": "It appears this account already exists.",
-            "error": "ACCOUNT_EXISTS",
-            "fields": ["email"],
-        },
-        status_code=status.HTTP_409_CONFLICT,
     )
     INVALID_TOKEN = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

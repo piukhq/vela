@@ -15,12 +15,12 @@ class CampaignSchema(BaseModel):
 
     @validator("created_at")
     @classmethod
-    def get_timestamp(cls, v: datetime) -> int:
+    def get_create_at_timestamp(cls, v: datetime) -> int:
         return int(v.timestamp())
 
     @validator("updated_at")
     @classmethod
-    def get_t_timestamp(cls, v: datetime) -> int:
+    def get_updated_at_timestamp(cls, v: datetime) -> int:
         return int(v.timestamp())
 
     class Config:
