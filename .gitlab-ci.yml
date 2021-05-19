@@ -8,27 +8,26 @@ stages:
 default:
   image: binkhq/python:3.9
 
-# there are no tests for now
-# tests:
-#   stage: tests
-#   variables:
-#     POSTGRES_DB: vela_test
-#     POSTGRES_USER: postgres
-#     POSTGRES_PASSWORD: ""
-#     POSTGRES_HOST_AUTH_METHOD: trust
-#     LOG_FORMATTER: brief
-#     SQLALCHEMY_DATABASE_URI: "postgresql+asyncpg://postgres@postgres:5432/vela"
-#     TESTING: "True"
-#   before_script: &setup
-#     - apt-get update && apt-get -y install gcc g++
-#     - pip install pipenv
-#     - pipenv install --dev --system --deploy --ignore-pipfile
-#     - pip freeze
-#   script:
-#     - alembic upgrade head
-#     - pytest --verbose --cov app --cov-report term-missing
-#   services:
-#     - postgres:11
+tests:
+  stage: tests
+  variables:
+    POSTGRES_DB: vela_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: ""
+    POSTGRES_HOST_AUTH_METHOD: trust
+    LOG_FORMATTER: brief
+    SQLALCHEMY_DATABASE_URI: "postgresql://postgres@postgres:5432/vela"
+    TESTING: "True"
+  before_script:
+    - apt-get update && apt-get -y install gcc g++
+    - pip install pipenv
+    - pipenv install --dev --system --deploy --ignore-pipfile
+    - pip freeze
+  script:
+    - alembic upgrade head
+    - pytest --verbose --cov app --cov-report term-missing
+  services:
+    - postgres:11
 
 complexity:
   stage: tests
