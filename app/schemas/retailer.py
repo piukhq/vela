@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, validator
 from app.enums import CampaignStatuses
 
 
-class CampaignSchema(BaseModel):
+class CampaignSchema(BaseModel):  # pragma: no cover
     id: int
     status: CampaignStatuses
     name: str

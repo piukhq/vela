@@ -15,6 +15,7 @@ gunicorn = "*"
 azure-keyvault = "*"
 azure-identity = "*"
 sqlalchemy-utils = "*"
+pytest-mock = "*"
 
 [dev-packages]
 pytest = "*"
