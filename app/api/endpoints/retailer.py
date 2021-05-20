@@ -35,6 +35,6 @@ async def get_active_campaigns(
     campaigns = db_session.query(Campaign.slug).filter_by(retailer_id=retailer.id, status=CampaignStatuses.ACTIVE).all()
     if not campaigns:
         raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
-    campaign_slugs = [getattr(campaign, "slug") for campaign in campaigns]
+    campaign_slugs = [campaign.slug for campaign in campaigns]
 
     return campaign_slugs
