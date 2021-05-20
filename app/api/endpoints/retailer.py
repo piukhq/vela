@@ -1,6 +1,6 @@
 import logging
 
-from typing import Any, List, Union
+from typing import Any, List
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -22,20 +22,6 @@ def _get_retailer(db_session: Session, retailer_slug: str) -> RetailerRewards:
     return retailer
 
 
-def _get_campaigns(db_session: Session, **query_param: Union[str, int, CampaignStatuses]) -> List[Campaign]:
-    campaigns = db_session.query(Campaign).filter_by(**query_param).all()
-    if not campaigns:
-        raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
-
-    return campaigns
-
-
-def _get_fields_from_rows(rows: List[Union[Campaign, RetailerRewards]], fieldname: str) -> List[Any]:
-    """Get a list of field values from a list of row objects"""
-    fields = [getattr(row, fieldname) for row in rows]
-    return fields
-
-
 @router.get(
     path="/{retailer_slug}/active-campaign-slugs",
     response_model=List[str],
@@ -46,11 +32,9 @@ async def get_active_campaigns(
     db_session: Session = Depends(get_session),
 ) -> Any:
     retailer = _get_retailer(db_session, retailer_slug)
-    campaigns = _get_campaigns(
-        db_session=db_session,
-        retailer_id=retailer.id,
-        status=CampaignStatuses.ACTIVE,
-    )
-    campaign_slugs = _get_fields_from_rows(rows=campaigns, fieldname="slug")
+    campaigns = db_session.query(Campaign.slug).filter_by(retailer_id=retailer.id, status=CampaignStatuses.ACTIVE).all()
+    if not campaigns:
+        raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
+    campaign_slugs = [getattr(campaign, "slug") for campaign in campaigns]
 
     return campaign_slugs
