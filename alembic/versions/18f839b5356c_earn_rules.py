@@ -34,7 +34,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_earn_rule_id"), "earn_rule", ["id"], unique=False)
-    op.add_column("campaign", sa.Column("earn_inc_is_tx_value", sa.Boolean(), nullable=False))
+    op.add_column("campaign", sa.Column("earn_inc_is_tx_value", sa.Boolean(), nullable=True))
+    op.execute("UPDATE campaign SET earn_inc_is_tx_value=false")
+    op.alter_column("campaign", "earn_inc_is_tx_value", nullable=False)
 
 
 def downgrade() -> None:
