@@ -15,7 +15,6 @@ gunicorn = "*"
 azure-keyvault = "*"
 azure-identity = "*"
 sqlalchemy-utils = "*"
-pytest-mock = "*"
 
 [dev-packages]
 pytest = "*"
@@ -28,6 +27,7 @@ mypy = "*"
 sqlalchemy-stubs = "*"
 ipython = "*"
 xenon = "*"
+pytest-mock = "*"
 
 [requires]
 python_version = "3.9"
