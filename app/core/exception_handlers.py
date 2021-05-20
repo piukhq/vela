@@ -7,9 +7,7 @@ from starlette.exceptions import HTTPException
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY
 
 
-# TODO: remove the pragma here when any enpoints expecting payloads are implemented
-def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:  # pragma: no cover
-    invalid, missing = [], []
+def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:
     for error in payload:
         if error["type"] == "value_error.jsondecode":
             return (
@@ -17,30 +15,10 @@ def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict
                 {"display_message": "Malformed request.", "error": "MALFORMED_REQUEST"},
             )
 
-        if "missing" in error["type"]:
-            missing.append(error["loc"][-1])
-        else:
-            invalid.append(error["loc"][-1])
-
-    content = []
-    if invalid:
-        content.append(
-            {
-                "display_message": "Submitted credentials did not pass validation.",
-                "error": "VALIDATION_FAILED",
-                "fields": invalid,
-            }
-        )
-    if missing:
-        content.append(
-            {
-                "display_message": "Missing credentials from request.",
-                "error": "MISSING_FIELDS",
-                "fields": missing,
-            }
-        )
-
-    return HTTP_422_UNPROCESSABLE_ENTITY, content
+    return (
+        HTTP_422_UNPROCESSABLE_ENTITY,
+        {"display_message": "BPL Schema not matched.", "error": "INVALID_CONTENT"},
+    )
 
 
 # customise Api RequestValidationError

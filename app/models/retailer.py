@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base, TimestampMixin
 from app.enums import CampaignStatuses
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .transaction import Transaction  # noqa 401
 
 
 class RetailerRewards(Base):
@@ -11,6 +16,7 @@ class RetailerRewards(Base):
     slug = Column(String(32), index=True, unique=True, nullable=False)
 
     campaigns = relationship("Campaign", back_populates="retailer")
+    transactions = relationship("Transaction", back_populates="retailer")
 
     __mapper_args__ = {"eager_defaults": True}
 

@@ -29,3 +29,7 @@ class HttpErrors(Enum):
             "error": "INVALID_TOKEN",
         },
     )
+    DUPLICATE_TRANSACTION = HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"display_message": "Duplicate Transaction.", "error": "DUPLICATE_TRANSACTION"},
+    )
