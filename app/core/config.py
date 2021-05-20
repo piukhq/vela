@@ -121,7 +121,7 @@ class Settings(BaseSettings):
             return KeyVault(
                 values["KEY_VAULT_URI"],
                 values["TESTING"] or values["MIGRATING"],
-            ).get_secret("bpl-customer-mgmt-auth-token")
+            ).get_secret("bpl-reward-mgmt-auth-token")
         else:
             raise KeyError("required var KEY_VAULT_URI is not set.")
 
