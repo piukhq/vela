@@ -12,6 +12,9 @@ psycopg2-binary = "*"
 alembic = "*"
 typing-extensions = "*"
 gunicorn = "*"
+azure-keyvault = "*"
+azure-identity = "*"
+sqlalchemy-utils = "*"
 
 [dev-packages]
 pytest = "*"
@@ -24,6 +27,7 @@ mypy = "*"
 sqlalchemy-stubs = "*"
 ipython = "*"
 xenon = "*"
+pytest-mock = "*"
 
 [requires]
 python_version = "3.9"
