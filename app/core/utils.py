@@ -7,6 +7,7 @@ import requests
 from urllib3 import Retry
 
 from app.core.config import settings
+from app.enums import HttpErrors
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def retry_session() -> requests.Session:  # pragma: no cover
     return session
 
 
-def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) -> bool:
+def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) -> None:
     resp = retry_session().get(
         f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/status",
         headers={"Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}", "bpl-user-channel": "internal"},
@@ -30,10 +31,11 @@ def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) 
         resp.raise_for_status()
     except requests.RequestException as ex:
         if resp.status_code == 404:
-            return False
+            raise HttpErrors.USER_NOT_FOUND.value
 
         logger.exception("failed to fetch account holder status from Polaris", exc_info=ex)
-        raise ex
+        raise HttpErrors.GENERIC_HANDLED_ERROR.value
 
     else:
-        return resp.json()["status"] == "active"
+        if resp.json()["status"] != "active":
+            raise HttpErrors.USER_NOT_ACTIVE.value

@@ -33,3 +33,17 @@ class HttpErrors(Enum):
         status_code=status.HTTP_409_CONFLICT,
         detail={"display_message": "Duplicate Transaction.", "error": "DUPLICATE_TRANSACTION"},
     )
+    USER_NOT_FOUND = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"display_message": "Unknown User.", "error": "USER_NOT_FOUND"},
+    )
+
+    USER_NOT_ACTIVE = HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"display_message": "User Account not Active", "error": "USER_NOT_ACTIVE"},
+    )
+    # TODO: chat with christian, alyson, max to define this error
+    GENERIC_HANDLED_ERROR = HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={"display_message": "Shit's on fire yo.", "error": "THIS_IS_FINE"},
+    )

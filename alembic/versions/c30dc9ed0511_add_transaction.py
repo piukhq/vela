@@ -1,18 +1,16 @@
 """add transaction
 
-Revision ID: e7d9ae47759c
+Revision ID: c30dc9ed0511
 Revises: 18f839b5356c
-Create Date: 2021-05-20 17:27:23.809998
+Create Date: 2021-05-20 18:03:37.113097
 
 """
+from alembic import op
 import sqlalchemy as sa
-
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
-
 # revision identifiers, used by Alembic.
-revision = "e7d9ae47759c"
+revision = "c30dc9ed0511"
 down_revision = "18f839b5356c"
 branch_labels = None
 depends_on = None
@@ -37,9 +35,10 @@ def upgrade():
         sa.Column("retailer_id", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["retailer_id"], ["retailer_rewards.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("transaction_id", "retailer_id", name="transaction_retailer_unq"),
     )
     op.create_index(op.f("ix_transaction_id"), "transaction", ["id"], unique=False)
-    op.create_index(op.f("ix_transaction_transaction_id"), "transaction", ["transaction_id"], unique=True)
+    op.create_index(op.f("ix_transaction_transaction_id"), "transaction", ["transaction_id"], unique=False)
     # ### end Alembic commands ###
 
 
