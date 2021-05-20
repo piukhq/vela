@@ -27,14 +27,15 @@ def _get_retailer(db_session: Session, retailer_slug: str) -> RetailerRewards:
     response_model=List[str],
     dependencies=[Depends(user_is_authorised)],
 )
-async def get_active_campaigns(
+async def get_active_campaign_slugs(
     retailer_slug: str,
     db_session: Session = Depends(get_session),
 ) -> Any:
     retailer = _get_retailer(db_session, retailer_slug)
-    campaigns = db_session.query(Campaign.slug).filter_by(retailer_id=retailer.id, status=CampaignStatuses.ACTIVE).all()
-    if not campaigns:
+    campaign_slug_rows = (
+        db_session.query(Campaign.slug).filter_by(retailer_id=retailer.id, status=CampaignStatuses.ACTIVE).all()
+    )
+    if not campaign_slug_rows:
         raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
-    campaign_slugs = [campaign.slug for campaign in campaigns]
 
-    return campaign_slugs
+    return [row[0] for row in campaign_slug_rows]
