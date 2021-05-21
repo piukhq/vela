@@ -5,9 +5,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
-from app.core.utils import validate_account_holder_uuid
-from app.crud.retailer import get_active_campaigns
 from app.enums import HttpErrors
+from app.internal_requests import validate_account_holder_uuid
 from app.models import RetailerRewards, Transaction
 from app.schemas import CreateTransactionSchema
 
@@ -24,7 +23,6 @@ async def record_transaction(
     retailer: RetailerRewards = Depends(retailer_is_valid),
     db_session: Session = Depends(get_session),
 ) -> Any:
-    get_active_campaigns(retailer, db_session)
     validate_account_holder_uuid(payload.account_holder_uuid, retailer.slug)
 
     try:

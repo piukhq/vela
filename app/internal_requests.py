@@ -22,18 +22,20 @@ def retry_session() -> requests.Session:  # pragma: no cover
 
 
 def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) -> None:
-    resp = retry_session().get(
-        f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/status",
-        headers={"Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}", "bpl-user-channel": "internal"},
-    )
-
     try:
+        resp = retry_session().get(
+            f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/status",
+            headers={
+                "Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}",
+                "bpl-user-channel": "internal",
+            },
+        )
         resp.raise_for_status()
     except requests.RequestException as ex:
         if resp.status_code == 404:
             raise HttpErrors.USER_NOT_FOUND.value
 
-        logger.exception("failed to fetch account holder status from Polaris", exc_info=ex)
+        logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
         raise HttpErrors.GENERIC_HANDLED_ERROR.value
 
     else:
