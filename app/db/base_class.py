@@ -1,11 +1,13 @@
 # mypy checks for sqlalchemy core 2.0 require sqlalchemy2-stubs
 from sqlalchemy import Column, DateTime, Integer, text
-from sqlalchemy.orm import as_declarative, declarative_mixin  # type: ignore
+from sqlalchemy.orm import declarative_base, declarative_mixin  # type: ignore
 
 
-@as_declarative()
-class Base:
+class ModelBase:
     id = Column(Integer, primary_key=True, index=True)
+
+
+Base = declarative_base(cls=ModelBase)
 
 
 utc_timestamp_sql = text("TIMEZONE('utc', CURRENT_TIMESTAMP)")
