@@ -45,5 +45,8 @@ class HttpErrors(Enum):
     # TODO: chat with christian, alyson, max to define this error
     GENERIC_HANDLED_ERROR = HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail={"display_message": "Shit's on fire yo.", "error": "THIS_IS_FINE"},
+        detail={
+            "display_message": "An unexpected system error occurred, please try again later.",
+            "error": "INTERNAL_ERROR",
+        },
     )

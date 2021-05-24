@@ -18,10 +18,11 @@
     "default": {
         "alembic": {
             "hashes": [
-                "sha256:fb9a39a7c68e55490be962fb5f70463d384d340e6563d6e3911447778e3b4576"
+                "sha256:5a01e9ac338e7380aea1d8a038fcc927cf309cc0b90ede4472c601282054f1b3",
+                "sha256:6d243986586709e9358accdd5ba35d16dd7ca5572681f0d683638ced407504c8"
             ],
             "index": "pypi",
-            "version": "==1.6.2"
+            "version": "==1.6.3"
         },
         "azure-common": {
             "hashes": [
@@ -577,11 +578,11 @@
         },
         "sqlalchemy-utils": {
             "hashes": [
-                "sha256:63441742f95fc1c19e9aded4aaf9d6fb5c524af4fe502c94438f9fed0c1c1ea0",
-                "sha256:83ae7e15086511b3e00e52247d7a77d1e88778e0dd3226950903f0bd6065dd1c"
+                "sha256:2351c0a0f9158b215a56bef19c6670e10c666c593cee3f0d337259227e5ee8be",
+                "sha256:f5311d4ded66ec661b436e796ea6656dd8b7d764bf21919385d198ac75c6902d"
             ],
             "index": "pypi",
-            "version": "==0.37.3"
+            "version": "==0.37.4"
         },
         "starlette": {
             "hashes": [
@@ -823,7 +824,7 @@
                 "sha256:f0b278ce10936db1a37e6954e15a3730bea96a0997c26d7fee88e6c396c2086d",
                 "sha256:f11642dddbb0253cc8853254301b51390ba0081750a8ac03f20ea8103f0c56b6"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4' and python_version < '4'",
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4' and python_version < '4.0'",
             "version": "==5.5"
         },
         "decorator": {
@@ -1123,10 +1124,10 @@
                 "flake8"
             ],
             "hashes": [
-                "sha256:188c3cbd7518472217bb7a4d60da6f7fd06c7c9e81f608b5973129a8916a81d4",
-                "sha256:ab1666cc8d405364fdaa19363fe11b827eeb2e0b7ac4ceff9790231f69115640"
+                "sha256:0fc191bfb6938e67f881764f7242c163fb3c78fc7acdfc5a0b8254c66ff9dc8b",
+                "sha256:63b863dd294fcc86f6aecace8d7cb4228acc2a16ab0b89c11ff60cb14182b488"
             ],
-            "version": "==4.5.1"
+            "version": "==4.5.2"
         },
         "regex": {
             "hashes": [
