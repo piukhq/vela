@@ -42,7 +42,6 @@ class HttpErrors(Enum):
         status_code=status.HTTP_409_CONFLICT,
         detail={"display_message": "User Account not Active", "error": "USER_NOT_ACTIVE"},
     )
-    # TODO: chat with christian, alyson, max to define this error
     GENERIC_HANDLED_ERROR = HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail={

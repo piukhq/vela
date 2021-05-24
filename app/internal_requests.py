@@ -4,6 +4,7 @@ from uuid import UUID
 
 import requests
 
+from fastapi import status
 from urllib3 import Retry
 
 from app.core.config import settings
@@ -32,7 +33,7 @@ def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) 
         )
         resp.raise_for_status()
     except requests.RequestException as ex:
-        if resp.status_code == 404:
+        if resp.status_code == status.HTTP_404_NOT_FOUND:
             raise HttpErrors.USER_NOT_FOUND.value
 
         logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)

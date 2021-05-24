@@ -24,7 +24,7 @@ payload: dict = {
     "id": "BPL123456789",
     "transaction_total": 11.25,
     "datetime": str(now),
-    "mid": "12345678",
+    "MID": "12345678",
     "loyalty_id": str(account_holder_uuid),
 }
 
@@ -49,7 +49,7 @@ def test_post_transaction_happy_path(setup: SetupType, mocker: MockerFixture) ->
     transaction = db_session.query(Transaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
 
     assert transaction is not None
-    assert transaction.mid == payload["mid"]
+    assert transaction.mid == payload["MID"]
     assert transaction.amount == int(payload["transaction_total"] * 100)
     assert transaction.datetime == now
     assert transaction.account_holder_uuid == account_holder_uuid
