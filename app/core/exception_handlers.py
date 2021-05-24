@@ -7,7 +7,8 @@ from starlette.exceptions import HTTPException
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY
 
 
-def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:
+# TODO: remove the pragma here when any enpoints expecting payloads are implemented
+def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:  # pragma: no cover
     invalid, missing = [], []
     for error in payload:
         if error["type"] == "value_error.jsondecode":

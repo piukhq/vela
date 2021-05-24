@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
 
+from app.core.key_vault import KeyVault
+
 if TYPE_CHECKING:
     from pydantic.typing import CallableGenerator
 
@@ -106,6 +108,22 @@ class Settings(BaseSettings):
             db_uri += "_test"
 
         return db_uri
+
+    KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
+    AUTH_TOKEN: Optional[str] = None
+
+    @validator("AUTH_TOKEN")
+    def fetch_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+        if isinstance(v, str) and not values["TESTING"]:
+            return v
+
+        if "KEY_VAULT_URI" in values:
+            return KeyVault(
+                values["KEY_VAULT_URI"],
+                values["TESTING"] or values["MIGRATING"],
+            ).get_secret("bpl-reward-mgmt-auth-token")
+        else:
+            raise KeyError("required var KEY_VAULT_URI is not set.")
 
     class Config:
         case_sensitive = True
