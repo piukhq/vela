@@ -19,7 +19,6 @@ tests:
     SQLALCHEMY_DATABASE_URI: "postgresql://postgres@postgres:5432/vela"
     TESTING: "True"
   before_script:
-    - apt-get update && apt-get -y install gcc g++
     - pip install pipenv
     - pipenv install --dev --system --deploy --ignore-pipfile
     - pip freeze
@@ -31,21 +30,25 @@ tests:
 
 complexity:
   stage: tests
-  script:
+  before_script:
     - pip install xenon
+  script:
     - xenon --no-assert --max-average A --max-modules B --max-absolute B .
 
 style:
   stage: tests
-  script:
+  before_script:
     - pip install flake8 black
-    - flake8 && black --line-length 120 --check .
+  script:
+    - flake8
+    - black --line-length 120 --check .
 
 type-check:
   stage: tests
-  script:
+  before_script:
     - pip install mypy sqlalchemy-stubs pydantic
-    - mypy --config-file .mypy.ini app
+  script:
+    - mypy app
 
 dev:
   stage: dev

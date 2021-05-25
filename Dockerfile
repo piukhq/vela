@@ -2,13 +2,9 @@ FROM binkhq/python:3.9
 
 WORKDIR /app
 ADD . .
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc g++ && \
-    pip install --no-cache-dir pipenv && \
+RUN pip install --no-cache-dir pipenv && \
     pipenv install --deploy --system --ignore-pipfile && \
-    apt-get autoremove -y gcc g++ && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists
+    pipenv --clear
 
 ENV PROMETHEUS_MULTIPROC_DIR=/dev/shm
 CMD [ "gunicorn", "--workers=1", "--error-logfile=-", "--access-logfile=-", \
