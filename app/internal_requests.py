@@ -26,10 +26,7 @@ def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) 
     try:
         resp = retry_session().get(
             f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/status",
-            headers={
-                "Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}",
-                "bpl-user-channel": "internal",
-            },
+            headers={"Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}"},
         )
         resp.raise_for_status()
     except requests.RequestException as ex:
