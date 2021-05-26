@@ -15,6 +15,7 @@ gunicorn = "*"
 azure-keyvault = "*"
 azure-identity = "*"
 sqlalchemy-utils = "*"
+sentry-sdk = "*"
 
 [dev-packages]
 pytest = "*"

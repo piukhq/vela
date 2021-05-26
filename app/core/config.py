@@ -74,11 +74,19 @@ class Settings(BaseSettings):
         return v
 
     SENTRY_DSN: Optional[HttpUrl] = None
+    SENTRY_ENV: Optional[str] = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
 
     @validator("SENTRY_DSN", pre=True)
     def sentry_dsn_can_be_blank(cls, v: str) -> Optional[str]:
         if v is not None and len(v) == 0:
             return None
+        return v
+
+    @validator("SENTRY_TRACES_SAMPLE_RATE")
+    def validate_sentry_traces_sample_rate(cls, v: float) -> float:
+        if not (0 <= v <= 1):
+            raise ValueError("SENTRY_TRACES_SAMPLE_RATE must be between 0.0 and 1.0")
         return v
 
     USE_NULL_POOL: bool = False
