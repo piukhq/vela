@@ -1,9 +1,7 @@
 from datetime import datetime
 from typing import Any
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock
 from uuid import uuid4
-
-import requests
 
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -15,7 +13,7 @@ from app.models import Transaction
 from asgi import app
 from tests.api.conftest import SetupType
 
-client = TestClient(app)
+client = TestClient(app, raise_server_exceptions=False)
 auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}"}
 
 account_holder_uuid = uuid4()
@@ -51,7 +49,7 @@ def test_post_transaction_happy_path(setup: SetupType, mocker: MockerFixture) ->
     assert transaction is not None
     assert transaction.mid == payload["MID"]
     assert transaction.amount == int(payload["transaction_total"] * 100)
-    assert transaction.datetime == now
+    assert transaction.datetime == datetime.fromtimestamp(now)
     assert transaction.account_holder_uuid == account_holder_uuid
 
 
@@ -89,8 +87,8 @@ def test_post_transaction_account_holder_validation_errors(setup: SetupType, moc
     assert resp.status_code == status.HTTP_409_CONFLICT
     assert resp.json() == {"display_message": "User Account not Active", "error": "USER_NOT_ACTIVE"}
 
-    response = MagicMock(spec=Response, status_code=status.HTTP_404_NOT_FOUND)
-    response.raise_for_status = Mock(side_effect=requests.RequestException())
+    response = Response()
+    response.status_code = status.HTTP_404_NOT_FOUND
     mocked_session.return_value = RetrySessionMock(response)
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
@@ -98,8 +96,8 @@ def test_post_transaction_account_holder_validation_errors(setup: SetupType, moc
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "Unknown User.", "error": "USER_NOT_FOUND"}
 
-    response = MagicMock(spec=Response, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    response.raise_for_status = Mock(side_effect=requests.RequestException())
+    response = Response()
+    response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     mocked_session.return_value = RetrySessionMock(response)
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)

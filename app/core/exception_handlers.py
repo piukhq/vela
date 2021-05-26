@@ -4,7 +4,7 @@ from fastapi import Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import UJSONResponse
 from starlette.exceptions import HTTPException
-from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 
 
 def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:
@@ -35,5 +35,12 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> UJSONR
     else:
         status_code, content = exc.status_code, exc.detail
 
-    headers = getattr(exc, "headers", None)
-    return UJSONResponse(content, status_code=status_code, headers=headers)
+    return UJSONResponse(content, status_code=status_code, headers=getattr(exc, "headers", None))
+
+
+async def unexpected_exception_handler(request: Request, exc: Exception) -> UJSONResponse:
+
+    return UJSONResponse(
+        {"display_message": "An unexpected system error occurred, please try again later.", "error": "INTERNAL_ERROR"},
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+    )

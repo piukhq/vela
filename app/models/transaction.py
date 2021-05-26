@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,7 +16,7 @@ class Transaction(Base, TimestampMixin):
     transaction_id = Column(String(128), nullable=False, index=True)
     amount = Column(Integer, nullable=False)
     mid = Column(String(128), nullable=False)
-    datetime = Column(Integer, nullable=False)
+    datetime = Column(DateTime, nullable=False)
     account_holder_uuid = Column(UUID(as_uuid=True), nullable=False)
     retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"))
 

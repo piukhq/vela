@@ -1,16 +1,18 @@
 """add transaction
 
-Revision ID: c30dc9ed0511
+Revision ID: 06138a675f48
 Revises: 18f839b5356c
-Create Date: 2021-05-20 18:03:37.113097
+Create Date: 2021-05-26 12:40:50.412672
 
 """
-from alembic import op
 import sqlalchemy as sa
+
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 # revision identifiers, used by Alembic.
-revision = "c30dc9ed0511"
+revision = "06138a675f48"
 down_revision = "18f839b5356c"
 branch_labels = None
 depends_on = None
@@ -30,7 +32,7 @@ def upgrade():
         sa.Column("transaction_id", sa.String(length=128), nullable=False),
         sa.Column("amount", sa.Integer(), nullable=False),
         sa.Column("mid", sa.String(length=128), nullable=False),
-        sa.Column("datetime", sa.Integer(), nullable=False),
+        sa.Column("datetime", sa.DateTime(), nullable=False),
         sa.Column("account_holder_uuid", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("retailer_id", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["retailer_id"], ["retailer_rewards.id"], ondelete="CASCADE"),

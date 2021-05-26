@@ -1,3 +1,5 @@
+from datetime import datetime as dt
+
 from pydantic import BaseModel, Field, validator
 from pydantic.types import UUID4
 
@@ -13,3 +15,13 @@ class CreateTransactionSchema(BaseModel):  # pragma: no cover
     @classmethod
     def get_float(cls, v: float) -> int:
         return int(v * 100)
+
+    @validator("datetime")
+    @classmethod
+    def get_datetime_from_timestamp(cls, v: int) -> dt:
+        try:
+            processed_datetime = dt.fromtimestamp(v)
+        except Exception:
+            raise ValueError("invalid datetime")
+
+        return processed_datetime
