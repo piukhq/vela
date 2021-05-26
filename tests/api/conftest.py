@@ -1,14 +1,17 @@
+from collections import namedtuple
 from typing import TYPE_CHECKING, Generator
 
 import pytest
 
 from app.db.base import Base
 from app.db.session import SessionMaker, engine
+from app.models import Campaign, RetailerRewards
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 # conftest for API tests: tables will be dropped after each test to ensure a clean state
+SetupType = namedtuple("SetupType", ["db_session", "retailer", "campaign"])
 
 
 @pytest.fixture(scope="module")
@@ -35,3 +38,8 @@ def setup_tables() -> Generator:
 
     # Drop all tables after each test
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(scope="function")
+def setup(db_session: "Session", retailer: RetailerRewards, campaign: Campaign) -> Generator[SetupType, None, None]:
+    yield SetupType(db_session, retailer, campaign)

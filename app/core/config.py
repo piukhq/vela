@@ -74,11 +74,19 @@ class Settings(BaseSettings):
         return v
 
     SENTRY_DSN: Optional[HttpUrl] = None
+    SENTRY_ENV: Optional[str] = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
 
     @validator("SENTRY_DSN", pre=True)
     def sentry_dsn_can_be_blank(cls, v: str) -> Optional[str]:
         if v is not None and len(v) == 0:
             return None
+        return v
+
+    @validator("SENTRY_TRACES_SAMPLE_RATE")
+    def validate_sentry_traces_sample_rate(cls, v: float) -> float:
+        if not (0 <= v <= 1):
+            raise ValueError("SENTRY_TRACES_SAMPLE_RATE must be between 0.0 and 1.0")
         return v
 
     USE_NULL_POOL: bool = False
@@ -110,9 +118,9 @@ class Settings(BaseSettings):
         return db_uri
 
     KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
-    AUTH_TOKEN: Optional[str] = None
+    VELA_AUTH_TOKEN: Optional[str] = None
 
-    @validator("AUTH_TOKEN")
+    @validator("VELA_AUTH_TOKEN")
     def fetch_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
@@ -124,6 +132,23 @@ class Settings(BaseSettings):
             ).get_secret("bpl-reward-mgmt-auth-token")
         else:
             raise KeyError("required var KEY_VAULT_URI is not set.")
+
+    POLARIS_AUTH_TOKEN: Optional[str] = None
+
+    @validator("POLARIS_AUTH_TOKEN")
+    def fetch_polaris_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+        if isinstance(v, str) and not values["TESTING"]:
+            return v
+
+        if "KEY_VAULT_URI" in values:
+            return KeyVault(
+                values["KEY_VAULT_URI"],
+                values["TESTING"] or values["MIGRATING"],
+            ).get_secret("bpl-customer-mgmt-auth-token")
+        else:
+            raise KeyError("required var KEY_VAULT_URI is not set.")
+
+    POLARIS_URL: str = "http://polaris-api"
 
     class Config:
         case_sensitive = True

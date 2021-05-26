@@ -4,12 +4,10 @@ from fastapi import Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import UJSONResponse
 from starlette.exceptions import HTTPException
-from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 
 
-# TODO: remove the pragma here when any enpoints expecting payloads are implemented
-def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:  # pragma: no cover
-    invalid, missing = [], []
+def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:
     for error in payload:
         if error["type"] == "value_error.jsondecode":
             return (
@@ -17,30 +15,10 @@ def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict
                 {"display_message": "Malformed request.", "error": "MALFORMED_REQUEST"},
             )
 
-        if "missing" in error["type"]:
-            missing.append(error["loc"][-1])
-        else:
-            invalid.append(error["loc"][-1])
-
-    content = []
-    if invalid:
-        content.append(
-            {
-                "display_message": "Submitted credentials did not pass validation.",
-                "error": "VALIDATION_FAILED",
-                "fields": invalid,
-            }
-        )
-    if missing:
-        content.append(
-            {
-                "display_message": "Missing credentials from request.",
-                "error": "MISSING_FIELDS",
-                "fields": missing,
-            }
-        )
-
-    return HTTP_422_UNPROCESSABLE_ENTITY, content
+    return (
+        HTTP_422_UNPROCESSABLE_ENTITY,
+        {"display_message": "BPL Schema not matched.", "error": "INVALID_CONTENT"},
+    )
 
 
 # customise Api RequestValidationError
@@ -57,5 +35,12 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> UJSONR
     else:
         status_code, content = exc.status_code, exc.detail
 
-    headers = getattr(exc, "headers", None)
-    return UJSONResponse(content, status_code=status_code, headers=headers)
+    return UJSONResponse(content, status_code=status_code, headers=getattr(exc, "headers", None))
+
+
+async def unexpected_exception_handler(request: Request, exc: Exception) -> UJSONResponse:
+
+    return UJSONResponse(
+        {"display_message": "An unexpected system error occurred, please try again later.", "error": "INTERNAL_ERROR"},
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+    )
