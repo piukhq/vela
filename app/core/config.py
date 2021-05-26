@@ -118,9 +118,9 @@ class Settings(BaseSettings):
         return db_uri
 
     KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
-    AUTH_TOKEN: Optional[str] = None
+    VELA_AUTH_TOKEN: Optional[str] = None
 
-    @validator("AUTH_TOKEN")
+    @validator("VELA_AUTH_TOKEN")
     def fetch_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
@@ -132,6 +132,23 @@ class Settings(BaseSettings):
             ).get_secret("bpl-reward-mgmt-auth-token")
         else:
             raise KeyError("required var KEY_VAULT_URI is not set.")
+
+    POLARIS_AUTH_TOKEN: Optional[str] = None
+
+    @validator("POLARIS_AUTH_TOKEN")
+    def fetch_polaris_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+        if isinstance(v, str) and not values["TESTING"]:
+            return v
+
+        if "KEY_VAULT_URI" in values:
+            return KeyVault(
+                values["KEY_VAULT_URI"],
+                values["TESTING"] or values["MIGRATING"],
+            ).get_secret("bpl-customer-mgmt-auth-token")
+        else:
+            raise KeyError("required var KEY_VAULT_URI is not set.")
+
+    POLARIS_URL: str = "http://polaris-api"
 
     class Config:
         case_sensitive = True
