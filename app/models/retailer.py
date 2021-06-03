@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String, Numeric
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -45,7 +45,7 @@ class EarnRule(Base, TimestampMixin):
 
     threshold = Column(Integer, nullable=False)
     increment = Column(Integer, nullable=True)
-    increment_multiplier = Column(Integer, default=1, nullable=False)
+    increment_multiplier = Column(Numeric(scale=2), default=1, nullable=False)
 
     campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
     campaign = relationship("Campaign", back_populates="earn_rules")
