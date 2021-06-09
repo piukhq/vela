@@ -46,7 +46,7 @@ style:
 type-check:
   stage: tests
   before_script:
-    - pip install mypy sqlalchemy-stubs pydantic
+    - pip install mypy sqlalchemy-stubs pydantic types-requests
   script:
     - mypy app
 

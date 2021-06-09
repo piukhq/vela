@@ -20,7 +20,7 @@ account_holder_uuid = uuid4()
 now = int(datetime.utcnow().timestamp())
 payload: dict = {
     "id": "BPL123456789",
-    "transaction_total": 11.25,
+    "transaction_total": 1125,
     "datetime": str(now),
     "MID": "12345678",
     "loyalty_id": str(account_holder_uuid),
@@ -48,7 +48,7 @@ def test_post_transaction_happy_path(setup: SetupType, mocker: MockerFixture) ->
 
     assert transaction is not None
     assert transaction.mid == payload["MID"]
-    assert transaction.amount == int(payload["transaction_total"] * 100)
+    assert transaction.amount == payload["transaction_total"]
     assert transaction.datetime == datetime.fromtimestamp(now)
     assert transaction.account_holder_uuid == account_holder_uuid
 
