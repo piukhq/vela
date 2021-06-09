@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
+from app.db.base_class import retry_query
 from app.enums import HttpErrors
 from app.internal_requests import validate_account_holder_uuid
 from app.models import RetailerRewards, Transaction
@@ -25,10 +26,11 @@ async def record_transaction(
 ) -> Any:
     validate_account_holder_uuid(payload.account_holder_uuid, retailer.slug)
 
-    try:
-        db_session.add(Transaction(retailer_id=retailer.id, **payload.dict(exclude_unset=True)))  # type: ignore
-        db_session.commit()
-    except IntegrityError:
-        raise HttpErrors.DUPLICATE_TRANSACTION.value
+    with retry_query(session=db_session):
+        try:
+            db_session.add(Transaction(retailer_id=retailer.id, **payload.dict(exclude_unset=True)))  # type: ignore
+            db_session.commit()
+        except IntegrityError:
+            raise HttpErrors.DUPLICATE_TRANSACTION.value
 
-    return "Processed"
+        return "Processed"
