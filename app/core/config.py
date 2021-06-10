@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "vela"
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
+    DB_CONNECTION_RETRY_TIMES: int = 3
 
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
     def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
