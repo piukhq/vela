@@ -56,8 +56,8 @@ def retry_query(session: Union[Session, AsyncSession], attempts: int = settings.
             break
         except exc.DBAPIError as e:
             if attempts > 0 and e.connection_invalidated:
-                logger.warning(f"Interrupted transaction, attempts remaining:{attempts}")
+                logger.warning(f"Interrupted transaction: {repr(e)}, attempts remaining:{attempts}")
                 session.rollback()
             else:
-                sentry_sdk.capture_message(f"Max db connection attempts reached: {e}")
+                sentry_sdk.capture_message(f"Max db connection attempts reached: {repr(e)}")
                 raise
