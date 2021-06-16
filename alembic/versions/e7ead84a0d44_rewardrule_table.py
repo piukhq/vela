@@ -1,17 +1,17 @@
 """RewardRule table
 
 Revision ID: e7ead84a0d44
-Revises: 6435085f69d3
+Revises: 2ab95f7a285a
 Create Date: 2021-06-16 14:45:53.449092
 
 """
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "e7ead84a0d44"
-down_revision = "6435085f69d3"
+down_revision = "2ab95f7a285a"
 branch_labels = None
 depends_on = None
 
