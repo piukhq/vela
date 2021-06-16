@@ -35,6 +35,7 @@ class Campaign(Base, TimestampMixin):
 
     retailer = relationship("RetailerRewards", back_populates="campaigns")
     earn_rules = relationship("EarnRule", back_populates="campaign")
+    reward_rule = relationship("RewardRule", back_populates="campaign", uselist=False)
 
     def __str__(self) -> str:  # pragma: no cover
         return str(self.name)
@@ -49,3 +50,13 @@ class EarnRule(Base, TimestampMixin):
 
     campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
     campaign = relationship("Campaign", back_populates="earn_rules")
+
+
+class RewardRule(Base, TimestampMixin):
+    __tablename__ = "reward_rule"
+
+    reward_goal = Column(Integer, nullable=False)
+    voucher_type_slug = Column(String(32), index=True, unique=True, nullable=False)
+
+    campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
+    campaign = relationship("Campaign", back_populates="reward_rule")
