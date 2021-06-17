@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base, TimestampMixin
@@ -33,6 +33,8 @@ class Campaign(Base, TimestampMixin):
     slug = Column(String(32), index=True, unique=True, nullable=False)
     retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"), nullable=False)
     earn_inc_is_tx_value = Column(Boolean, default=False, nullable=False)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=True)
 
     retailer = relationship("RetailerRewards", back_populates="campaigns")
     earn_rules = relationship("EarnRule", back_populates="campaign")

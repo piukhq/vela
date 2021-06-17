@@ -25,7 +25,7 @@ async def record_transaction(
     validate_account_holder_uuid(payload.account_holder_uuid, retailer.slug)
     transaction_data = payload.dict(exclude_unset=True)
     transaction = crud.create_transaction(db_session, retailer, transaction_data)
-    active_campaign_slugs = crud.get_active_campaign_slugs(db_session, retailer)
+    active_campaign_slugs = crud.get_active_campaign_slugs(db_session, retailer, transaction.datetime)
 
     if crud.check_earn_rule_for_campaigns(db_session, transaction, active_campaign_slugs):
         response = "Awarded"
