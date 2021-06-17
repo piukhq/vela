@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, Generator
 
 import pytest
@@ -51,6 +52,7 @@ def mock_campaign() -> Dict:
         "status": CampaignStatuses.ACTIVE,
         "name": "testcampaign",
         "slug": "test-campaign",
+        "start_date": datetime.utcnow() - timedelta(minutes=5),
     }
 
 
