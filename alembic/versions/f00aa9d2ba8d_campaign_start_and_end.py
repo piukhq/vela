@@ -1,7 +1,7 @@
 """campaign start and end
 
 Revision ID: f00aa9d2ba8d
-Revises: 2ab95f7a285a
+Revises: e7ead84a0d44
 Create Date: 2021-06-17 12:45:12.898435
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "f00aa9d2ba8d"
-down_revision = "2ab95f7a285a"
+down_revision = "e7ead84a0d44"
 branch_labels = None
 depends_on = None
 
