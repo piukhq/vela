@@ -1,14 +1,12 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
-from app.db.base_class import retry_query
-from app.enums import HttpErrors
 from app.internal_requests import validate_account_holder_uuid
-from app.models import RetailerRewards, Transaction
+from app.models import RetailerRewards
 from app.schemas import CreateTransactionSchema
 
 router = APIRouter()
@@ -25,12 +23,16 @@ async def record_transaction(
     db_session: Session = Depends(get_session),
 ) -> Any:
     validate_account_holder_uuid(payload.account_holder_uuid, retailer.slug)
+    transaction_data = payload.dict(exclude_unset=True)
+    transaction = crud.create_transaction(db_session, retailer, transaction_data)
+    active_campaign_slugs = crud.get_active_campaign_slugs(db_session, retailer)
 
-    with retry_query(session=db_session):
-        try:
-            db_session.add(Transaction(retailer_id=retailer.id, **payload.dict(exclude_unset=True)))  # type: ignore
-            db_session.commit()
-        except IntegrityError:
-            raise HttpErrors.DUPLICATE_TRANSACTION.value
+    if crud.check_earn_rule_for_campaigns(db_session, transaction, active_campaign_slugs):
+        response = "Awarded"
+    else:
+        response = "Threshold not met"
 
-        return "Processed"
+    crud.create_processed_transaction(db_session, retailer, active_campaign_slugs, transaction_data)
+    crud.delete_transaction(db_session, transaction)
+
+    return response
