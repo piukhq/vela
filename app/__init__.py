@@ -28,4 +28,7 @@ def create_app() -> FastAPI:
         )
         app.add_middleware(SentryAsgiMiddleware)
 
+    # Prevent 307 temporary redirects if URLs have slashes on the end
+    app.router.redirect_slashes = False
+
     return app
