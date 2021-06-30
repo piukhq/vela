@@ -6,12 +6,12 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import sync_engine
 
 
 @pytest.fixture(scope="module")
 def connection() -> Connection:
-    return engine.connect()
+    return sync_engine.connect()
 
 
 @pytest.fixture(scope="module")
@@ -42,9 +42,9 @@ def setup_tables() -> Generator:
     autouse set to True so will be run before each test module, to set up tables
     and tear them down afterwards
     """
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=sync_engine)
 
     yield
 
     # Drop all tables after each test
-    Base.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=sync_engine)

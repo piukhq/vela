@@ -1,2 +1,2 @@
 from .retailer import Campaign, EarnRule, RetailerRewards
-from .transaction import ProcessedTransaction, Transaction
+from .transaction import ProcessedTransaction, RewardAdjustment, Transaction

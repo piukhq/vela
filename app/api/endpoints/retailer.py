@@ -1,7 +1,7 @@
 from typing import Any, List
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
@@ -17,6 +17,6 @@ router = APIRouter()
 )
 async def get_active_campaign_slugs(
     retailer: RetailerRewards = Depends(retailer_is_valid),
-    db_session: Session = Depends(get_session),
+    db_session: AsyncSession = Depends(get_session),
 ) -> Any:
-    return crud.get_active_campaign_slugs(db_session, retailer)
+    return await crud.get_time_insensitive_active_campaign_slugs(db_session, retailer)

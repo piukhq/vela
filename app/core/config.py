@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
+from redis import Redis
 
 from app.core.key_vault import KeyVault
 
@@ -95,17 +96,17 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "vela"
-    SQLALCHEMY_DATABASE_URI: Optional[str] = None
+    SQLALCHEMY_DATABASE_URI: str = ""
     DB_CONNECTION_RETRY_TIMES: int = 3
 
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
-    def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
-        if isinstance(v, str):
+    def assemble_db_connection(cls, v: str, values: Dict[str, Any]) -> Any:
+        if v != "":
             db_uri = v
 
         else:
             db_uri = PostgresDsn.build(
-                scheme="postgresql+psycopg2",
+                scheme="postgresql+asyncpg",
                 user=values.get("POSTGRES_USER"),
                 password=values.get("POSTGRES_PASSWORD"),
                 host=values.get("POSTGRES_HOST"),
@@ -150,6 +151,10 @@ class Settings(BaseSettings):
             raise KeyError("required var KEY_VAULT_URI is not set.")
 
     POLARIS_URL: str = "http://polaris-api"
+    REDIS_URL: str
+    REWARD_ADJUSTMENT_TASK_QUEUE: str = "bpl_reward_adjustments"
+    REWARD_ADJUSTMENT_MAX_RETRIES: int = 6
+    REWARD_ADJUSTMENT_BACKOFF_BASE: float = 3
 
     class Config:
         case_sensitive = True
@@ -206,4 +211,12 @@ dictConfig(
             },
         },
     }
+)
+
+
+redis = Redis.from_url(
+    settings.REDIS_URL,
+    socket_connect_timeout=3,
+    socket_keepalive=True,
+    retry_on_timeout=False,
 )

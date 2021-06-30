@@ -5,7 +5,7 @@ import pytest
 
 from sqlalchemy_utils import create_database, database_exists, drop_database
 
-from app.db.session import engine
+from app.db.session import sync_engine
 from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards
 
@@ -17,17 +17,17 @@ if TYPE_CHECKING:
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db() -> Generator:
-    if engine.url.database != "vela_test":
-        raise ValueError(f"Unsafe attempt to recreate database: {engine.url.database}")
+    if sync_engine.url.database != "vela_test":
+        raise ValueError(f"Unsafe attempt to recreate database: {sync_engine.url.database}")
 
-    if database_exists(engine.url):
-        drop_database(engine.url)
-    create_database(engine.url)
+    if database_exists(sync_engine.url):
+        drop_database(sync_engine.url)
+    create_database(sync_engine.url)
 
     yield
 
     # At end of all tests, drop the test db
-    drop_database(engine.url)
+    drop_database(sync_engine.url)
 
 
 @pytest.fixture(scope="function")

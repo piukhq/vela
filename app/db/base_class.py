@@ -2,7 +2,7 @@
 import logging
 
 from contextlib import contextmanager
-from typing import Generator, Union
+from typing import Any, Callable, Coroutine, Generator, Union
 
 import sentry_sdk
 
@@ -57,7 +57,47 @@ def retry_query(session: Union[Session, AsyncSession], attempts: int = settings.
         except exc.DBAPIError as e:
             if attempts > 0 and e.connection_invalidated:
                 logger.warning(f"Interrupted transaction: {repr(e)}, attempts remaining:{attempts}")
-                session.rollback()
             else:
                 sentry_sdk.capture_message(f"Max db connection attempts reached: {repr(e)}")
+                raise
+
+
+# based on the following stackoverflow answer:
+# https://stackoverflow.com/a/30004941
+def sync_run_query(
+    fn: Callable, session: Session, attempts: int = settings.DB_CONNECTION_RETRY_TIMES, read_only: bool = False
+) -> Any:
+
+    while attempts > 0:
+        attempts -= 1
+        try:
+            return fn()
+        except exc.DBAPIError as ex:
+            logger.debug(f"Attempt failed: {type(ex).__name__} {ex}")
+            if not read_only:
+                session.rollback()
+
+            if attempts > 0 and ex.connection_invalidated:
+                logger.warning(f"Interrupted transaction: {repr(ex)}, attempts remaining:{attempts}")
+            else:
+                sentry_sdk.capture_message(f"Max db connection attempts reached: {repr(ex)}")
+                raise
+
+
+async def async_run_query(
+    fn: Callable, session: AsyncSession, attempts: int = settings.DB_CONNECTION_RETRY_TIMES, read_only: bool = False
+) -> Any:
+    while attempts > 0:
+        attempts -= 1
+        try:
+            return await fn()
+        except exc.DBAPIError as ex:
+            logger.debug(f"Attempt failed: {type(ex).__name__} {ex}")
+            if not read_only:
+                await session.rollback()
+
+            if attempts > 0 and ex.connection_invalidated:
+                logger.warning(f"Interrupted transaction: {repr(ex)}, attempts remaining:{attempts}")
+            else:
+                sentry_sdk.capture_message(f"Max db connection attempts reached: {repr(ex)}")
                 raise

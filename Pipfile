@@ -16,6 +16,11 @@ azure-keyvault = "*"
 azure-identity = "*"
 sqlalchemy-utils = "*"
 sentry-sdk = "*"
+redis = "*"
+rq = "*"
+asyncpg = "*"
+tenacity = "*"
+httpx = "*"
 
 [dev-packages]
 pytest = "*"
