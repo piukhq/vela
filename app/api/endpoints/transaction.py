@@ -7,7 +7,6 @@ import sentry_sdk
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
-from sqlalchemy.future import select  # type: ignore
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
@@ -16,7 +15,7 @@ from app.db.base_class import async_run_query
 from app.db.session import AsyncSessionMaker
 from app.enums import RewardAdjustmentStatuses
 from app.internal_requests import validate_account_holder_uuid
-from app.models import RetailerRewards, RewardAdjustment
+from app.models import RetailerRewards
 from app.schemas import CreateTransactionSchema
 
 router = APIRouter()
@@ -27,24 +26,8 @@ async def enqueue_reward_adjustment_task(*, reward_adjustment_ids: List[int]) ->
 
     async with AsyncSessionMaker() as db_session:
         try:
-
-            async def _get_adjustments() -> List[RewardAdjustment]:
-                return (
-                    (
-                        await db_session.execute(
-                            select(RewardAdjustment)
-                            .with_for_update()
-                            .filter(
-                                RewardAdjustment.id.in_(reward_adjustment_ids),
-                                RewardAdjustment.status == RewardAdjustmentStatuses.PENDING,
-                            )
-                        )
-                    )
-                    .scalars()
-                    .all()
-                )
-
-            for reward_adjustment in await async_run_query(_get_adjustments, db_session, read_only=True):
+            reward_adjustments = await crud.get_reward_adjustments(db_session, reward_adjustment_ids)
+            for reward_adjustment in reward_adjustments:
                 q = rq.Queue(settings.REWARD_ADJUSTMENT_TASK_QUEUE, connection=redis)
                 q.enqueue(
                     adjust_balance,
@@ -52,11 +35,9 @@ async def enqueue_reward_adjustment_task(*, reward_adjustment_ids: List[int]) ->
                     failure_ttl=60 * 60 * 24 * 7,  # 1 week
                 )
 
-                async def _update_status() -> None:
-                    reward_adjustment.status = RewardAdjustmentStatuses.IN_PROGRESS
-                    await db_session.commit()
-
-                await async_run_query(_update_status, db_session)
+                await crud.update_reward_adjustment_status(
+                    db_session, reward_adjustment, RewardAdjustmentStatuses.IN_PROGRESS
+                )
 
         except Exception as ex:
             sentry_sdk.capture_exception(ex)

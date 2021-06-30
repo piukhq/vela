@@ -1,9 +1,10 @@
 from typing import TYPE_CHECKING, List
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.future import select  # type: ignore
 
 from app.db.base_class import async_run_query
-from app.enums import HttpErrors
+from app.enums import HttpErrors, RewardAdjustmentStatuses
 from app.models import ProcessedTransaction, RetailerRewards, RewardAdjustment, Transaction
 
 if TYPE_CHECKING:
@@ -52,6 +53,26 @@ async def create_processed_transaction(
     return await async_run_query(_query, db_session)
 
 
+async def get_reward_adjustments(db_session: "AsyncSession", reward_adjustment_ids: list) -> List[RewardAdjustment]:
+    async def _query() -> List[RewardAdjustment]:
+        return (
+            (
+                await db_session.execute(
+                    select(RewardAdjustment)
+                    .with_for_update()
+                    .filter(
+                        RewardAdjustment.id.in_(reward_adjustment_ids),
+                        RewardAdjustment.status == RewardAdjustmentStatuses.PENDING,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    return await async_run_query(_query, db_session, read_only=True)
+
+
 async def create_reward_adjustments(
     db_session: "AsyncSession", processed_transaction_id: int, adj_amounts: dict
 ) -> List[int]:
@@ -70,3 +91,13 @@ async def create_reward_adjustments(
         return adjustments
 
     return [adj.id for adj in await async_run_query(_query, db_session)]
+
+
+async def update_reward_adjustment_status(
+    db_session: "AsyncSession", adjustment: RewardAdjustment, status: RewardAdjustmentStatuses
+) -> None:
+    async def _query() -> None:
+        adjustment.status = status  # type: ignore
+        await db_session.commit()
+
+    await async_run_query(_query, db_session)
