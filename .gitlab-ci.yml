@@ -16,7 +16,7 @@ tests:
     POSTGRES_PASSWORD: ""
     POSTGRES_HOST_AUTH_METHOD: trust
     LOG_FORMATTER: brief
-    SQLALCHEMY_DATABASE_URI: "postgresql://postgres@postgres:5432/vela"
+    SQLALCHEMY_DATABASE_URI: "postgresql+asyncpg://postgres@postgres:5432/vela"
     REDIS_URL: redis://redis:6379/0
     TESTING: "True"
   before_script:
