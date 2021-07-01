@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
 from app.core.config import redis, settings
-from app.db.base_class import async_run_query
 from app.db.session import AsyncSessionMaker
 from app.enums import RewardAdjustmentStatuses
 from app.internal_requests import validate_account_holder_uuid
@@ -60,17 +59,16 @@ async def record_transaction(
     active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction.datetime)
     adjustment_amounts = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
 
-    if adjustment_amounts:
-        response = "Awarded"
-    else:
-        response = "Threshold not met"
-
     processed_transaction = await crud.create_processed_transaction(
         db_session, retailer, active_campaign_slugs, transaction_data
     )
     await crud.delete_transaction(db_session, transaction)
 
-    adjustment_ids = await crud.create_reward_adjustments(db_session, processed_transaction.id, adjustment_amounts)
-    asyncio.create_task(enqueue_reward_adjustment_task(reward_adjustment_ids=adjustment_ids))
+    if adjustment_amounts:
+        adjustment_ids = await crud.create_reward_adjustments(db_session, processed_transaction.id, adjustment_amounts)
+        asyncio.create_task(enqueue_reward_adjustment_task(reward_adjustment_ids=adjustment_ids))
+        response = "Awarded"
+    else:
+        response = "Threshold not met"
 
     return response

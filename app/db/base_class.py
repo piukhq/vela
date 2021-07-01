@@ -2,7 +2,7 @@
 import logging
 
 from contextlib import contextmanager
-from typing import Any, Callable, Coroutine, Generator, Union
+from typing import Any, Callable, Generator, Union
 
 import sentry_sdk
 

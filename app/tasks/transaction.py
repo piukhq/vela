@@ -1,12 +1,13 @@
 import logging
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 import click
 import httpx
 import rq
 
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.attributes import flag_modified
 from tenacity import retry
 from tenacity.before import before_log
@@ -18,12 +19,9 @@ from app.core.config import redis, settings
 from app.db.base_class import sync_run_query
 from app.db.session import SyncSessionMaker
 from app.enums import RewardAdjustmentStatuses
-from app.models import RewardAdjustment
+from app.models import ProcessedTransaction, RewardAdjustment
 
 from . import logger
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
 
 
 def update_metrics_hook() -> None:
@@ -61,10 +59,16 @@ def _process_adjustment(adjustment: RewardAdjustment) -> dict:
 
     resp = send_request_with_metrics(
         "POST",
-        "",  # TODO: add polaris url
+        "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
+            base_url=settings.POLARIS_URL,
+            retailer_slug=adjustment.processed_transaction.retailer.slug,
+            account_holder_uuid=adjustment.processed_transaction.account_holder_uuid,
+        ),
         json={
-            # TODO: add polaris payload
+            "balance_change": adjustment.adjustment_amount,
+            "campaign_slug": adjustment.campaign_slug,
         },
+        headers={"Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}"},
     )
     resp.raise_for_status()
     response_audit["response"] = {"status": resp.status_code, "body": resp.text}
@@ -77,7 +81,12 @@ async def adjust_balance(*, reward_adjustment_id: int) -> None:
     with SyncSessionMaker() as db_session:
 
         def _get_adjustment() -> RewardAdjustment:
-            return db_session.query(RewardAdjustment).filter_by(id=reward_adjustment_id).one()
+            return (
+                db_session.query(RewardAdjustment)
+                .options(joinedload(RewardAdjustment.processed_transaction).joinedload(ProcessedTransaction.retailer))
+                .filter_by(id=reward_adjustment_id)
+                .one()
+            )
 
         adjustment = sync_run_query(_get_adjustment, db_session)
         if adjustment.status != RewardAdjustmentStatuses.IN_PROGRESS:

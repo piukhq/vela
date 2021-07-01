@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, List
 
 from sqlalchemy.future import select  # type: ignore
 from sqlalchemy.orm import joinedload
