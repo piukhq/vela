@@ -24,7 +24,7 @@ from app.models import ProcessedTransaction, RewardAdjustment
 from . import logger
 
 
-def update_metrics_hook() -> None:
+def update_metrics_hook(response: httpx.Response) -> None:
     # placeholder for when we add prometheus metrics
     pass
 
@@ -77,7 +77,7 @@ def _process_adjustment(adjustment: RewardAdjustment) -> dict:
     return response_audit
 
 
-async def adjust_balance(*, reward_adjustment_id: int) -> None:
+def adjust_balance(reward_adjustment_id: int) -> None:
     with SyncSessionMaker() as db_session:
 
         def _get_adjustment() -> RewardAdjustment:
@@ -116,7 +116,7 @@ def cli() -> None:
 
 @cli.command()
 def worker(burst: bool = False) -> None:
-    from app.tasks.error_handlers import handle_activate_account_holder_error
+    from app.tasks.error_handlers import handle_adjust_balance_error
 
     # placeholder for when we implement prometheus metrics
     # registry = prometheus_client.CollectorRegistry()
@@ -128,7 +128,7 @@ def worker(burst: bool = False) -> None:
         queues=[q],
         connection=redis,
         log_job_description=True,
-        exception_handlers=[handle_activate_account_holder_error],
+        exception_handlers=[handle_adjust_balance_error],
     )
     worker.work(burst=burst, with_scheduler=True)
 

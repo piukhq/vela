@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Coroutine
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -7,8 +7,8 @@ import pytest
 
 from fastapi import status
 from fastapi.testclient import TestClient
+from httpx import Request, Response
 from pytest_mock import MockerFixture
-from requests import Response
 
 from app.core.config import settings
 from app.enums import CampaignStatuses
@@ -25,14 +25,6 @@ auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}"}
 account_holder_uuid = uuid4()
 datetime_now = datetime.utcnow()
 timestamp_now = int(datetime_now.timestamp())
-
-
-class RetrySessionMock:
-    def __init__(self, response: Response) -> None:
-        self.response = response
-
-    def get(self, *args: Any, **kwargs: Any) -> Response:
-        return self.response
 
 
 @pytest.fixture(scope="function")
@@ -59,7 +51,7 @@ def test_post_transaction_happy_path(
 ) -> None:
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.retry_session", return_value=RetrySessionMock(response))
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
     mocker.patch("app.api.endpoints.transaction.rq.Queue")
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
@@ -83,7 +75,7 @@ def test_post_transaction_not_awarded(
 ) -> None:
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.retry_session", return_value=RetrySessionMock(response))
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
     payload["transaction_total"] = 250
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
@@ -111,7 +103,7 @@ def test_post_transaction_no_active_campaigns(
     db_session.commit()
 
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.retry_session", return_value=RetrySessionMock(response))
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -135,7 +127,7 @@ def test_post_transaction_no_active_campaigns_pre_start_date(
     payload["datetime"] = transaction_timestamp
 
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.retry_session", return_value=RetrySessionMock(response))
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -159,7 +151,7 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     db_session.commit()
 
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.retry_session", return_value=RetrySessionMock(response))
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -178,7 +170,7 @@ def test_post_transaction_no_active_campaigns_post_end_date(
 def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, mocker: MockerFixture) -> None:
     retailer_slug = setup.retailer.slug
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.retry_session", return_value=RetrySessionMock(response))
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
@@ -200,10 +192,14 @@ def test_post_transaction_account_holder_validation_errors(
     setup: SetupType, payload: dict, mocker: MockerFixture
 ) -> None:
     retailer_slug = setup.retailer.slug
+    request = Request(
+        method="GET",
+        url=f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{payload['loyalty_id']}/status",
+    )
 
-    mocked_session = mocker.patch("app.internal_requests.retry_session")
-    mocked_session.return_value = RetrySessionMock(
-        MagicMock(spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK)
+    mocked_session = mocker.patch("app.internal_requests.send_async_request_with_retry")
+    mocked_session.return_value = MagicMock(
+        spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK
     )
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
@@ -211,18 +207,14 @@ def test_post_transaction_account_holder_validation_errors(
     assert resp.status_code == status.HTTP_409_CONFLICT
     assert resp.json() == {"display_message": "User Account not Active", "error": "USER_NOT_ACTIVE"}
 
-    response = Response()
-    response.status_code = status.HTTP_404_NOT_FOUND
-    mocked_session.return_value = RetrySessionMock(response)
+    mocked_session.return_value = Response(status.HTTP_404_NOT_FOUND, request=request)
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "Unknown User.", "error": "USER_NOT_FOUND"}
 
-    response = Response()
-    response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    mocked_session.return_value = RetrySessionMock(response)
+    mocked_session.return_value = Response(status.HTTP_500_INTERNAL_SERVER_ERROR, request=request)
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 

@@ -53,7 +53,7 @@ async def record_transaction(
     retailer: RetailerRewards = Depends(retailer_is_valid),
     db_session: AsyncSession = Depends(get_session),
 ) -> Any:
-    validate_account_holder_uuid(payload.account_holder_uuid, retailer.slug)
+    await validate_account_holder_uuid(payload.account_holder_uuid, retailer.slug)
     transaction_data = payload.dict(exclude_unset=True)
     transaction = await crud.create_transaction(db_session, retailer, transaction_data)
     active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction.datetime)
