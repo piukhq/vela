@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, List
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.future import select  # type: ignore
 
 from app.db.base_class import async_run_query
 from app.enums import HttpErrors, RewardAdjustmentStatuses
@@ -51,26 +50,6 @@ async def create_processed_transaction(
         return processed_transaction
 
     return await async_run_query(_query, db_session)
-
-
-async def get_reward_adjustments(db_session: "AsyncSession", reward_adjustment_ids: list) -> List[RewardAdjustment]:
-    async def _query() -> List[RewardAdjustment]:
-        return (
-            (
-                await db_session.execute(
-                    select(RewardAdjustment)
-                    .with_for_update()
-                    .filter(
-                        RewardAdjustment.id.in_(reward_adjustment_ids),
-                        RewardAdjustment.status == RewardAdjustmentStatuses.PENDING,
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-    return await async_run_query(_query, db_session, rollback_on_exc=False)
 
 
 async def create_reward_adjustments(
