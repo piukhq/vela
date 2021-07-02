@@ -23,16 +23,16 @@ logger = logging.getLogger(__name__)
     reraise=True,
     retry_error_callback=lambda retry_state: retry_state.outcome.result(),
     retry=retry_if_result(lambda resp: 501 <= resp.status_code <= 504) | retry_if_exception_type(httpx.RequestError),
-)
+)  # pragma: no cover
 async def send_async_request_with_retry(
     method: str,
     url: str,
     *,
     headers: Optional[Dict[str, Any]] = None,
     json: Optional[Dict[str, Any]] = None,
-) -> httpx.Response:
+) -> httpx.Response:  # pragma: no cover
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient() as client:  # pragma: no cover
         return await client.request(method, url, headers=headers, json=json)
 
 
@@ -50,8 +50,6 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
         else:
             logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
             raise
-    except Exception as ex:
-        print(ex)
 
     else:
         if resp.json()["status"] != "active":

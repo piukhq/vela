@@ -7,7 +7,7 @@ from app.db.base_class import async_run_query
 from app.enums import HttpErrors, RewardAdjustmentStatuses
 from app.models import ProcessedTransaction, RetailerRewards, RewardAdjustment, Transaction
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.exc.asyncio import AsyncSession  # type: ignore
 
 

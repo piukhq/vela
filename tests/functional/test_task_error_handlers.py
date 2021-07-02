@@ -71,7 +71,7 @@ def test_handle_adjust_balance_error_5xx(
     )
     assert adjustment.status == RewardAdjustmentStatuses.IN_PROGRESS
     assert adjustment.attempts == 1
-    assert adjustment.next_attempt_time is not None and adjustment.next_attempt_time > fixed_now
+    assert adjustment.next_attempt_time == fixed_now + timedelta(seconds=180)
 
 
 @mock.patch("rq.Queue")
@@ -107,7 +107,7 @@ def test_handle_adjust_balance_error_no_response(
     )
     assert adjustment.status == RewardAdjustmentStatuses.IN_PROGRESS
     assert adjustment.attempts == 1
-    assert adjustment.next_attempt_time is not None and adjustment.next_attempt_time > fixed_now
+    assert adjustment.next_attempt_time == fixed_now + timedelta(seconds=180)
 
 
 @mock.patch("rq.Queue")

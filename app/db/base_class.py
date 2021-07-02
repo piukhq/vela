@@ -46,7 +46,9 @@ class TimestampMixin:
 
 
 @contextmanager
-def retry_query(session: Union[Session, AsyncSession], attempts: int = settings.DB_CONNECTION_RETRY_TIMES) -> Generator:
+def retry_query(
+    session: Union[Session, AsyncSession], attempts: int = settings.DB_CONNECTION_RETRY_TIMES
+) -> Generator:  # pragma: no cover
     """Retry any queries (transactions) that are interrupted by a connection error"""
 
     while attempts > 0:
@@ -66,7 +68,7 @@ def retry_query(session: Union[Session, AsyncSession], attempts: int = settings.
 # https://stackoverflow.com/a/30004941
 def sync_run_query(
     fn: Callable, session: Session, attempts: int = settings.DB_CONNECTION_RETRY_TIMES, read_only: bool = False
-) -> Any:
+) -> Any:  # pragma: no cover
 
     while attempts > 0:
         attempts -= 1
@@ -86,7 +88,7 @@ def sync_run_query(
 
 async def async_run_query(
     fn: Callable, session: AsyncSession, attempts: int = settings.DB_CONNECTION_RETRY_TIMES, read_only: bool = False
-) -> Any:
+) -> Any:  # pragma: no cover
     while attempts > 0:
         attempts -= 1
         try:

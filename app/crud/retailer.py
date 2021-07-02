@@ -8,7 +8,7 @@ from app.db.base_class import async_run_query
 from app.enums import CampaignStatuses, HttpErrors
 from app.models import Campaign, EarnRule, RetailerRewards, Transaction
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
 

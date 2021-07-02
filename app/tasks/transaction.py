@@ -110,12 +110,12 @@ def adjust_balance(reward_adjustment_id: int) -> None:
 
 
 @click.group()
-def cli() -> None:
+def cli() -> None:  # pragma: no cover
     pass
 
 
 @cli.command()
-def worker(burst: bool = False) -> None:
+def worker(burst: bool = False) -> None:  # pragma: no cover
     from app.tasks.error_handlers import handle_adjust_balance_error
 
     # placeholder for when we implement prometheus metrics
@@ -133,5 +133,5 @@ def worker(burst: bool = False) -> None:
     worker.work(burst=burst, with_scheduler=True)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     cli()

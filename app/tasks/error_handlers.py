@@ -16,7 +16,7 @@ from app.models import RewardAdjustment
 from . import logger
 from .transaction import adjust_balance
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from inspect import Traceback
 
 

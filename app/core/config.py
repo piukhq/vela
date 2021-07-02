@@ -11,7 +11,7 @@ from redis import Redis
 
 from app.core.key_vault import KeyVault
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from pydantic.typing import CallableGenerator
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

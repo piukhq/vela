@@ -37,6 +37,7 @@ pytest-mock = "*"
 types-requests = "*"
 types-redis = "*"
 httpretty = "*"
+pytest-asyncio = "*"
 
 [requires]
 python_version = "3.9"

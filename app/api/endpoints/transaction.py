@@ -20,7 +20,7 @@ from app.schemas import CreateTransactionSchema
 router = APIRouter()
 
 
-async def enqueue_reward_adjustment_task(*, reward_adjustment_ids: List[int]) -> None:
+async def enqueue_reward_adjustment_task(reward_adjustment_ids: List[int]) -> None:
     from app.tasks.transaction import adjust_balance
 
     async with AsyncSessionMaker() as db_session:
@@ -38,7 +38,7 @@ async def enqueue_reward_adjustment_task(*, reward_adjustment_ids: List[int]) ->
                     db_session, reward_adjustment, RewardAdjustmentStatuses.IN_PROGRESS
                 )
 
-        except Exception as ex:
+        except Exception as ex:  # pragma: no cover
             sentry_sdk.capture_exception(ex)
             await db_session.rollback()
 

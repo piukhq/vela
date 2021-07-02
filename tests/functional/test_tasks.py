@@ -9,6 +9,7 @@ import pytest
 
 from sqlalchemy.orm import Session
 
+from app.api.endpoints.transaction import enqueue_reward_adjustment_task
 from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment
 from app.tasks.transaction import _process_adjustment, adjust_balance
@@ -18,7 +19,7 @@ fake_now = datetime.utcnow()
 
 @httpretty.activate
 @mock.patch("app.tasks.transaction.datetime")
-def test__process_callback_ok(
+def test__process_adjustment_ok(
     mock_datetime: mock.Mock,
     reward_adjustment: RewardAdjustment,
     adjustment_url: str,
@@ -46,7 +47,7 @@ def test__process_callback_ok(
 
 
 @httpretty.activate
-def test__process_callback_http_errors(
+def test__process_adjustment_http_errors(
     reward_adjustment: RewardAdjustment,
     adjustment_url: str,
 ) -> None:
@@ -72,7 +73,7 @@ def test__process_callback_http_errors(
 
 
 @mock.patch("app.tasks.transaction.send_request_with_metrics")
-def test__process_callback_connection_error(
+def test__process_adjustment_connection_error(
     mock_send_request_with_metrics: mock.MagicMock,
     reward_adjustment: RewardAdjustment,
 ) -> None:
@@ -87,7 +88,7 @@ def test__process_callback_connection_error(
 
 
 @httpretty.activate
-def test_activate_account_holder(
+def test_adjust_balance(
     db_session: "Session",
     reward_adjustment: RewardAdjustment,
     adjustment_url: str,
@@ -106,7 +107,7 @@ def test_activate_account_holder(
     assert reward_adjustment.status == RewardAdjustmentStatuses.SUCCESS
 
 
-def test_activate_account_holder_wrong_status(
+def test_adjust_balance_wrong_status(
     db_session: "Session",
     reward_adjustment: RewardAdjustment,
 ) -> None:
@@ -121,3 +122,19 @@ def test_activate_account_holder_wrong_status(
     assert reward_adjustment.attempts == 0
     assert reward_adjustment.next_attempt_time is None
     assert reward_adjustment.status == RewardAdjustmentStatuses.FAILED
+
+
+@pytest.mark.asyncio
+@mock.patch("rq.Queue")
+async def test_enqueue_reward_adjustment_task(
+    MockQueue: mock.MagicMock, reward_adjustment: RewardAdjustment, db_session: "Session"
+) -> None:
+
+    mock_queue = MockQueue.return_value
+
+    await enqueue_reward_adjustment_task([reward_adjustment.id])
+
+    MockQueue.call_args[0] == "bpl_reward_adjustments"
+    mock_queue.enqueue.assert_called_with(adjust_balance, reward_adjustment_id=reward_adjustment.id, failure_ttl=604800)
+    db_session.refresh(reward_adjustment)
+    assert reward_adjustment.status == RewardAdjustmentStatuses.IN_PROGRESS
