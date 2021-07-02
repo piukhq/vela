@@ -62,7 +62,7 @@ async def enqueue_reward_adjustment_tasks(reward_adjustment_ids: List[int]) -> N
         async def _update_status_and_flush() -> None:
             (
                 await db_session.execute(
-                    update(RewardAdjustment)
+                    update(RewardAdjustment)  # type: ignore
                     .where(
                         RewardAdjustment.id.in_(reward_adjustment_ids),
                         RewardAdjustment.status == RewardAdjustmentStatuses.PENDING,
