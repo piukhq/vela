@@ -1,12 +1,14 @@
 import logging
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import click
 import httpx
 import rq
+import sentry_sdk
 
+from sqlalchemy import update
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.attributes import flag_modified
 from tenacity import retry
@@ -16,8 +18,8 @@ from tenacity.stop import stop_after_attempt
 from tenacity.wait import wait_fixed
 
 from app.core.config import redis, settings
-from app.db.base_class import sync_run_query
-from app.db.session import SyncSessionMaker
+from app.db.base_class import async_run_query, sync_run_query
+from app.db.session import AsyncSessionMaker, SyncSessionMaker
 from app.enums import RewardAdjustmentStatuses
 from app.models import ProcessedTransaction, RewardAdjustment
 
@@ -50,6 +52,55 @@ def send_request_with_metrics(
 
     with httpx.Client(event_hooks={"response": [update_metrics_hook]}) as client:
         return client.request(method, url, headers=headers, json=json, timeout=timeout)
+
+
+async def enqueue_reward_adjustment_tasks(reward_adjustment_ids: List[int]) -> None:
+    from app.tasks.transaction import adjust_balance
+
+    async with AsyncSessionMaker() as db_session:
+
+        async def _update_status_and_flush() -> None:
+            (
+                await db_session.execute(
+                    update(RewardAdjustment)
+                    .where(
+                        RewardAdjustment.id.in_(reward_adjustment_ids),
+                        RewardAdjustment.status == RewardAdjustmentStatuses.PENDING,
+                    )
+                    .values(status=RewardAdjustmentStatuses.IN_PROGRESS)
+                )
+            )
+
+            await db_session.flush()
+
+        async def _commit() -> None:
+            await db_session.commit()
+
+        async def _rollback() -> None:
+            await db_session.rollback()
+
+        try:
+            q = rq.Queue(settings.REWARD_ADJUSTMENT_TASK_QUEUE, connection=redis)
+            await async_run_query(_update_status_and_flush, db_session)
+            try:
+                q.enqueue_many(
+                    [
+                        rq.Queue.prepare_data(
+                            adjust_balance,
+                            reward_adjustment_id=reward_adjustment_id,
+                            failure_ttl=60 * 60 * 24 * 7,  # 1 week
+                        )
+                        for reward_adjustment_id in reward_adjustment_ids
+                    ]
+                )
+            except Exception:
+                await async_run_query(_rollback, db_session)
+                raise
+            else:
+                await async_run_query(_commit, db_session, rollback_on_exc=False)
+
+        except Exception as ex:  # pragma: no cover
+            sentry_sdk.capture_exception(ex)
 
 
 def _process_adjustment(adjustment: RewardAdjustment) -> dict:

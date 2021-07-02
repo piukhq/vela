@@ -16,7 +16,7 @@ async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -
     async def _query() -> RetailerRewards:
         return (await db_session.execute(select(RetailerRewards).filter_by(slug=retailer_slug))).scalars().first()
 
-    retailer = await async_run_query(_query, db_session, read_only=True)
+    retailer = await async_run_query(_query, db_session, rollback_on_exc=False)
     if not retailer:
         raise HttpErrors.INVALID_RETAILER.value
 
@@ -35,7 +35,7 @@ async def get_active_campaign_slugs(
             )
         ).all()
 
-    campaign_rows = await async_run_query(_query, db_session, read_only=True)
+    campaign_rows = await async_run_query(_query, db_session, rollback_on_exc=False)
 
     if transaction_time is not None:
         valid_campaigns = [
@@ -70,7 +70,7 @@ async def get_adjustment_amounts(
             .all()
         )
 
-    earn_rules = await async_run_query(_query, db_session, read_only=True)
+    earn_rules = await async_run_query(_query, db_session, rollback_on_exc=False)
     adjustment_amounts: dict = {}
     for earn in earn_rules:
         if transaction.amount >= earn.threshold:

@@ -70,7 +70,7 @@ async def get_reward_adjustments(db_session: "AsyncSession", reward_adjustment_i
             .all()
         )
 
-    return await async_run_query(_query, db_session, read_only=True)
+    return await async_run_query(_query, db_session, rollback_on_exc=False)
 
 
 async def create_reward_adjustments(

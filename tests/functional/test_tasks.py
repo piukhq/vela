@@ -9,7 +9,7 @@ import pytest
 
 from sqlalchemy.orm import Session
 
-from app.api.endpoints.transaction import enqueue_reward_adjustment_task
+from app.api.endpoints.transaction import enqueue_reward_adjustment_tasks
 from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment
 from app.tasks.transaction import _process_adjustment, adjust_balance
@@ -132,9 +132,9 @@ async def test_enqueue_reward_adjustment_task(
 
     mock_queue = MockQueue.return_value
 
-    await enqueue_reward_adjustment_task([reward_adjustment.id])
+    await enqueue_reward_adjustment_tasks([reward_adjustment.id])
 
     MockQueue.call_args[0] == "bpl_reward_adjustments"
-    mock_queue.enqueue.assert_called_with(adjust_balance, reward_adjustment_id=reward_adjustment.id, failure_ttl=604800)
+    mock_queue.enqueue_many.assert_called_once()
     db_session.refresh(reward_adjustment)
     assert reward_adjustment.status == RewardAdjustmentStatuses.IN_PROGRESS

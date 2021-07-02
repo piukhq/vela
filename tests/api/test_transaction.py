@@ -52,7 +52,7 @@ def test_post_transaction_happy_path(
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
-    mocker.patch("app.api.endpoints.transaction.rq.Queue")
+    mocker.patch("app.tasks.transaction.rq.Queue")
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 

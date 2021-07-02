@@ -87,7 +87,10 @@ def sync_run_query(
 
 
 async def async_run_query(
-    fn: Callable, session: AsyncSession, attempts: int = settings.DB_CONNECTION_RETRY_TIMES, read_only: bool = False
+    fn: Callable,
+    session: AsyncSession,
+    attempts: int = settings.DB_CONNECTION_RETRY_TIMES,
+    rollback_on_exc: bool = True,
 ) -> Any:  # pragma: no cover
     while attempts > 0:
         attempts -= 1
@@ -95,7 +98,7 @@ async def async_run_query(
             return await fn()
         except exc.DBAPIError as ex:
             logger.debug(f"Attempt failed: {type(ex).__name__} {ex}")
-            if not read_only:
+            if rollback_on_exc:
                 await session.rollback()
 
             if attempts > 0 and ex.connection_invalidated:

@@ -1,46 +1,18 @@
 import asyncio
 
-from typing import Any, List
-
-import rq
-import sentry_sdk
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
-from app.core.config import redis, settings
-from app.db.session import AsyncSessionMaker
-from app.enums import RewardAdjustmentStatuses
 from app.internal_requests import validate_account_holder_uuid
 from app.models import RetailerRewards
 from app.schemas import CreateTransactionSchema
+from app.tasks.transaction import enqueue_reward_adjustment_tasks
 
 router = APIRouter()
-
-
-async def enqueue_reward_adjustment_task(reward_adjustment_ids: List[int]) -> None:
-    from app.tasks.transaction import adjust_balance
-
-    async with AsyncSessionMaker() as db_session:
-        try:
-            reward_adjustments = await crud.get_reward_adjustments(db_session, reward_adjustment_ids)
-            for reward_adjustment in reward_adjustments:
-                q = rq.Queue(settings.REWARD_ADJUSTMENT_TASK_QUEUE, connection=redis)
-                q.enqueue(
-                    adjust_balance,
-                    reward_adjustment_id=reward_adjustment.id,
-                    failure_ttl=60 * 60 * 24 * 7,  # 1 week
-                )
-
-                await crud.update_reward_adjustment_status(
-                    db_session, reward_adjustment, RewardAdjustmentStatuses.IN_PROGRESS
-                )
-
-        except Exception as ex:  # pragma: no cover
-            sentry_sdk.capture_exception(ex)
-            await db_session.rollback()
 
 
 @router.post(
@@ -66,7 +38,7 @@ async def record_transaction(
 
     if adjustment_amounts:
         adjustment_ids = await crud.create_reward_adjustments(db_session, processed_transaction.id, adjustment_amounts)
-        asyncio.create_task(enqueue_reward_adjustment_task(reward_adjustment_ids=adjustment_ids))
+        asyncio.create_task(enqueue_reward_adjustment_tasks(reward_adjustment_ids=adjustment_ids))
         response = "Awarded"
     else:
         response = "Threshold not met"
