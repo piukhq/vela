@@ -51,7 +51,7 @@ async def enqueue_reward_adjustment_tasks(reward_adjustment_ids: List[int]) -> N
                         for reward_adjustment_id in reward_adjustment_ids
                     ]
                 )
-            except Exception as ex:
+            except Exception:
                 await async_run_query(_rollback, db_session)
                 raise
             else:
