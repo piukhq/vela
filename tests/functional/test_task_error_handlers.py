@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment
 from app.tasks.error_handlers import handle_adjust_balance_error
-from app.tasks.transaction import adjust_balance
+from app.tasks.reward_adjustment import adjust_balance
 
 if typing.TYPE_CHECKING:
     from sqlalchemy.orm import Session

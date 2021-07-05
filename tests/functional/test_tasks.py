@@ -12,13 +12,13 @@ from sqlalchemy.orm import Session
 from app.api.endpoints.transaction import enqueue_reward_adjustment_tasks
 from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment
-from app.tasks.transaction import _process_adjustment, adjust_balance
+from app.tasks.reward_adjustment import _process_adjustment, adjust_balance
 
 fake_now = datetime.utcnow()
 
 
 @httpretty.activate
-@mock.patch("app.tasks.transaction.datetime")
+@mock.patch("app.tasks.reward_adjustment.datetime")
 def test__process_adjustment_ok(
     mock_datetime: mock.Mock,
     reward_adjustment: RewardAdjustment,
@@ -72,7 +72,7 @@ def test__process_adjustment_http_errors(
         }
 
 
-@mock.patch("app.tasks.transaction.send_request_with_metrics")
+@mock.patch("app.tasks.reward_adjustment.send_request_with_metrics")
 def test__process_adjustment_connection_error(
     mock_send_request_with_metrics: mock.MagicMock,
     reward_adjustment: RewardAdjustment,

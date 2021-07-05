@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, List
+from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 
@@ -28,7 +29,7 @@ async def create_transaction(
 
 async def delete_transaction(db_session: "AsyncSession", transaction: Transaction) -> None:
     async def _query() -> None:
-        db_session.delete(transaction)
+        await db_session.delete(transaction)
         await db_session.commit()
 
     await async_run_query(_query, db_session)
@@ -62,6 +63,7 @@ async def create_reward_adjustments(
                 processed_transaction_id=processed_transaction_id,
                 campaign_slug=campaign_slug,
                 adjustment_amount=amount,
+                idempotency_token=str(uuid4()),
             )
             db_session.add(adjustment)
             adjustments.append(adjustment)

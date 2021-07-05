@@ -63,6 +63,7 @@ def reward_adjustment(db_session: "Session", processed_transaction: ProcessedTra
         adjustment_amount=50,
         campaign_slug=processed_transaction.campaign_slugs[0],
         processed_transaction_id=processed_transaction.id,
+        idempotency_token=str(uuid4()),
     )
     db_session.add(adjustment)
     db_session.commit()

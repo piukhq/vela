@@ -55,6 +55,7 @@ class RewardAdjustment(Base, TimestampMixin):
     campaign_slug = Column(String, nullable=False)
     next_attempt_time = Column(DateTime, nullable=True)
     response_data = Column(MutableList.as_mutable(JSONB), nullable=False, default=text("'[]'::jsonb"))
+    idempotency_token = Column(String(), nullable=False)
     processed_transaction_id = Column(Integer, ForeignKey("processed_transaction.id", ondelete="CASCADE"))
 
     processed_transaction = relationship("ProcessedTransaction", back_populates="reward_adjustments")

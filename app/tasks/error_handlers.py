@@ -14,7 +14,7 @@ from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment
 
 from . import logger
-from .transaction import adjust_balance
+from .reward_adjustment import adjust_balance
 
 if TYPE_CHECKING:  # pragma: no cover
     from inspect import Traceback
