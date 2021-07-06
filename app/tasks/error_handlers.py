@@ -52,7 +52,9 @@ def handle_request_exception(
             "body": request_exception.response.text,
         }
 
-    logger.warning(f"Activation attempt {adjustment.attempts} failed for tx: {adjustment.processed_transaction_id}")
+    logger.warning(
+        f"Balance adjustment attempt {adjustment.attempts} failed for tx: {adjustment.processed_transaction_id}"
+    )
 
     if adjustment.attempts < settings.REWARD_ADJUSTMENT_MAX_RETRIES:
         if response_status is None or (500 <= response_status < 600):
@@ -65,7 +67,7 @@ def handle_request_exception(
         terminal = True
         logger.warning(f"No further retries. Setting status to {RewardAdjustmentStatuses.FAILED}.")
         sentry_sdk.capture_message(
-            f"Account activation failed (max attempts reached) for {adjustment}. Stopping... {request_exception}"
+            f"Balance adjustment failed (max attempts reached) for {adjustment}. Stopping... {request_exception}"
         )
 
     if terminal:
