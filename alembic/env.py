@@ -32,6 +32,11 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+def get_uri() -> str:
+    # alembic will run the migrations synchronously with psycopg2
+    return settings.SQLALCHEMY_DATABASE_URI.replace("asyncpg", "psycopg2")
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -44,9 +49,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = settings.SQLALCHEMY_DATABASE_URI
     context.configure(
-        url=url,
+        url=get_uri(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -64,7 +68,7 @@ def run_migrations_online() -> None:
 
     """
     configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI
+    configuration["sqlalchemy.url"] = get_uri()
 
     connectable = engine_from_config(
         configuration,

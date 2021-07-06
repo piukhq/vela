@@ -7,7 +7,7 @@ from starlette.exceptions import HTTPException
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 
 
-def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:
+def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict], dict]]:  # pragma: no cover
     for error in payload:
         if error["type"] == "value_error.jsondecode":
             return (

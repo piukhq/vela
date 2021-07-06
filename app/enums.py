@@ -49,3 +49,10 @@ class HttpErrors(Enum):
             "error": "INTERNAL_ERROR",
         },
     )
+
+
+class RewardAdjustmentStatuses(Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    FAILED = "failed"
+    SUCCESS = "success"

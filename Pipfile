@@ -16,6 +16,11 @@ azure-keyvault = "*"
 azure-identity = "*"
 sqlalchemy-utils = "*"
 sentry-sdk = "*"
+redis = "*"
+rq = "*"
+asyncpg = "*"
+tenacity = "*"
+httpx = "*"
 
 [dev-packages]
 pytest = "*"
@@ -29,8 +34,10 @@ sqlalchemy-stubs = "*"
 ipython = "*"
 xenon = "*"
 pytest-mock = "*"
-pydantic = "*"
 types-requests = "*"
+types-redis = "*"
+httpretty = "*"
+pytest-asyncio = "*"
 
 [requires]
 python_version = "3.9"
