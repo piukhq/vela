@@ -1,107 +1,108 @@
 stages:
-  - tests
-  - dev
-  - staging
-  - preprod
-  - prod
+  - test
+  - build
+  - deploy
 
 default:
-  image: binkhq/python:3.9
+  image: ghcr.io/binkhq/python:3.9
 
-tests:
-  stage: tests
-  variables:
-    POSTGRES_DB: vela_test
-    POSTGRES_USER: postgres
-    POSTGRES_PASSWORD: ""
-    POSTGRES_HOST_AUTH_METHOD: trust
-    LOG_FORMATTER: brief
-    SQLALCHEMY_DATABASE_URI: "postgresql+asyncpg://postgres@postgres:5432/vela"
-    REDIS_URL: redis://redis:6379/0
-    TESTING: "True"
+variables:
+  POSTGRES_DB: vela_test
+  POSTGRES_HOST_AUTH_METHOD: trust
+  LOG_FORMATTER: brief
+  SQLALCHEMY_DATABASE_URI: "postgresql+asyncpg://postgres@postgres:5432/vela"
+  REDIS_URL: redis://redis:6379/0
+  TESTING: "True"
+
+test:style: &test
+  stage: test
   before_script:
-    - pip install pipenv
     - pipenv install --dev --system --deploy --ignore-pipfile
     - pip freeze
+  script:
+    - flake8
+    - black --line-length 120 --check .
+
+test:complexity:
+  <<: *test
+  script:
+    - xenon --no-assert --max-average A --max-modules B --max-absolute B .
+
+test:type-check:
+  <<: *test
+  script:
+    - mypy app
+
+test:pytest:
+  <<: *test
   script:
     - alembic upgrade head
     - pytest --verbose --cov app --cov-report term-missing
   services:
     - postgres:11
 
-complexity:
-  stage: tests
-  before_script:
-    - pip install xenon
-  script:
-    - xenon --no-assert --max-average A --max-modules B --max-absolute B .
-
-style:
-  stage: tests
-  before_script:
-    - pip install flake8 black
-  script:
-    - flake8
-    - black --line-length 120 --check .
-
-type-check:
-  stage: tests
-  before_script:
-    - pip install mypy sqlalchemy-stubs pydantic types-requests types-redis
-  script:
-    - mypy app
-
-dev:
-  stage: dev
+build:develop: &build
+  stage: build
+  needs: ["test:pytest", "test:complexity", "test:style", "test:type-check"]
   image: docker:latest
   services:
     - docker:dind
-  environment:
-    name: dev
   before_script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - export CTAG=$(echo -n "$CI_PIPELINE_CREATED_AT" | sed s/\://g)
   script:
-    - export CTAG="develop-$(date +%F-%H%M%S)"
-    - docker build --pull -t "$CI_REGISTRY/vela:$CTAG" .
-    - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$CI_REGISTRY/aqua-scanner:5.0" scan --local "$CI_REGISTRY/vela:$CTAG" --host https://aqua.uksouth.bink.sh:30001/ --user scanner --password $AQUA_PASSWORD --show-negligible --policies Bink --text
-    - docker push "$CI_REGISTRY/vela:$CTAG"
+    - docker build --pull --tag "$CI_REGISTRY/$CI_PROJECT_NAME:$CTAG" .
+    - docker push "$CI_REGISTRY/$CI_PROJECT_NAME:$CTAG"
   only:
     - develop
 
-staging:
-  stage: staging
-  image: docker:latest
-  services:
-    - docker:dind
+build:tag:
+  <<: *build
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - export CTAG=$CI_COMMIT_TAG
+  only:
+    - tags
+
+deploy:dev: &deploy
+  stage: deploy
+  needs: ["build:develop"]
+  image: binkcore.azurecr.io/tagbot:latest
+  environment:
+    name: dev
+  before_script:
+    - export CTAG=$(echo -n "$CI_PIPELINE_CREATED_AT" | sed s/\://g)
+  script:
+    - tagbot
+      --username "$CI_REGISTRY_USER"
+      --password "$CI_REGISTRY_PASSWORD"
+      --source "$CI_REGISTRY/$CI_PROJECT_NAME:$CTAG"
+      --tag "$CI_ENVIRONMENT_NAME-$CTAG"
+    - tagbot
+      --username "$CI_REGISTRY_USER"
+      --password "$CI_REGISTRY_PASSWORD"
+      --source "$CI_REGISTRY/$CI_PROJECT_NAME:$CTAG"
+      --tag "$CI_ENVIRONMENT_NAME"
+  only:
+    - develop
+
+deploy:staging:
+  <<: *deploy
+  needs: ["build:tag"]
   environment:
     name: staging
   before_script:
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-  script:
-    - docker build --pull -t "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" .
-    - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$CI_REGISTRY/aqua-scanner:5.0" scan --local "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --host https://aqua.uksouth.bink.sh:30001/ --user scanner --password $AQUA_PASSWORD --show-negligible --policies Bink --text
-    - docker push "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG"
+    - export CTAG=$CI_COMMIT_TAG
   only:
     - tags
 
-preprod:
-  stage: preprod
-  image: binkops.azurecr.io/tagbot:latest
-  environment:
-    name: preprod
-  script:
-    - tagbot --username "$CI_REGISTRY_USER" --password "$CI_REGISTRY_PASSWORD" --source "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --tag "preprod-$CI_COMMIT_TAG"
-  when: manual
-  only:
-    - tags
-
-prod:
-  stage: prod
-  image: binkops.azurecr.io/tagbot:latest
+deploy:prod:
+  <<: *deploy
+  needs: ["build:tag"]
   environment:
     name: prod
-  script:
-    - tagbot --username "$CI_REGISTRY_USER" --password "$CI_REGISTRY_PASSWORD" --source "$CI_REGISTRY/vela:staging-$CI_COMMIT_TAG" --tag "prod-$CI_COMMIT_TAG"
+  before_script:
+    - export CTAG=$CI_COMMIT_TAG
   when: manual
   only:
     - tags
