@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Generator
 import pytest
 
 from app.db.base import Base
-from app.db.session import SessionMaker, engine
+from app.db.session import SyncSessionMaker, sync_engine
 from app.models import Campaign, RetailerRewards
 
 if TYPE_CHECKING:
@@ -16,7 +16,7 @@ SetupType = namedtuple("SetupType", ["db_session", "retailer", "campaign"])
 
 @pytest.fixture(scope="module")
 def api_db_session() -> Generator["Session", None, None]:
-    with SessionMaker() as db_session:
+    with SyncSessionMaker() as db_session:
         yield db_session
 
 
@@ -32,12 +32,12 @@ def setup_tables() -> Generator:
     autouse set to True so will be run before each test function, to set up tables
     and tear them down after each test runs
     """
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=sync_engine)
 
     yield
 
     # Drop all tables after each test
-    Base.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=sync_engine)
 
 
 @pytest.fixture(scope="function")

@@ -16,19 +16,31 @@ azure-keyvault = "*"
 azure-identity = "*"
 sqlalchemy-utils = "*"
 sentry-sdk = "*"
+redis = "*"
+rq = "*"
+asyncpg = "*"
+tenacity = "*"
+httpx = "*"
 
 [dev-packages]
 pytest = "*"
 requests = "*"
 pytest-cov = "*"
 flake8 = "*"
-black = "==20.8b1"
+black = "*"
 isort = "*"
 mypy = "*"
 sqlalchemy-stubs = "*"
 ipython = "*"
 xenon = "*"
 pytest-mock = "*"
+types-requests = "*"
+types-redis = "*"
+httpretty = "*"
+pytest-asyncio = "*"
 
 [requires]
 python_version = "3.9"
+
+[pipenv]
+allow_prereleases = true

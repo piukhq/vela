@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from starlette import status
 
@@ -11,14 +11,14 @@ healthz_router = APIRouter()
 
 
 @healthz_router.get(path="/livez")
-def livez() -> Any:
+async def livez() -> Any:
     return {}
 
 
 @healthz_router.get(path="/readyz")
-def readyz(db_session: Session = Depends(get_session)) -> Any:
+async def readyz(db_session: AsyncSession = Depends(get_session)) -> Any:
     try:
-        db_session.execute(text("SELECT 1"))
+        await db_session.execute(text("SELECT 1"))
     except Exception as e:
         raise HTTPException(
             detail={"postgres": f"failed to connect to postgres due to error: {repr(e)}"},

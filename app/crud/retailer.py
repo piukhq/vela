@@ -1,24 +1,41 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, List
 
-from app.db.base_class import retry_query
+from sqlalchemy.future import select  # type: ignore
+from sqlalchemy.orm import joinedload
+
+from app.db.base_class import async_run_query
 from app.enums import CampaignStatuses, HttpErrors
 from app.models import Campaign, EarnRule, RetailerRewards, Transaction
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+if TYPE_CHECKING:  # pragma: no cover
+    from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
 
-def get_active_campaign_slugs(
-    db_session: "Session", retailer: RetailerRewards, transaction_time: datetime = None
+async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -> RetailerRewards:
+    async def _query() -> RetailerRewards:
+        return (await db_session.execute(select(RetailerRewards).filter_by(slug=retailer_slug))).scalars().first()
+
+    retailer = await async_run_query(_query, db_session, rollback_on_exc=False)
+    if not retailer:
+        raise HttpErrors.INVALID_RETAILER.value
+
+    return retailer
+
+
+async def get_active_campaign_slugs(
+    db_session: "AsyncSession", retailer: RetailerRewards, transaction_time: datetime = None
 ) -> List[str]:
+    async def _query() -> list:
+        return (
+            await db_session.execute(
+                select(Campaign.slug, Campaign.start_date, Campaign.end_date).filter_by(
+                    retailer_id=retailer.id, status=CampaignStatuses.ACTIVE
+                )
+            )
+        ).all()
 
-    with retry_query(session=db_session):
-        campaign_rows = (
-            db_session.query(Campaign.slug, Campaign.start_date, Campaign.end_date)
-            .filter_by(retailer_id=retailer.id, status=CampaignStatuses.ACTIVE)
-            .all()
-        )
+    campaign_rows = await async_run_query(_query, db_session, rollback_on_exc=False)
 
     if transaction_time is not None:
         valid_campaigns = [
@@ -36,8 +53,35 @@ def get_active_campaign_slugs(
     return valid_campaigns
 
 
-def check_earn_rule_for_campaigns(db_session: "Session", transaction: Transaction, campaign_slugs: List[str]) -> bool:
-    with retry_query(session=db_session):
-        campaign_earns = db_session.query(EarnRule).join(Campaign).filter(Campaign.slug.in_(campaign_slugs))
+async def get_adjustment_amounts(
+    db_session: "AsyncSession", transaction: Transaction, campaign_slugs: List[str]
+) -> dict:
+    async def _query() -> List[EarnRule]:
+        return (
+            (
+                await db_session.execute(
+                    select(EarnRule)
+                    .options(joinedload(EarnRule.campaign))
+                    .join(Campaign)
+                    .filter(Campaign.slug.in_(campaign_slugs))
+                )
+            )
+            .scalars()
+            .all()
+        )
 
-    return any(transaction.amount >= earn.threshold for earn in campaign_earns)
+    earn_rules = await async_run_query(_query, db_session, rollback_on_exc=False)
+    adjustment_amounts: dict = {}
+    for earn in earn_rules:
+        if transaction.amount >= earn.threshold:
+            if earn.campaign.earn_inc_is_tx_value:
+                amount = transaction.amount * earn.increment_multiplier
+            else:
+                amount = earn.increment * earn.increment_multiplier
+
+            if earn.campaign.slug in adjustment_amounts:
+                adjustment_amounts[earn.campaign.slug] += amount
+            else:
+                adjustment_amounts[earn.campaign.slug] = amount
+
+    return adjustment_amounts
