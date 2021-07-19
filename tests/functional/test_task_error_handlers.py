@@ -181,3 +181,36 @@ def test_handle_adjust_balance_error_unhandled_exception(
     mock_sentry_capture_exception.assert_called_once()
     assert adjustment.status == RewardAdjustmentStatuses.FAILED
     assert adjustment.next_attempt_time is None
+
+
+@mock.patch("rq.Queue")
+def test_handle_adjust_balance_error_account_holder_deleted(
+    mock_queue: mock.MagicMock, db_session: "Session", adjustment: RewardAdjustment, adjustment_url: str
+) -> None:
+
+    job = mock.MagicMock(spec=rq.job.Job, kwargs={"reward_adjustment_id": adjustment.id})
+    traceback = mock.MagicMock(spec=Traceback)
+    mock_request = mock.MagicMock(spec=httpx.Request, url=adjustment_url)
+    handle_adjust_balance_error(
+        job,
+        type(httpx.HTTPStatusError),
+        httpx.HTTPStatusError(
+            message="Not Found",
+            request=mock_request,
+            response=mock.MagicMock(
+                spec=httpx.Response,
+                request=mock_request,
+                status_code=404,
+                text="Not Found",
+                json=lambda: {
+                    "display_message": "Account not found for provided credentials.",
+                    "error": "NO_ACCOUNT_FOUND",
+                },
+            ),
+        ),
+        traceback,
+    )
+    db_session.refresh(adjustment)
+    mock_queue.assert_not_called()
+    assert adjustment.status == RewardAdjustmentStatuses.ACCOUNT_HOLDER_DELETED
+    assert adjustment.next_attempt_time is None

@@ -56,3 +56,4 @@ class RewardAdjustmentStatuses(Enum):
     IN_PROGRESS = "in_progress"
     FAILED = "failed"
     SUCCESS = "success"
+    ACCOUNT_HOLDER_DELETED = "account_holder_deleted"
