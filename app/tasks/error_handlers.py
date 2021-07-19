@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from json import JSONDecodeError
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import httpx
@@ -41,6 +42,7 @@ def handle_request_exception(
     status = None
     next_attempt_time = None
     response_status = None
+    response_message = None
 
     terminal = False
     response_audit: Dict[str, Any] = {"error": str(request_exception), "timestamp": datetime.utcnow().isoformat()}
@@ -51,6 +53,10 @@ def handle_request_exception(
             "status": response_status,
             "body": request_exception.response.text,
         }
+        try:
+            response_message = request_exception.response.json()["error"]
+        except (KeyError, JSONDecodeError, TypeError):
+            pass
 
     logger.warning(
         f"Balance adjustment attempt {adjustment.attempts} failed for tx: {adjustment.processed_transaction_id}"
@@ -71,7 +77,10 @@ def handle_request_exception(
         )
 
     if terminal:
-        status = RewardAdjustmentStatuses.FAILED  # type: ignore
+        if response_status == 404 and response_message == "NO_ACCOUNT_FOUND":
+            status = RewardAdjustmentStatuses.ACCOUNT_HOLDER_DELETED  # type: ignore
+        else:
+            status = RewardAdjustmentStatuses.FAILED  # type: ignore
 
     return response_audit, status, next_attempt_time
 
