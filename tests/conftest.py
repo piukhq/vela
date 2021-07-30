@@ -5,7 +5,7 @@ import pytest
 
 from sqlalchemy_utils import create_database, database_exists, drop_database
 
-from app.db.session import sync_engine
+from app.db.session import SyncSessionMaker, sync_engine
 from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards
 
@@ -28,6 +28,19 @@ def setup_db() -> Generator:
 
     # At end of all tests, drop the test db
     drop_database(sync_engine.url)
+
+
+@pytest.fixture(scope="module")
+def main_db_session() -> Generator["Session", None, None]:
+    with SyncSessionMaker() as db_session:
+        yield db_session
+
+
+@pytest.fixture(scope="function")
+def db_session(main_db_session: "Session") -> Generator["Session", None, None]:
+    yield main_db_session
+    main_db_session.rollback()
+    main_db_session.expunge_all()
 
 
 @pytest.fixture(scope="function")

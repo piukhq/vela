@@ -6,7 +6,7 @@ import pytest
 
 from app.core.config import settings
 from app.db.base import Base
-from app.db.session import SyncSessionMaker, sync_engine
+from app.db.session import sync_engine
 from app.models import Campaign, ProcessedTransaction, RewardAdjustment
 from app.models.retailer import RewardRule
 
@@ -14,18 +14,6 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 # conftest for API tests: tables will be dropped after each test to ensure a clean state
-
-
-@pytest.fixture(scope="module")
-def api_db_session() -> Generator["Session", None, None]:
-    with SyncSessionMaker() as db_session:
-        yield db_session
-
-
-@pytest.fixture(scope="function")
-def db_session(api_db_session: "Session") -> Generator["Session", None, None]:
-    yield api_db_session
-    api_db_session.rollback()
 
 
 @pytest.fixture(scope="function", autouse=True)
