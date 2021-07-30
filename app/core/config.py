@@ -156,6 +156,23 @@ class Settings(BaseSettings):
     REWARD_ADJUSTMENT_MAX_RETRIES: int = 6
     REWARD_ADJUSTMENT_BACKOFF_BASE: float = 3
 
+    CARINA_AUTH_TOKEN: Optional[str] = None
+
+    @validator("CARINA_AUTH_TOKEN")
+    def fetch_carina_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+        if isinstance(v, str) and not values["TESTING"]:
+            return v
+
+        if "KEY_VAULT_URI" in values:
+            return KeyVault(
+                values["KEY_VAULT_URI"],
+                values["TESTING"] or values["MIGRATING"],
+            ).get_secret("bpl-voucher-mgmt-auth-token")
+        else:
+            raise KeyError("required var KEY_VAULT_URI is not set.")
+
+    CARINA_URL: str = "http://carina-api"
+
     class Config:
         case_sensitive = True
         # env var settings priority ie priority 1 will override priority 2:
