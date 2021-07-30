@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -223,3 +224,36 @@ def test_post_transaction_account_holder_validation_errors(
         "display_message": "An unexpected system error occurred, please try again later.",
         "error": "INTERNAL_ERROR",
     }
+
+
+def _check_transaction_endpoint_422_response(retailer_slug: str, bad_payload: dict) -> None:
+    resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=bad_payload, headers=auth_headers)
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.json() == {"display_message": "BPL Schema not matched.", "error": "INVALID_CONTENT"}
+
+
+def test_post_transaction_account_holder_empty_val_validation_errors(
+    setup: SetupType, payload: dict, mocker: MockerFixture
+) -> None:
+    retailer_slug = setup.retailer.slug
+    mocked_session = mocker.patch("app.internal_requests.send_async_request_with_retry")
+    mocked_session.return_value = MagicMock(
+        spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK
+    )
+
+    bad_payload = deepcopy(payload)
+
+    bad_payload["id"] = ""
+    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+    bad_payload = deepcopy(payload)
+
+    bad_payload["datetime"] = ""
+    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+    bad_payload = deepcopy(payload)
+
+    bad_payload["MID"] = ""
+    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+    bad_payload = deepcopy(payload)
+
+    bad_payload["loyalty_id"] = ""
+    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
