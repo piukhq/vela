@@ -4,11 +4,12 @@ from pydantic import BaseModel, Field, StrictInt, validator
 from pydantic.types import UUID4
 
 
+# I pass in an empty string for any of these fields: id, datetime, MID or loyalty_id
 class CreateTransactionSchema(BaseModel):  # pragma: no cover
-    transaction_id: str = Field(..., alias="id")
+    transaction_id: str = Field(..., alias="id", min_length=1)
     amount: StrictInt = Field(..., alias="transaction_total")
-    datetime: int
-    mid: str = Field(..., alias="MID")
+    datetime: float
+    mid: str = Field(..., alias="MID", min_length=1)
     account_holder_uuid: UUID4 = Field(..., alias="loyalty_id")
 
     @validator("datetime")
