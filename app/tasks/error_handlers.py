@@ -48,6 +48,7 @@ def handle_request_exception(
     response_audit: Dict[str, Any] = {"error": str(request_exception), "timestamp": datetime.utcnow().isoformat()}
 
     if isinstance(request_exception, httpx.HTTPStatusError):
+        response_audit["request"] = {"url": request_exception.response.request.url}
         response_status = request_exception.response.status_code
         response_audit["response"] = {
             "status": response_status,

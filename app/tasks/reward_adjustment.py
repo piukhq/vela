@@ -1,12 +1,14 @@
 import logging
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from functools import partial
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import click
 import httpx
 import rq
 
+from sqlalchemy.future import select  # type: ignore
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.attributes import flag_modified
 from tenacity import retry
@@ -19,9 +21,59 @@ from app.core.config import redis, settings
 from app.db.base_class import sync_run_query
 from app.db.session import SyncSessionMaker
 from app.enums import RewardAdjustmentStatuses
-from app.models import ProcessedTransaction, RewardAdjustment
+from app.models import Campaign, ProcessedTransaction, RewardAdjustment, RewardRule
 
 from . import logger
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+
+def _process_voucher_allocation(adjustment: RewardAdjustment, voucher_type_slug: str) -> dict:
+    logger.info(f"Requesting voucher allocation for tx: {adjustment.processed_transaction_id}")
+    timestamp = datetime.utcnow()
+    request_url = "{base_url}/bpl/vouchers/{retailer_slug}/vouchers/{voucher_type_slug}/allocation".format(
+        base_url=settings.CARINA_URL,
+        retailer_slug=adjustment.processed_transaction.retailer.slug,
+        voucher_type_slug=voucher_type_slug,
+    )
+    response_audit: dict = {
+        "timestamp": timestamp.isoformat(),
+        "request": {"url": request_url},
+    }
+    resp = send_request_with_metrics(
+        "POST",
+        request_url,
+        json={
+            "account_url": "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/vouchers".format(
+                base_url=settings.POLARIS_URL,
+                retailer_slug=adjustment.processed_transaction.retailer.slug,
+                account_holder_uuid=adjustment.processed_transaction.account_holder_uuid,
+            )
+        },
+        headers={
+            "Authorization": f"Token {settings.CARINA_AUTH_TOKEN}",
+            "idempotency-token": adjustment.idempotency_token,
+        },
+    )
+    resp.raise_for_status()
+    response_audit["response"] = {"status": resp.status_code, "body": resp.text}
+    logger.info("Voucher allocation request complete")
+    return response_audit
+
+
+def _voucher_is_awardable(db_session: "Session", adjustment: RewardAdjustment, new_balance: int) -> Tuple[bool, str]:
+    def _get_reward_rule() -> RewardRule:
+        return (
+            db_session.execute(select(RewardRule).join(Campaign).filter(Campaign.slug == adjustment.campaign_slug))
+            .scalars()
+            .one()
+        )
+
+    reward_rule = sync_run_query(_get_reward_rule, db_session, read_only=True)
+    if goal_met := new_balance >= reward_rule.reward_goal:
+        logger.info(f"Reward goal ({reward_rule.reward_goal}) met (current balance: {new_balance}).")
+    return goal_met, reward_rule.voucher_type_slug
 
 
 def update_metrics_hook(response: httpx.Response) -> None:
@@ -52,18 +104,22 @@ def send_request_with_metrics(
         return client.request(method, url, headers=headers, json=json, timeout=timeout)
 
 
-def _process_adjustment(adjustment: RewardAdjustment) -> dict:
-    logger.info(f"Processing callback for tx: {adjustment.processed_transaction_id}")
+def _process_adjustment(adjustment: RewardAdjustment) -> Tuple[int, str, dict]:
+    logger.info(f"Sending balance adjustment for tx: {adjustment.processed_transaction_id}")
     timestamp = datetime.utcnow()
-    response_audit: dict = {"timestamp": timestamp.isoformat()}
+    request_url = "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
+        base_url=settings.POLARIS_URL,
+        retailer_slug=adjustment.processed_transaction.retailer.slug,
+        account_holder_uuid=adjustment.processed_transaction.account_holder_uuid,
+    )
+    response_audit: dict = {
+        "timestamp": timestamp.isoformat(),
+        "request": {"url": request_url},
+    }
 
     resp = send_request_with_metrics(
         "POST",
-        "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
-            base_url=settings.POLARIS_URL,
-            retailer_slug=adjustment.processed_transaction.retailer.slug,
-            account_holder_uuid=adjustment.processed_transaction.account_holder_uuid,
-        ),
+        request_url,
         json={
             "balance_change": adjustment.adjustment_amount,
             "campaign_slug": adjustment.campaign_slug,
@@ -75,9 +131,10 @@ def _process_adjustment(adjustment: RewardAdjustment) -> dict:
     )
     resp.raise_for_status()
     response_audit["response"] = {"status": resp.status_code, "body": resp.text}
-    logger.info(f"Callback succeeded for tx: {adjustment.processed_transaction_id}")
+    logger.info(f"Balance adjustment call succeeded for tx: {adjustment.processed_transaction_id}")
+    resp_data = resp.json()
 
-    return response_audit
+    return resp_data["new_balance"], resp_data["campaign_slug"], response_audit
 
 
 def adjust_balance(reward_adjustment_id: int) -> None:
@@ -91,7 +148,7 @@ def adjust_balance(reward_adjustment_id: int) -> None:
                 .one()
             )
 
-        adjustment = sync_run_query(_get_adjustment, db_session)
+        adjustment = sync_run_query(_get_adjustment, db_session, read_only=True)
         if adjustment.status != RewardAdjustmentStatuses.IN_PROGRESS:
             raise ValueError(f"Incorrect state: {adjustment.status}")
 
@@ -100,16 +157,34 @@ def adjust_balance(reward_adjustment_id: int) -> None:
             db_session.commit()
 
         sync_run_query(_increase_attempts, db_session)
-        response_audit = _process_adjustment(adjustment)
 
-        def _update_adjustment() -> None:
-            adjustment.response_data.append(response_audit)
+        balance, campaign_slug, response_audit = _process_adjustment(adjustment)
+
+        def _update_response_data(audit_data: dict) -> None:
+            adjustment.response_data.append(audit_data)
             flag_modified(adjustment, "response_data")
+            db_session.commit()
+
+        sync_run_query(partial(_update_response_data, response_audit), db_session)
+
+        if campaign_slug != adjustment.campaign_slug:
+            raise ValueError(
+                f"Adjustment campaign slug ({adjustment.campaign_slug}) does not match campaign slug returned in "
+                f"adjustment response ({campaign_slug})"
+            )
+
+        voucher_awardable, voucher_type_slug = _voucher_is_awardable(db_session, adjustment, balance)
+
+        if voucher_awardable:
+            response_audit = _process_voucher_allocation(adjustment, voucher_type_slug)
+            sync_run_query(partial(_update_response_data, response_audit), db_session)
+
+        def _finalise_adjustment() -> None:
             adjustment.status = RewardAdjustmentStatuses.SUCCESS
             adjustment.next_attempt_time = None
             db_session.commit()
 
-        sync_run_query(_update_adjustment, db_session)
+        sync_run_query(_finalise_adjustment, db_session)
 
 
 @click.group()
