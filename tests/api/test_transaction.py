@@ -247,11 +247,19 @@ def test_post_transaction_account_holder_empty_val_validation_errors(
     _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
     bad_payload = deepcopy(payload)
 
+    bad_payload["id"] = "  "
+    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+    bad_payload = deepcopy(payload)
+
     bad_payload["datetime"] = ""
     _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
     bad_payload = deepcopy(payload)
 
     bad_payload["MID"] = ""
+    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+    bad_payload = deepcopy(payload)
+
+    bad_payload["MID"] = "   "
     _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
     bad_payload = deepcopy(payload)
 
