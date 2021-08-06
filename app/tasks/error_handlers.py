@@ -14,7 +14,7 @@ from app.db.session import SyncSessionMaker
 from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment
 
-from . import logger
+from . import BalanceAdjustmentEnqueueException, logger
 from .reward_adjustment import adjust_balance
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -87,6 +87,7 @@ def handle_request_exception(
 
 
 def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exception, traceback: "Traceback") -> None:
+    status = None
     response_audit = None
     next_attempt_time = None
 
@@ -98,15 +99,28 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
             read_only=True,
         )
 
-        if isinstance(exc_value, (httpx.RequestError, httpx.HTTPStatusError)):  # handle http failures specifically
+        if isinstance(exc_value, BalanceAdjustmentEnqueueException) and hasattr(exc_value, "reward_adjustment_id"):
+            status = RewardAdjustmentStatuses.SUCCESS
+
+            def _update_exc_adjustment() -> None:
+                (
+                    db_session.query(RewardAdjustment)
+                    .filter_by(id=exc_value.reward_adjustment_id)  # type: ignore [attr-defined]
+                    .update({RewardAdjustment.status: RewardAdjustmentStatuses.FAILED}, synchronize_session=False)
+                )
+
+            sync_run_query(_update_exc_adjustment, db_session)
+
+        elif isinstance(exc_value, (httpx.RequestError, httpx.HTTPStatusError)):  # handle http failures specifically
             response_audit, status, next_attempt_time = handle_request_exception(adjustment, exc_value)
         else:  # otherwise report to sentry and fail the task
             status = RewardAdjustmentStatuses.FAILED  # type: ignore [assignment]
             sentry_sdk.capture_exception(exc_value)
 
         def _update_adjustment() -> None:
-            adjustment.next_attempt_time = next_attempt_time
-            flag_modified(adjustment, "next_attempt_time")
+            if next_attempt_time is not None:
+                adjustment.next_attempt_time = next_attempt_time
+                flag_modified(adjustment, "next_attempt_time")
 
             if response_audit is not None:
                 adjustment.response_data.append(response_audit)
