@@ -3,6 +3,7 @@ import typing
 from datetime import datetime, timedelta, timezone
 from inspect import Traceback
 from unittest import mock
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -11,6 +12,7 @@ import rq
 from app.core.config import settings
 from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment
+from app.tasks import BalanceAdjustmentEnqueueException
 from app.tasks.error_handlers import handle_adjust_balance_error
 from app.tasks.reward_adjustment import adjust_balance
 
@@ -214,3 +216,34 @@ def test_handle_adjust_balance_error_account_holder_deleted(
     mock_queue.assert_not_called()
     assert adjustment.status == RewardAdjustmentStatuses.ACCOUNT_HOLDER_DELETED
     assert adjustment.next_attempt_time is None
+
+
+@mock.patch("rq.Queue")
+def test_handle_adjust_balance_error_failed_enqueue(
+    mock_queue: mock.MagicMock, db_session: "Session", adjustment: RewardAdjustment
+) -> None:
+
+    post_voucher_adjustment = RewardAdjustment(
+        processed_transaction_id=adjustment.processed_transaction_id,
+        campaign_slug=adjustment.campaign_slug,
+        adjustment_amount=-5,
+        idempotency_token=str(uuid4()),
+    )
+    db_session.add(post_voucher_adjustment)
+    db_session.commit()
+
+    job = mock.MagicMock(spec=rq.job.Job, kwargs={"reward_adjustment_id": adjustment.id})
+    traceback = mock.MagicMock(spec=Traceback)
+    handle_adjust_balance_error(
+        job,
+        type(BalanceAdjustmentEnqueueException),
+        BalanceAdjustmentEnqueueException(reward_adjustment_id=post_voucher_adjustment.id),
+        traceback,
+    )
+    db_session.refresh(adjustment)
+    mock_queue.assert_not_called()
+    assert adjustment.status == RewardAdjustmentStatuses.SUCCESS
+    assert adjustment.next_attempt_time is None
+
+    db_session.refresh(post_voucher_adjustment)
+    assert post_voucher_adjustment.status == RewardAdjustmentStatuses.FAILED

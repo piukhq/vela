@@ -71,17 +71,17 @@ def sync_run_query(
     session: Session,
     *,
     attempts: int = settings.DB_CONNECTION_RETRY_TIMES,
-    read_only: bool = False,
+    rollback_on_exc: bool = True,
     **fn_kwargs: Any,
 ) -> Any:  # pragma: no cover
 
     while attempts > 0:
         attempts -= 1
         try:
-            return fn(fn_kwargs)
+            return fn(**fn_kwargs)
         except exc.DBAPIError as ex:
             logger.debug(f"Attempt failed: {type(ex).__name__} {ex}")
-            if not read_only:
+            if rollback_on_exc:
                 session.rollback()
 
             if attempts > 0 and ex.connection_invalidated:

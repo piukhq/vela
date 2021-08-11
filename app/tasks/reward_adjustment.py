@@ -1,7 +1,6 @@
 import logging
 
 from datetime import datetime
-from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 from uuid import uuid4
 
@@ -73,7 +72,7 @@ def _voucher_is_awardable(
             .one()
         )
 
-    reward_rule = sync_run_query(_get_reward_rule, db_session, read_only=True)
+    reward_rule = sync_run_query(_get_reward_rule, db_session, rollback_on_exc=False)
     if goal_met := new_balance >= reward_rule.reward_goal:
         logger.info(f"Reward goal ({reward_rule.reward_goal}) met (current balance: {new_balance}).")
     return goal_met, reward_rule
@@ -177,7 +176,7 @@ def adjust_balance(reward_adjustment_id: int) -> None:
                 .one()
             )
 
-        adjustment = sync_run_query(_get_adjustment, db_session, read_only=True)
+        adjustment = sync_run_query(_get_adjustment, db_session, rollback_on_exc=False)
         if adjustment.status != RewardAdjustmentStatuses.IN_PROGRESS:
             raise ValueError(f"Incorrect state: {adjustment.status}")
 

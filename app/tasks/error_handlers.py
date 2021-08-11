@@ -96,7 +96,7 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
         adjustment = sync_run_query(
             lambda: db_session.query(RewardAdjustment).filter_by(id=job.kwargs["reward_adjustment_id"]).first(),
             db_session,
-            read_only=True,
+            rollback_on_exc=False,
         )
 
         if isinstance(exc_value, BalanceAdjustmentEnqueueException) and hasattr(exc_value, "reward_adjustment_id"):
