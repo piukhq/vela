@@ -67,16 +67,21 @@ def retry_query(
 # based on the following stackoverflow answer:
 # https://stackoverflow.com/a/30004941
 def sync_run_query(
-    fn: Callable, session: Session, attempts: int = settings.DB_CONNECTION_RETRY_TIMES, read_only: bool = False
+    fn: Callable,
+    session: Session,
+    *,
+    attempts: int = settings.DB_CONNECTION_RETRY_TIMES,
+    rollback_on_exc: bool = True,
+    **fn_kwargs: Any,
 ) -> Any:  # pragma: no cover
 
     while attempts > 0:
         attempts -= 1
         try:
-            return fn()
+            return fn(**fn_kwargs)
         except exc.DBAPIError as ex:
             logger.debug(f"Attempt failed: {type(ex).__name__} {ex}")
-            if not read_only:
+            if rollback_on_exc:
                 session.rollback()
 
             if attempts > 0 and ex.connection_invalidated:
@@ -89,13 +94,15 @@ def sync_run_query(
 async def async_run_query(
     fn: Callable,
     session: AsyncSession,
+    *,
     attempts: int = settings.DB_CONNECTION_RETRY_TIMES,
     rollback_on_exc: bool = True,
+    **fn_kwargs: Any,
 ) -> Any:  # pragma: no cover
     while attempts > 0:
         attempts -= 1
         try:
-            return await fn()
+            return await fn(**fn_kwargs)
         except exc.DBAPIError as ex:
             logger.debug(f"Attempt failed: {type(ex).__name__} {ex}")
             if rollback_on_exc:
