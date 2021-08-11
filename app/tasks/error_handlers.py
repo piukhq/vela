@@ -102,7 +102,7 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
         if isinstance(exc_value, BalanceAdjustmentEnqueueException) and hasattr(exc_value, "reward_adjustment_id"):
             # If the exception raised is a BalanceAdjustmentEnqueueException it means that we failed to add the
             # post issued voucher balance decrease adjustment to the queue.
-            # In this case we set the status of the balance adjustment that issued the voucher to SUCCESS as it has 
+            # In this case we set the status of the balance adjustment that issued the voucher to SUCCESS as it has
             # completed all its steps, and the status of the adjustment that failed to be enqueued to FAILED.
             # We can manually readd to the queue the failed adjustment from Event Horizon.
 
