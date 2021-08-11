@@ -13,6 +13,7 @@ from app.api.endpoints.transaction import enqueue_reward_adjustment_tasks
 from app.core.config import settings
 from app.enums import RewardAdjustmentStatuses
 from app.models import RewardAdjustment, RewardRule
+from app.tasks import BalanceAdjustmentEnqueueException
 from app.tasks.reward_adjustment import (
     _process_adjustment,
     _process_voucher_allocation,
@@ -124,7 +125,9 @@ def test__process_voucher_allocation_connection_error(
 
 
 @httpretty.activate
+@mock.patch("rq.Queue")
 def test_adjust_balance(
+    MockQueue: mock.MagicMock,
     db_session: "Session",
     reward_adjustment: RewardAdjustment,
     reward_rule: RewardRule,
@@ -155,6 +158,22 @@ def test_adjust_balance(
     assert reward_adjustment.next_attempt_time is None
     assert reward_adjustment.status == RewardAdjustmentStatuses.SUCCESS
     assert len(reward_adjustment.response_data) == 2
+
+    post_voucher_adjustment = (
+        db_session.query(RewardAdjustment)
+        .filter(
+            RewardAdjustment.processed_transaction == reward_adjustment.processed_transaction,
+            RewardAdjustment.id != reward_adjustment.id,
+        )
+        .first()
+    )
+    mock_queue = MockQueue.return_value
+
+    assert post_voucher_adjustment is not None
+    assert post_voucher_adjustment.adjustment_amount < 0
+    mock_queue.enqueue.assert_called_with(
+        adjust_balance, kwargs={"reward_adjustment_id": post_voucher_adjustment.id}, failure_ttl=604800
+    )
 
 
 @httpretty.activate
@@ -192,6 +211,17 @@ def test_adjust_balance_voucher_allocation_call_fails(
     assert reward_adjustment.status == RewardAdjustmentStatuses.IN_PROGRESS
     assert len(reward_adjustment.response_data) == 1
 
+    post_voucher_adjustment = (
+        db_session.query(RewardAdjustment)
+        .filter(
+            RewardAdjustment.processed_transaction == reward_adjustment.processed_transaction,
+            RewardAdjustment.id != reward_adjustment.id,
+        )
+        .first()
+    )
+
+    assert post_voucher_adjustment is None
+
 
 def test_adjust_balance_wrong_status(
     db_session: "Session",
@@ -208,6 +238,59 @@ def test_adjust_balance_wrong_status(
     assert reward_adjustment.attempts == 0
     assert reward_adjustment.next_attempt_time is None
     assert reward_adjustment.status == RewardAdjustmentStatuses.FAILED
+
+    post_voucher_adjustment = (
+        db_session.query(RewardAdjustment)
+        .filter(
+            RewardAdjustment.processed_transaction == reward_adjustment.processed_transaction,
+            RewardAdjustment.id != reward_adjustment.id,
+        )
+        .first()
+    )
+
+    assert post_voucher_adjustment is None
+
+
+@httpretty.activate
+@mock.patch("rq.Queue")
+def test_adjust_balance_failed_enqueue(
+    MockQueue: mock.MagicMock,
+    db_session: "Session",
+    reward_adjustment: RewardAdjustment,
+    reward_rule: RewardRule,
+    adjustment_url: str,
+    allocation_url: str,
+) -> None:
+    reward_adjustment.status = RewardAdjustmentStatuses.IN_PROGRESS  # type: ignore
+    db_session.commit()
+
+    MockQueue.side_effect = Exception("test exception")
+
+    httpretty.register_uri(
+        "POST",
+        adjustment_url,
+        body=json.dumps({"new_balance": 100, "campaign_slug": reward_adjustment.campaign_slug}),
+        status=200,
+    )
+    httpretty.register_uri(
+        "POST",
+        allocation_url,
+        body=json.dumps({"account_url": "http://account-url/"}),
+        status=202,
+    )
+
+    with pytest.raises(BalanceAdjustmentEnqueueException):
+        adjust_balance(reward_adjustment.id)
+
+    post_voucher_adjustment = (
+        db_session.query(RewardAdjustment)
+        .filter(
+            RewardAdjustment.processed_transaction == reward_adjustment.processed_transaction,
+            RewardAdjustment.id != reward_adjustment.id,
+        )
+        .first()
+    )
+    assert post_voucher_adjustment is not None
 
 
 @pytest.mark.asyncio
@@ -301,8 +384,11 @@ def test__voucher_is_awardable(
     reward_rule: RewardRule,
     voucher_type_slug: str,
 ) -> None:
+    def _compare_result(result: tuple, expected_result: tuple) -> None:
+        assert result[0] == expected_result[0] and result[1].voucher_type_slug == expected_result[1]
+
     assert reward_rule.reward_goal == 5
-    assert _voucher_is_awardable(db_session, reward_adjustment, 1) == (False, voucher_type_slug)
-    assert _voucher_is_awardable(db_session, reward_adjustment, -5) == (False, voucher_type_slug)
-    assert _voucher_is_awardable(db_session, reward_adjustment, 5) == (True, voucher_type_slug)
-    assert _voucher_is_awardable(db_session, reward_adjustment, 10) == (True, voucher_type_slug)
+    _compare_result(_voucher_is_awardable(db_session, reward_adjustment, 1), (False, voucher_type_slug))
+    _compare_result(_voucher_is_awardable(db_session, reward_adjustment, -5), (False, voucher_type_slug))
+    _compare_result(_voucher_is_awardable(db_session, reward_adjustment, 5), (True, voucher_type_slug))
+    _compare_result(_voucher_is_awardable(db_session, reward_adjustment, 10), (True, voucher_type_slug))

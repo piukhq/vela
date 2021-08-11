@@ -1,8 +1,8 @@
 import logging
 
 from datetime import datetime
-from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from uuid import uuid4
 
 import click
 import httpx
@@ -23,7 +23,7 @@ from app.db.session import SyncSessionMaker
 from app.enums import RewardAdjustmentStatuses
 from app.models import Campaign, ProcessedTransaction, RewardAdjustment, RewardRule
 
-from . import logger
+from . import BalanceAdjustmentEnqueueException, logger
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -62,18 +62,20 @@ def _process_voucher_allocation(adjustment: RewardAdjustment, voucher_type_slug:
     return response_audit
 
 
-def _voucher_is_awardable(db_session: "Session", adjustment: RewardAdjustment, new_balance: int) -> Tuple[bool, str]:
+def _voucher_is_awardable(
+    db_session: "Session", adjustment: RewardAdjustment, new_balance: int
+) -> Tuple[bool, RewardRule]:
     def _get_reward_rule() -> RewardRule:
         return (
-            db_session.execute(select(RewardRule).join(Campaign).filter(Campaign.slug == adjustment.campaign_slug))
+            db_session.execute(select(RewardRule).join(Campaign).where(Campaign.slug == adjustment.campaign_slug))
             .scalars()
             .one()
         )
 
-    reward_rule = sync_run_query(_get_reward_rule, db_session, read_only=True)
+    reward_rule = sync_run_query(_get_reward_rule, db_session, rollback_on_exc=False)
     if goal_met := new_balance >= reward_rule.reward_goal:
         logger.info(f"Reward goal ({reward_rule.reward_goal}) met (current balance: {new_balance}).")
-    return goal_met, reward_rule.voucher_type_slug
+    return goal_met, reward_rule
 
 
 def update_metrics_hook(response: httpx.Response) -> None:
@@ -137,6 +139,32 @@ def _process_adjustment(adjustment: RewardAdjustment) -> Tuple[int, str, dict]:
     return resp_data["new_balance"], resp_data["campaign_slug"], response_audit
 
 
+def adjust_balance_for_issued_voucher(
+    db_session: "Session", current_adjustment: RewardAdjustment, reward_rule: RewardRule
+) -> None:
+    def _query() -> RewardAdjustment:
+        adjustment = RewardAdjustment(
+            processed_transaction_id=current_adjustment.processed_transaction_id,
+            campaign_slug=current_adjustment.campaign_slug,
+            adjustment_amount=-reward_rule.reward_goal,
+            idempotency_token=str(uuid4()),
+        )
+        db_session.add(adjustment)
+        db_session.commit()
+        return adjustment
+
+    new_adjustment = sync_run_query(_query, db_session)
+    try:
+        q = rq.Queue(settings.REWARD_ADJUSTMENT_TASK_QUEUE, connection=redis)
+        q.enqueue(
+            adjust_balance,
+            kwargs={"reward_adjustment_id": new_adjustment.id},
+            failure_ttl=60 * 60 * 24 * 7,  # 1 week
+        )
+    except Exception:
+        raise BalanceAdjustmentEnqueueException(new_adjustment.id)
+
+
 def adjust_balance(reward_adjustment_id: int) -> None:
     with SyncSessionMaker() as db_session:
 
@@ -148,7 +176,7 @@ def adjust_balance(reward_adjustment_id: int) -> None:
                 .one()
             )
 
-        adjustment = sync_run_query(_get_adjustment, db_session, read_only=True)
+        adjustment = sync_run_query(_get_adjustment, db_session, rollback_on_exc=False)
         if adjustment.status != RewardAdjustmentStatuses.IN_PROGRESS:
             raise ValueError(f"Incorrect state: {adjustment.status}")
 
@@ -165,7 +193,7 @@ def adjust_balance(reward_adjustment_id: int) -> None:
             flag_modified(adjustment, "response_data")
             db_session.commit()
 
-        sync_run_query(partial(_update_response_data, response_audit), db_session)
+        sync_run_query(_update_response_data, db_session, audit_data=response_audit)
 
         if campaign_slug != adjustment.campaign_slug:
             raise ValueError(
@@ -173,11 +201,12 @@ def adjust_balance(reward_adjustment_id: int) -> None:
                 f"adjustment response ({campaign_slug})"
             )
 
-        voucher_awardable, voucher_type_slug = _voucher_is_awardable(db_session, adjustment, balance)
+        voucher_awardable, reward_rule = _voucher_is_awardable(db_session, adjustment, balance)
 
         if voucher_awardable:
-            response_audit = _process_voucher_allocation(adjustment, voucher_type_slug)
-            sync_run_query(partial(_update_response_data, response_audit), db_session)
+            response_audit = _process_voucher_allocation(adjustment, reward_rule.voucher_type_slug)
+            sync_run_query(_update_response_data, db_session, audit_data=response_audit)
+            adjust_balance_for_issued_voucher(db_session, adjustment, reward_rule)
 
         def _finalise_adjustment() -> None:
             adjustment.status = RewardAdjustmentStatuses.SUCCESS
