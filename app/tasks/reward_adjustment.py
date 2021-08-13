@@ -148,6 +148,7 @@ def adjust_balance_for_issued_voucher(
             campaign_slug=current_adjustment.campaign_slug,
             adjustment_amount=-reward_rule.reward_goal,
             idempotency_token=str(uuid4()),
+            status=RewardAdjustmentStatuses.IN_PROGRESS,
         )
         db_session.add(adjustment)
         db_session.commit()
@@ -161,6 +162,7 @@ def adjust_balance_for_issued_voucher(
             kwargs={"reward_adjustment_id": new_adjustment.id},
             failure_ttl=60 * 60 * 24 * 7,  # 1 week
         )
+
     except Exception:
         raise BalanceAdjustmentEnqueueException(new_adjustment.id)
 
