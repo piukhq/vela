@@ -38,7 +38,6 @@ class LogLevel(str):
 
 class Settings(BaseSettings):
     API_PREFIX: str = "/bpl/rewards"
-    SECRET_KEY: str = "-2WtbW-ApKgrnf02B3Ufl32UCLg3Bfvc2NB6kFGZqBA"
     SERVER_NAME: str = "test"
     SERVER_HOST: str = "http://localhost:8000"
     TESTING: bool = False
@@ -120,6 +119,21 @@ class Settings(BaseSettings):
         return db_uri
 
     KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
+    SECRET_KEY: Optional[str] = None
+
+    @validator("SECRET_KEY")
+    def fetch_secret_key(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+        if isinstance(v, str) and not values["TESTING"]:
+            return v
+
+        if "KEY_VAULT_URI" in values:
+            return KeyVault(
+                values["KEY_VAULT_URI"],
+                values["TESTING"] or values["MIGRATING"],
+            ).get_secret("bpl-vela-secret-key")
+        else:
+            raise KeyError("required var KEY_VAULT_URI is not set.")
+
     VELA_AUTH_TOKEN: Optional[str] = None
 
     @validator("VELA_AUTH_TOKEN")
