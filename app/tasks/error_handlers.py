@@ -64,6 +64,7 @@ def handle_request_exception(
     )
 
     if adjustment.attempts < settings.REWARD_ADJUSTMENT_MAX_RETRIES:
+        # deepcode ignore PythonSameEvalBinaryExpressiontrue: snyk wrongly assumes this if to be always True
         if response_status is None or (500 <= response_status < 600):
             next_attempt_time = requeue_adjustment(adjustment)
             logger.info(f"Next attempt time at {next_attempt_time}")
