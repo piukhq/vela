@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, Field, validator
 
@@ -26,3 +27,8 @@ class CampaignSchema(BaseModel):  # pragma: no cover
     class Config:
         orm_mode = True
         allow_population_by_field_name = True
+
+
+class CampaignsStatusChangeSchema(BaseModel):  # pragma: no cover
+    action_type: CampaignStatuses
+    campaign_slugs: List[str]

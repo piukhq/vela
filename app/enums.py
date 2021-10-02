@@ -9,6 +9,21 @@ class CampaignStatuses(Enum):
     CANCELLED = "Cancelled"
     ENDED = "Ended"
 
+    @classmethod
+    def status_transitions(cls):
+        return {
+            cls.ACTIVE: (cls.CANCELLED, cls.ENDED),
+            cls.DRAFT: (cls.ACTIVE, cls.CANCELLED, cls.ENDED),
+            cls.CANCELLED: (),
+            cls.ENDED: (),
+        }
+
+    def is_legal_transition(self, current_status: Enum):
+        if self in self.status_transitions()[current_status]:
+            return True
+        else:
+            return False
+
 
 class HttpErrors(Enum):
     NO_ACTIVE_CAMPAIGNS = HTTPException(

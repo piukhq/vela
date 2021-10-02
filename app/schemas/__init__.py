@@ -1,2 +1,2 @@
-from .retailer import CampaignSchema
+from .retailer import CampaignSchema, CampaignsStatusChangeSchema
 from .transaction import CreateTransactionSchema
