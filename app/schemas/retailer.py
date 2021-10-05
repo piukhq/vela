@@ -30,5 +30,5 @@ class CampaignSchema(BaseModel):  # pragma: no cover
 
 
 class CampaignsStatusChangeSchema(BaseModel):  # pragma: no cover
-    action_type: CampaignStatuses
+    requested_status: CampaignStatuses
     campaign_slugs: List[str]

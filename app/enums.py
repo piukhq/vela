@@ -8,17 +8,18 @@ class CampaignStatuses(Enum):
     DRAFT = "Draft"
     CANCELLED = "Cancelled"
     ENDED = "Ended"
+    DELETED = "Deleted"
 
     @classmethod
-    def status_transitions(cls):
+    def status_transitions(cls) -> dict[Enum, tuple]:
         return {
             cls.ACTIVE: (cls.CANCELLED, cls.ENDED),
-            cls.DRAFT: (cls.ACTIVE, cls.CANCELLED, cls.ENDED),
+            cls.DRAFT: (cls.ACTIVE, cls.DELETED),
             cls.CANCELLED: (),
             cls.ENDED: (),
         }
 
-    def is_legal_transition(self, current_status: Enum):
+    def is_valid_status_transition(self, current_status: Enum) -> bool:
         if self in self.status_transitions()[current_status]:
             return True
         else:
@@ -52,7 +53,6 @@ class HttpErrors(Enum):
         status_code=status.HTTP_404_NOT_FOUND,
         detail={"display_message": "Unknown User.", "error": "USER_NOT_FOUND"},
     )
-
     USER_NOT_ACTIVE = HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail={"display_message": "User Account not Active", "error": "USER_NOT_ACTIVE"},
@@ -63,6 +63,20 @@ class HttpErrors(Enum):
             "display_message": "An unexpected system error occurred, please try again later.",
             "error": "INTERNAL_ERROR",
         },
+    )
+    INVALID_STATUS_REQUESTED = HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "display_message": "The requested status change could not be performed.",
+            "error": "INVALID_STATUS_REQUESTED",
+        },
+    )
+    NO_CAMPAIGN_FOUND = HTTPException(
+        detail={
+            "display_message": "Campaign not found for provided slug.",
+            "error": "NO_CAMPAIGN_FOUND",
+        },
+        status_code=status.HTTP_404_NOT_FOUND,
     )
 
 
