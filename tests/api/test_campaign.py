@@ -1,16 +1,23 @@
 from typing import Callable
 
 from fastapi.testclient import TestClient
+from requests import Response
 from starlette import status as starlette_http_status
 
 from app.core.config import settings
-from app.enums import CampaignStatuses
+from app.enums import CampaignStatuses, HttpErrors
 from app.models import Campaign
 from asgi import app
 from tests.api.conftest import SetupType
 
 client = TestClient(app)
 auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}", "Bpl-User-Channel": "channel"}
+
+
+def validate_error_response(response: Response, error: HttpErrors) -> None:
+    assert response.status_code == error.value.status_code
+    assert response.json()["display_message"] == error.value.detail["display_message"]
+    assert response.json()["error"] == error.value.detail["error"]
 
 
 def test_update_campaign_active_status_to_ended(setup: SetupType) -> None:
@@ -104,8 +111,7 @@ def test_status_change_invalid_token(setup: SetupType) -> None:
         headers={"Authorization": "Token wrong token"},
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_401_UNAUTHORIZED
-    assert resp.json() == {"display_message": "Supplied token is invalid.", "error": "INVALID_TOKEN"}
+    validate_error_response(resp, HttpErrors.INVALID_TOKEN)
 
 
 def test_status_change_invalid_retailer(setup: SetupType) -> None:
@@ -122,8 +128,7 @@ def test_status_change_invalid_retailer(setup: SetupType) -> None:
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_403_FORBIDDEN
-    assert resp.json() == {"display_message": "Requested retailer is invalid.", "error": "INVALID_RETAILER"}
+    validate_error_response(resp, HttpErrors.INVALID_RETAILER)
 
 
 def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None:
@@ -139,8 +144,7 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_404_NOT_FOUND
-    assert resp.json() == {"display_message": "Campaign not found for provided slug.", "error": "NO_CAMPAIGN_FOUND"}
+    validate_error_response(resp, HttpErrors.NO_CAMPAIGN_FOUND)
 
 
 def test_status_change_fields_fail_validation(setup: SetupType) -> None:
@@ -189,11 +193,7 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_409_CONFLICT
-    assert resp.json() == {
-        "display_message": "The requested status change could not be performed.",
-        "error": "INVALID_STATUS_REQUESTED",
-    }
+    validate_error_response(resp, HttpErrors.INVALID_STATUS_REQUESTED)
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.DRAFT
 
