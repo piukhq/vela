@@ -8,13 +8,12 @@ class CampaignStatuses(Enum):
     DRAFT = "Draft"
     CANCELLED = "Cancelled"
     ENDED = "Ended"
-    DELETED = "Deleted"
 
     @classmethod
     def status_transitions(cls) -> dict[Enum, tuple]:
         return {
             cls.ACTIVE: (cls.CANCELLED, cls.ENDED),
-            cls.DRAFT: (cls.ACTIVE, cls.DELETED),
+            cls.DRAFT: (cls.ACTIVE,),
             cls.CANCELLED: (),
             cls.ENDED: (),
         }
