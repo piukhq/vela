@@ -26,17 +26,18 @@ async def _campaign_status_change(
 
     errors: list[HttpErrors] = []
     failed_campaign_slugs: list[str] = []
-    for campaign_slug in campaign_slugs:
-        campaign = await crud.get_campaign_by_slug(db_session=db_session, campaign_slug=campaign_slug)
-        if campaign:
-            if requested_status.is_valid_status_transition(current_status=campaign.status):  # type: ignore
-                await async_run_query(_query, db_session, campaign=campaign)
-            else:
-                errors.append(HttpErrors.INVALID_STATUS_REQUESTED)
-                failed_campaign_slugs.append(campaign_slug)
+    campaigns: list[Campaign] = await crud.get_campaigns_by_slug(db_session=db_session, campaign_slugs=campaign_slugs)
+    for campaign in campaigns:
+        if requested_status.is_valid_status_transition(current_status=campaign.status):  # type: ignore
+            await async_run_query(_query, db_session, campaign=campaign)
         else:
-            errors.append(HttpErrors.NO_CAMPAIGN_FOUND)
-            failed_campaign_slugs.append(campaign_slug)
+            errors.append(HttpErrors.INVALID_STATUS_REQUESTED)
+            failed_campaign_slugs.append(campaign.slug)
+
+    # Add in any campaigns that were not found
+    for campaign_slug_not_found in set(campaign_slugs) - set([campaign.slug for campaign in campaigns]):
+        errors.append(HttpErrors.NO_CAMPAIGN_FOUND)
+        failed_campaign_slugs.append(campaign_slug_not_found)
 
     return errors, failed_campaign_slugs
 
@@ -56,7 +57,7 @@ async def campaigns_status_change(
         db_session=db_session, campaign_slugs=payload.campaign_slugs, requested_status=payload.requested_status
     )
 
-    if errors:
+    if errors:  # pragma: no cover
         # If there are only NO_CAMPAIGN_FOUND errors AND ALL the campaign_slugs provided produced this error
         if HttpErrors.NO_CAMPAIGN_FOUND in errors and len(errors) == len(payload.campaign_slugs):
             raise HttpErrors.NO_CAMPAIGN_FOUND.value
