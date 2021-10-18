@@ -1,5 +1,6 @@
+from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Dict, Generator
+from typing import TYPE_CHECKING, Callable, Dict, Generator
 
 import pytest
 
@@ -76,3 +77,23 @@ def campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Di
     db_session.commit()
 
     return campaign
+
+
+@pytest.fixture(scope="function")
+def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
+    def _create_mock_campaign(**campaign_params: Dict) -> Campaign:
+        """
+        Create a campaign in the test DB
+        :param campaign_params: override any values for the campaign, from what the mock_campaign fixture provides
+        :return: Callable function
+        """
+        mock_campaign_params = deepcopy(mock_campaign)
+
+        mock_campaign_params.update(campaign_params)  # type: ignore
+        campaign = Campaign(**mock_campaign_params, retailer_id=retailer.id)
+        db_session.add(campaign)
+        db_session.commit()
+
+        return campaign
+
+    return _create_mock_campaign
