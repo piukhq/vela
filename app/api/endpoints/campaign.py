@@ -17,6 +17,21 @@ class CampaignStatusError(Exception):
     pass
 
 
+async def _check_remaining_active_campaigns(
+    db_session: "AsyncSession", campaign_slugs: list[str], retailer: RetailerRewards
+) -> None:
+    try:
+        active_campaign_slugs: list[str] = await crud.get_active_campaign_slugs(db_session, retailer)
+    except HTTPException as e:
+        # This would actually be an invalid status request
+        if e.detail["error"] == "NO_ACTIVE_CAMPAIGNS":  # type: ignore
+            raise HttpErrors.INVALID_STATUS_REQUESTED.value
+
+    # If you've requested to end or cancel all of your active campaigns..
+    if set(active_campaign_slugs).issubset(set(campaign_slugs)):
+        raise HttpErrors.INVALID_STATUS_REQUESTED.value
+
+
 async def _campaign_status_change(
     db_session: "AsyncSession", campaign_slugs: list[str], requested_status: CampaignStatuses
 ) -> tuple[list[HttpErrors], list[str]]:
@@ -52,6 +67,12 @@ async def campaigns_status_change(
     retailer: RetailerRewards = Depends(retailer_is_valid),
     db_session: AsyncSession = Depends(get_session),
 ) -> Any:
+
+    # Check that this retailer will not be left with no Active campaigns
+    if payload.requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
+        await _check_remaining_active_campaigns(
+            db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer
+        )
 
     errors, failed_campaign_slugs = await _campaign_status_change(
         db_session=db_session, campaign_slugs=payload.campaign_slugs, requested_status=payload.requested_status
