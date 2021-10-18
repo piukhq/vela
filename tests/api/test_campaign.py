@@ -20,15 +20,23 @@ def validate_error_response(response: Response, error: HttpErrors) -> None:
     assert response.json()["error"] == error.value.detail["error"]
 
 
-def test_update_campaign_active_status_to_ended(setup: SetupType) -> None:
+def test_update_campaign_active_status_to_ended(setup: SetupType, create_mock_campaign: Callable) -> None:
     db_session, retailer, campaign = setup
     payload = {
         "requested_status": "Ended",
         "campaign_slugs": [campaign.slug],
     }
-
     campaign.status = CampaignStatuses.ACTIVE
     db_session.commit()
+
+    # Set up a second ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
+    create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
@@ -66,6 +74,14 @@ def test_update_multiple_campaigns_ok(setup: SetupType, create_mock_campaign: Ca
         "requested_status": "Ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
     }
+    # Set up a fourth ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
+    create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "fourthtestcampaign",
+            "slug": "fourth-test-campaign",
+        }
+    )
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
@@ -186,6 +202,15 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
         "requested_status": "Ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug],
     }
+    # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
+    # (would produce an unrelated 409 error)
+    create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "thirdtestcampaign",
+            "slug": "third-test-campaign",
+        }
+    )
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
@@ -226,6 +251,15 @@ def test_mixed_status_changes_to_legal_and_illegal_states(setup: SetupType, crea
         "requested_status": "Cancelled",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
     }
+    # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
+    # (would produce 409 error)
+    create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "fourthtestcampaign",
+            "slug": "fourth-test-campaign",
+        }
+    )
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
@@ -285,6 +319,15 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
             "NON_EXISTENT_CAMPAIGN_2",
         ],
     }
+    # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
+    # (would produce 409 error)
+    create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "fourthtestcampaign",
+            "slug": "fourth-test-campaign",
+        }
+    )
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
@@ -307,3 +350,77 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
     assert third_campaign.slug in failed_campaigns
     assert "NON_EXISTENT_CAMPAIGN_1" in failed_campaigns
     assert "NON_EXISTENT_CAMPAIGN_2" in failed_campaigns
+
+
+def test_leaving_no_active_campaigns_gives_error(setup: SetupType, create_mock_campaign: Callable) -> None:
+    """Test that a request to end all ACTIVE campaigns results in a 409 error"""
+    db_session, retailer, campaign = setup
+    # Set the first campaign to ACTIVE, this should transition to ENDED ok
+    campaign.status = CampaignStatuses.ACTIVE
+    db_session.commit()
+    # Create second and third campaigns
+    second_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    third_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "thirdtestcampaign",
+            "slug": "third-test-campaign",
+        }
+    )
+    payload = {
+        "requested_status": "Ended",
+        "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    validate_error_response(resp, HttpErrors.INVALID_STATUS_REQUESTED)
+    db_session.refresh(campaign)
+    assert campaign.status == CampaignStatuses.ACTIVE
+    db_session.refresh(second_campaign)
+    assert second_campaign.status == CampaignStatuses.ACTIVE
+    db_session.refresh(third_campaign)
+    assert third_campaign.status == CampaignStatuses.ACTIVE
+
+
+def test_having_no_active_campaigns_gives_invalid_status_error(
+    setup: SetupType, create_mock_campaign: Callable
+) -> None:
+    """From this endpoint, you should get an invalid status requested error if you currently have no active campaigns"""
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.DRAFT
+    db_session.commit()
+    # Create second campaign
+    second_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.DRAFT,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    payload = {
+        "requested_status": "Ended",
+        "campaign_slugs": [campaign.slug, second_campaign.slug],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    validate_error_response(resp, HttpErrors.INVALID_STATUS_REQUESTED)
+    db_session.refresh(campaign)
+    assert campaign.status == CampaignStatuses.DRAFT
+    db_session.refresh(second_campaign)
+    assert second_campaign.status == CampaignStatuses.DRAFT
