@@ -1,5 +1,7 @@
 from typing import Callable
 
+import pytest
+
 from fastapi.testclient import TestClient
 from requests import Response
 from starlette import status as starlette_http_status
@@ -163,53 +165,12 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
     validate_error_response(resp, HttpErrors.NO_CAMPAIGN_FOUND)
 
 
-def test_status_change_only_empty_strings(setup: SetupType) -> None:
+@pytest.mark.parametrize("campaign_slugs", [["    ", " "], ["\t\t\t\r"], ["\t\t\t\n"], ["\t\n", "  "]])
+def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, setup: SetupType) -> None:
     _, retailer, _ = setup
     payload = {
         "requested_status": "Ended",
-        "campaign_slugs": ["    ", " "],
-    }
-
-    resp = client.post(
-        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
-        json=payload,
-        headers=auth_headers,
-    )
-
-    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert resp.json() == {
-        "display_message": "BPL Schema not matched.",
-        "error": "INVALID_CONTENT",
-    }
-
-
-def test_status_change_tabs_and_carriage_returns(setup: SetupType) -> None:
-    """Should evaluate to an empty string and fail"""
-    _, retailer, _ = setup
-    payload = {
-        "requested_status": "Ended",
-        "campaign_slugs": ["\t\t\t\r"],
-    }
-
-    resp = client.post(
-        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
-        json=payload,
-        headers=auth_headers,
-    )
-
-    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert resp.json() == {
-        "display_message": "BPL Schema not matched.",
-        "error": "INVALID_CONTENT",
-    }
-
-
-def test_status_change_tabs_and_newlines(setup: SetupType) -> None:
-    """Should evaluate to an empty string and fail"""
-    _, retailer, _ = setup
-    payload = {
-        "requested_status": "Ended",
-        "campaign_slugs": ["\t\t\t\n"],
+        "campaign_slugs": campaign_slugs,
     }
 
     resp = client.post(
