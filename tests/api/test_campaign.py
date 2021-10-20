@@ -163,6 +163,93 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
     validate_error_response(resp, HttpErrors.NO_CAMPAIGN_FOUND)
 
 
+def test_status_change_only_empty_strings(setup: SetupType) -> None:
+    _, retailer, _ = setup
+    payload = {
+        "requested_status": "Ended",
+        "campaign_slugs": ["    ", " ", "\t", "\t\t\t\n", "\t\t\t\r"],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.json() == {
+        "display_message": "BPL Schema not matched.",
+        "error": "INVALID_CONTENT",
+    }
+
+
+def test_status_change_tabs_and_carriage_returns(setup: SetupType) -> None:
+    """Should evaluate to an empty string and fail"""
+    _, retailer, _ = setup
+    payload = {
+        "requested_status": "Ended",
+        "campaign_slugs": ["\t\t\t\r"],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.json() == {
+        "display_message": "BPL Schema not matched.",
+        "error": "INVALID_CONTENT",
+    }
+
+
+def test_status_change_tabs_and_newlines(setup: SetupType) -> None:
+    """Should evaluate to an empty string and fail"""
+    _, retailer, _ = setup
+    payload = {
+        "requested_status": "Ended",
+        "campaign_slugs": ["\t\t\t\n"],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.json() == {
+        "display_message": "BPL Schema not matched.",
+        "error": "INVALID_CONTENT",
+    }
+
+
+def test_status_change_empty_strings_and_legit_campaign(setup: SetupType) -> None:
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+    db_session.commit()
+
+    payload = {
+        "requested_status": "Ended",
+        "campaign_slugs": [campaign.slug, "  "],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.json() == {
+        "display_message": "BPL Schema not matched.",
+        "error": "INVALID_CONTENT",
+    }
+    db_session.refresh(campaign)
+    assert campaign.status == CampaignStatuses.ACTIVE  # i.e. not changed
+
+
 def test_status_change_fields_fail_validation(setup: SetupType) -> None:
     db_session, retailer, campaign = setup
     payload = {
