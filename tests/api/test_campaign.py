@@ -167,7 +167,7 @@ def test_status_change_only_empty_strings(setup: SetupType) -> None:
     _, retailer, _ = setup
     payload = {
         "requested_status": "Ended",
-        "campaign_slugs": ["    ", " ", "\t", "\t\t\t\n", "\t\t\t\r"],
+        "campaign_slugs": ["    ", " "],
     }
 
     resp = client.post(
