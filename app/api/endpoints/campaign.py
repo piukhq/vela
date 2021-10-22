@@ -33,7 +33,7 @@ async def _check_remaining_active_campaigns(
 
 
 async def _campaign_status_change(
-    db_session: "AsyncSession", campaign_slugs: list[str], requested_status: CampaignStatuses
+    db_session: "AsyncSession", campaign_slugs: list[str], requested_status: CampaignStatuses, retailer: RetailerRewards
 ) -> tuple[list[HttpErrors], list[str]]:
     async def _query(campaign: Campaign) -> None:
         campaign.status = requested_status  # type: ignore
@@ -41,7 +41,9 @@ async def _campaign_status_change(
 
     errors: list[HttpErrors] = []
     failed_campaign_slugs: list[str] = []
-    campaigns: list[Campaign] = await crud.get_campaigns_by_slug(db_session=db_session, campaign_slugs=campaign_slugs)
+    campaigns: list[Campaign] = await crud.get_campaigns_by_slug(
+        db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer
+    )
     for campaign in campaigns:
         if requested_status.is_valid_status_transition(current_status=campaign.status):  # type: ignore
             await async_run_query(_query, db_session, campaign=campaign)
@@ -75,7 +77,10 @@ async def campaigns_status_change(
         )
 
     errors, failed_campaign_slugs = await _campaign_status_change(
-        db_session=db_session, campaign_slugs=payload.campaign_slugs, requested_status=payload.requested_status
+        db_session=db_session,
+        campaign_slugs=payload.campaign_slugs,
+        requested_status=payload.requested_status,
+        retailer=retailer,
     )
 
     if errors:  # pragma: no cover
