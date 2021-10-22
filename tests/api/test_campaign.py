@@ -8,7 +8,7 @@ from starlette import status as starlette_http_status
 
 from app.core.config import settings
 from app.enums import CampaignStatuses, HttpErrors
-from app.models import Campaign
+from app.models import Campaign, RetailerRewards
 from asgi import app
 from tests.api.conftest import SetupType
 
@@ -165,7 +165,31 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
     validate_error_response(resp, HttpErrors.NO_CAMPAIGN_FOUND)
 
 
-@pytest.mark.parametrize("campaign_slugs", [["    ", " "], ["\t\t\t\r"], ["\t\t\t\n"], ["\t\n", "  "]])
+def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, create_mock_retailer: Callable) -> None:
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.DRAFT  # Set to DRAFT just so the status transition requested won't trigger 409
+    db_session.commit()
+    payload = {
+        "requested_status": "Active",
+        "campaign_slugs": [campaign.slug],  # legitimate slug
+    }
+    # Create a second retailer who should not be able to change status of the campaign above
+    second_retailer: RetailerRewards = create_mock_retailer(
+        **{
+            "slug": "second-retailer",
+        }
+    )
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{second_retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    validate_error_response(resp, HttpErrors.NO_CAMPAIGN_FOUND)
+
+
+@pytest.mark.parametrize("campaign_slugs", [["    ", " "], ["\t\t\t\r"], ["\t\t\t\n"], ["\t\n", "  "], [""]])
 def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, setup: SetupType) -> None:
     _, retailer, _ = setup
     payload = {
@@ -328,6 +352,96 @@ def test_mixed_status_changes_to_legal_and_illegal_states(setup: SetupType, crea
     assert len(failed_campaigns) == 2
     assert second_campaign.slug in failed_campaigns
     assert third_campaign.slug in failed_campaigns
+
+
+def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belonging_to_retailer(
+    setup: SetupType, create_mock_campaign: Callable, create_mock_retailer: Callable
+) -> None:
+    """
+    Test that, where there are multiple campaigns and some will change to an illegal state,
+    and some campaigns do not belong to the retailer (a 404 error),
+    Vela returns a 409 and an error message is displayed to advise of any illegal state changes.
+    Test that the legal campaign state change(s) are applied and that the illegal campaign state change(s) are not made
+    """
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE  # This should transition to ENDED ok
+    db_session.commit()
+    # Create second and third campaigns
+    second_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.DRAFT,  # This should fail validation, can't go from DRAFT to CANCELLED
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    third_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ENDED,  # This should fail validation, can't go from ENDED to CANCELLED
+            "name": "thirdtestcampaign",
+            "slug": "third-test-campaign",
+        }
+    )
+    payload = {
+        "requested_status": "Cancelled",
+        "campaign_slugs": [
+            campaign.slug,
+            second_campaign.slug,
+            third_campaign.slug,
+            "NON_EXISTENT_CAMPAIGN_1",
+            "NON_EXISTENT_CAMPAIGN_2",
+        ],
+    }
+    # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
+    # (would produce 409 error)
+    create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "fourthtestcampaign",
+            "slug": "fourth-test-campaign",
+        }
+    )
+    # Create a second retailer who will own a campaign_slug which will also be passed in
+    second_retailer: RetailerRewards = create_mock_retailer(
+        **{
+            "slug": "second-retailer",
+        }
+    )
+    # Set up an additional campaign owned by the second retailer, which on its own would give a 404 response
+    second_retailer_owned_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondretailerownedcampaign",
+            "slug": "second-retailer-owned-campaign",
+            "retailer_id": second_retailer.id,
+        }
+    )
+    # Add to the payload
+    payload["campaign_slugs"].append(second_retailer_owned_campaign.slug)
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == starlette_http_status.HTTP_409_CONFLICT
+    db_session.refresh(campaign)
+    assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
+    db_session.refresh(second_campaign)
+    assert second_campaign.status == CampaignStatuses.DRAFT  # i.e. no change
+    db_session.refresh(third_campaign)
+    assert third_campaign.status == CampaignStatuses.ENDED  # i.e. no change
+    db_session.refresh(second_retailer_owned_campaign)
+    assert second_retailer_owned_campaign.status == CampaignStatuses.ACTIVE  # i.e. no change
+    assert resp.json()["display_message"] == "Not all campaigns were updated as requested."
+    assert resp.json()["error"] == "INCOMPLETE_STATUS_UPDATE"
+    failed_campaigns: list[str] = resp.json()["failed_campaigns"]
+    assert len(failed_campaigns) == 5
+    assert second_campaign.slug in failed_campaigns
+    assert third_campaign.slug in failed_campaigns
+    assert "NON_EXISTENT_CAMPAIGN_1" in failed_campaigns
+    assert "NON_EXISTENT_CAMPAIGN_2" in failed_campaigns
+    assert second_retailer_owned_campaign.slug in failed_campaigns
 
 
 def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(

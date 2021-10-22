@@ -88,12 +88,33 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
         :return: Callable function
         """
         mock_campaign_params = deepcopy(mock_campaign)
+        mock_campaign_params["retailer_id"] = retailer.id
 
         mock_campaign_params.update(campaign_params)  # type: ignore
-        campaign = Campaign(**mock_campaign_params, retailer_id=retailer.id)
+        campaign = Campaign(**mock_campaign_params)
         db_session.add(campaign)
         db_session.commit()
 
         return campaign
 
     return _create_mock_campaign
+
+
+@pytest.fixture(scope="function")
+def create_mock_retailer(db_session: "Session", mock_retailer: Dict) -> Callable:
+    def _create_mock_retailer(**retailer_params: Dict) -> RetailerRewards:
+        """
+        Create a retailer in the test DB
+        :param retailer_params: override any values for the retailer, from what the mock_retailer fixture provides
+        :return: Callable function
+        """
+        mock_retailer_params = deepcopy(mock_retailer)
+
+        mock_retailer_params.update(retailer_params)  # type: ignore
+        retailer = RetailerRewards(**mock_retailer_params)
+        db_session.add(retailer)
+        db_session.commit()
+
+        return retailer
+
+    return _create_mock_retailer
