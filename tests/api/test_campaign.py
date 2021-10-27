@@ -418,7 +418,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         }
     )
     # Add to the payload
-    payload["campaign_slugs"].append(second_retailer_owned_campaign.slug)
+    payload["campaign_slugs"].append(second_retailer_owned_campaign.slug)  # type: ignore [attr-defined]
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
