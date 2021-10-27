@@ -3,6 +3,11 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[[source]]
+url = "https://bink-libs:y6nzdKbo9J6MkEmwvB-i@git.bink.com/api/v4/groups/86/-/packages/pypi/simple"
+verify_ssl = true
+name = "gitlab-libraries"
+
 [packages]
 fastapi = "*"
 uvicorn = { extras = ["standard"], version = "*" }
@@ -10,27 +15,26 @@ ujson = "*"
 sqlalchemy = "*"
 psycopg2-binary = "*"
 alembic = "*"
-typing-extensions = "*"
 gunicorn = "*"
 azure-keyvault = "*"
 azure-identity = "*"
-sqlalchemy-utils = "*"
 sentry-sdk = "*"
 redis = "*"
 rq = "*"
 asyncpg = "*"
 tenacity = "*"
 httpx = "*"
+requests = "*"
+retry-tasks-lib = {version=">=1.5.0", index="gitlab-libraries"}
 
 [dev-packages]
+typing-extensions = "*"
 pytest = "*"
-requests = "*"
 pytest-cov = "*"
 flake8 = "*"
-black = "*"
+black = "==21.9b0"
 isort = "*"
 mypy = "*"
-sqlalchemy-stubs = "*"
 ipython = "*"
 xenon = "*"
 pytest-mock = "*"
@@ -38,9 +42,8 @@ types-requests = "*"
 types-redis = "*"
 httpretty = "*"
 pytest-asyncio = "*"
+sqlalchemy-utils = "*"
+sqlalchemy-stubs = "*"
 
 [requires]
 python_version = "3.9"
-
-[pipenv]
-allow_prereleases = true

@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, cast
 
 from fastapi.testclient import TestClient
 from requests import Response
@@ -15,9 +15,11 @@ auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}", "Bpl-User-
 
 
 def validate_error_response(response: Response, error: HttpErrors) -> None:
+    resp_json: dict = response.json()
+    error_detail = cast(dict, error.value.detail)
     assert response.status_code == error.value.status_code
-    assert response.json()["display_message"] == error.value.detail["display_message"]
-    assert response.json()["error"] == error.value.detail["error"]
+    assert resp_json["display_message"] == error_detail["display_message"]
+    assert resp_json["error"] == error_detail["error"]
 
 
 def test_update_campaign_active_status_to_ended(setup: SetupType, create_mock_campaign: Callable) -> None:

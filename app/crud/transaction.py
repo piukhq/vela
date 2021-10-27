@@ -1,11 +1,14 @@
 from typing import TYPE_CHECKING, List
 from uuid import uuid4
 
+from retry_tasks_lib.db.models import RetryTask
+from retry_tasks_lib.enums import RetryTaskStatuses
+from retry_tasks_lib.utils.asynchronous import async_create_task
 from sqlalchemy.exc import IntegrityError
 
 from app.db.base_class import async_run_query
-from app.enums import HttpErrors, RewardAdjustmentStatuses
-from app.models import ProcessedTransaction, RetailerRewards, RewardAdjustment, Transaction
+from app.enums import HttpErrors
+from app.models import ProcessedTransaction, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.exc.asyncio import AsyncSession  # type: ignore
@@ -53,32 +56,38 @@ async def create_processed_transaction(
     return await async_run_query(_query, db_session)
 
 
-async def create_reward_adjustments(
-    db_session: "AsyncSession", processed_transaction_id: int, adj_amounts: dict
+async def create_reward_adjustment_tasks(
+    db_session: "AsyncSession", processed_transaction: ProcessedTransaction, adj_amounts: dict
 ) -> List[int]:
-    async def _query() -> List[RewardAdjustment]:
+    async def _query() -> List[RetryTask]:
         adjustments = []
         for campaign_slug, amount in adj_amounts.items():
-            adjustment = RewardAdjustment(
-                processed_transaction_id=processed_transaction_id,
-                campaign_slug=campaign_slug,
-                adjustment_amount=amount,
-                idempotency_token=str(uuid4()),
+            adjustment_task = await async_create_task(
+                db_session,
+                task_type_name="reward_adjustment",
+                params={
+                    "account_holder_uuid": processed_transaction.account_holder_uuid,
+                    "retailer_slug": processed_transaction.retailer.slug,
+                    "processed_transaction_id": processed_transaction.id,
+                    "campaign_slug": campaign_slug,
+                    "adjustment_amount": amount,
+                    "idempotency_token": uuid4(),
+                },
             )
-            db_session.add(adjustment)
-            adjustments.append(adjustment)
+
+            adjustments.append(adjustment_task)
 
         await db_session.commit()
         return adjustments
 
-    return [adj.id for adj in await async_run_query(_query, db_session)]
+    return [task.retry_task_id for task in await async_run_query(_query, db_session)]
 
 
-async def update_reward_adjustment_status(
-    db_session: "AsyncSession", adjustment: RewardAdjustment, status: RewardAdjustmentStatuses
+async def update_reward_adjustment_task_status(
+    db_session: "AsyncSession", reward_adjustment_task: RetryTask, status: RetryTaskStatuses
 ) -> None:
     async def _query() -> None:
-        adjustment.status = status  # type: ignore
+        reward_adjustment_task.status = status
         await db_session.commit()
 
     await async_run_query(_query, db_session)

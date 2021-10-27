@@ -4,10 +4,13 @@ from uuid import uuid4
 
 import pytest
 
+from retry_tasks_lib.db.models import RetryTask, TaskType
+from retry_tasks_lib.utils.synchronous import sync_create_task
+
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import sync_engine
-from app.models import Campaign, ProcessedTransaction, RewardAdjustment
+from app.models import Campaign, ProcessedTransaction
 from app.models.retailer import RewardRule
 
 if TYPE_CHECKING:
@@ -47,16 +50,23 @@ def processed_transaction(db_session: "Session", campaign: Campaign) -> Processe
 
 
 @pytest.fixture(scope="function")
-def reward_adjustment(db_session: "Session", processed_transaction: ProcessedTransaction) -> RewardAdjustment:
-    adjustment = RewardAdjustment(
-        adjustment_amount=50,
-        campaign_slug=processed_transaction.campaign_slugs[0],
-        processed_transaction_id=processed_transaction.id,
-        idempotency_token=str(uuid4()),
+def reward_adjustment_task(
+    db_session: "Session", processed_transaction: ProcessedTransaction, reward_adjustment_task_type: TaskType
+) -> RetryTask:
+    task = sync_create_task(
+        db_session,
+        task_type_name=reward_adjustment_task_type.name,
+        params={
+            "account_holder_uuid": processed_transaction.account_holder_uuid,
+            "retailer_slug": processed_transaction.retailer.slug,
+            "processed_transaction_id": processed_transaction.id,
+            "campaign_slug": processed_transaction.campaign_slugs[0],
+            "adjustment_amount": 100,
+            "idempotency_token": uuid4(),
+        },
     )
-    db_session.add(adjustment)
     db_session.commit()
-    return adjustment
+    return task
 
 
 @pytest.fixture
@@ -73,18 +83,21 @@ def reward_rule(db_session: "Session", campaign: Campaign, voucher_type_slug: st
 
 
 @pytest.fixture(scope="function")
-def adjustment_url(reward_adjustment: RewardAdjustment) -> str:
+def adjustment_url(reward_adjustment_task: RetryTask) -> str:
+    task_params = reward_adjustment_task.get_params()
+
     return "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
         base_url=settings.POLARIS_URL,
-        retailer_slug=reward_adjustment.processed_transaction.retailer.slug,
-        account_holder_uuid=reward_adjustment.processed_transaction.account_holder_uuid,
+        retailer_slug=task_params["retailer_slug"],
+        account_holder_uuid=task_params["account_holder_uuid"],
     )
 
 
 @pytest.fixture(scope="function")
-def allocation_url(reward_adjustment: RewardAdjustment, voucher_type_slug: str) -> str:
+def allocation_url(reward_adjustment_task: RetryTask, voucher_type_slug: str) -> str:
+
     return "{base_url}/bpl/vouchers/{retailer_slug}/vouchers/{voucher_type_slug}/allocation".format(
         base_url=settings.CARINA_URL,
-        retailer_slug=reward_adjustment.processed_transaction.retailer.slug,
+        retailer_slug=reward_adjustment_task.get_params()["retailer_slug"],
         voucher_type_slug=voucher_type_slug,
     )
