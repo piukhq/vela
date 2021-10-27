@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, constr, validator
 
 from app.enums import CampaignStatuses
 
@@ -31,4 +31,4 @@ class CampaignSchema(BaseModel):  # pragma: no cover
 
 class CampaignsStatusChangeSchema(BaseModel):  # pragma: no cover
     requested_status: CampaignStatuses
-    campaign_slugs: List[str]
+    campaign_slugs: List[constr(strip_whitespace=True, min_length=1)]  # type: ignore
