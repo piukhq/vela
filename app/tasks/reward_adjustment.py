@@ -8,7 +8,7 @@ import click
 import requests
 import rq
 
-from retry_tasks_lib.db.models import RetryTask
+from retry_tasks_lib.db.models import RetryTask, TaskType
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import enqueue_retry_task, get_retry_task, sync_create_task
 from sqlalchemy.future import select
@@ -142,13 +142,13 @@ def adjust_balance_for_issued_voucher(db_session: "Session", task_params: dict, 
 
     retry_task = sync_create_task(
         db_session,
-        task_type_name="reward_adjustment",
+        task_type_name=settings.REWARD_ADJUSTMENT_TASK_NAME,
         params={
             "account_holder_uuid": task_params["account_holder_uuid"],
             "retailer_slug": task_params["retailer_slug"],
             "processed_transaction_id": task_params["processed_transaction_id"],
             "campaign_slug": task_params["campaign_slug"],
-            "adjustment_amount": -reward_rule.reward_goal,  # type: ignore [operator]
+            "adjustment_amount": -reward_rule.reward_goal,
             "idempotency_token": uuid4(),
         },
     )
@@ -156,9 +156,7 @@ def adjust_balance_for_issued_voucher(db_session: "Session", task_params: dict, 
     db_session.commit()
 
     try:
-        enqueue_retry_task(
-            queue=settings.REWARD_ADJUSTMENT_TASK_QUEUE, connection=redis, action=adjust_balance, retry_task=retry_task
-        )
+        enqueue_retry_task(connection=redis, retry_task=retry_task)
 
     except Exception:
         raise BalanceAdjustmentEnqueueException(retry_task.retry_task_id)
@@ -184,9 +182,7 @@ def adjust_balance(retry_task_id: int) -> None:
         voucher_awardable, reward_rule = _voucher_is_awardable(db_session, task_params["campaign_slug"], balance)
 
         if voucher_awardable:
-            response_audit = _process_voucher_allocation(
-                task_params, reward_rule.voucher_type_slug  # type: ignore [arg-type]
-            )
+            response_audit = _process_voucher_allocation(task_params, reward_rule.voucher_type_slug)
             retry_task.update_task(db_session, response_audit=response_audit)
             adjust_balance_for_issued_voucher(db_session, task_params, reward_rule)
 
@@ -207,7 +203,12 @@ def worker(burst: bool = False) -> None:  # pragma: no cover
     # prometheus_client.multiprocess.MultiProcessCollector(registry)
     # prometheus_client.start_http_server(9100, registry=registry)
 
-    q = rq.Queue(settings.REWARD_ADJUSTMENT_TASK_QUEUE, connection=redis)
+    with SyncSessionMaker() as db_session:
+        task_queue_name = db_session.execute(
+            select(TaskType.queue_name).where(TaskType.name == settings.REWARD_ADJUSTMENT_TASK_NAME)
+        ).scalar_one()
+
+    q = rq.Queue(task_queue_name, connection=redis)
     worker = rq.Worker(
         queues=[q],
         connection=redis,

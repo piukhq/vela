@@ -12,7 +12,6 @@ from app.db.base_class import sync_run_query
 from app.db.session import SyncSessionMaker
 
 from . import BalanceAdjustmentEnqueueException
-from .reward_adjustment import adjust_balance
 
 if TYPE_CHECKING:  # pragma: no cover
     from inspect import Traceback
@@ -46,9 +45,7 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
 
             handle_request_exception(
                 db_session=db_session,
-                queue=settings.REWARD_ADJUSTMENT_TASK_QUEUE,
                 connection=redis,
-                action=adjust_balance,
                 backoff_base=settings.REWARD_ADJUSTMENT_BACKOFF_BASE,
                 max_retries=settings.REWARD_ADJUSTMENT_MAX_RETRIES,
                 job=job,

@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy.future import select  # type: ignore
+from sqlalchemy.future import select
 
 from app.db.base_class import async_run_query
 from app.models import Campaign, RetailerRewards
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_campaigns_by_slug(

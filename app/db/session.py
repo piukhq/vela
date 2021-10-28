@@ -1,8 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import (  # type: ignore # pylance cant find the ext.asyncio package
-    AsyncSession,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 

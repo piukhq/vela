@@ -38,19 +38,26 @@ def populate_task_type_and_keys(conn: sa.engine.Connection) -> None:
 
     inserted_obj = conn.execute(
         sa.insert(task_type).values(
-            name="reward_adjustment", path=adjust_balance.__module__ + "." + adjust_balance.__name__
+            name="reward-adjustment",
+            path=adjust_balance.__module__ + "." + adjust_balance.__name__,
+            queue_name="bpl_reward_adjustments",
         )
     )
     task_type_id = inserted_obj.inserted_primary_key[0]
-    key_data_list = [
-        {"name": "account_holder_uuid", "type": "STRING", "task_type_id": task_type_id},
-        {"name": "retailer_slug", "type": "STRING", "task_type_id": task_type_id},
-        {"name": "processed_transaction_id", "type": "INTEGER", "task_type_id": task_type_id},
-        {"name": "campaign_slug", "type": "STRING", "task_type_id": task_type_id},
-        {"name": "adjustment_amount", "type": "INTEGER", "task_type_id": task_type_id},
-        {"name": "idempotency_token", "type": "STRING", "task_type_id": task_type_id},
-    ]
-    op.bulk_insert(task_type_key, key_data_list)
+    op.bulk_insert(
+        task_type_key,
+        [
+            {"task_type_id": task_type_id} | task_type_key_data
+            for task_type_key_data in (
+                {"name": "account_holder_uuid", "type": "STRING"},
+                {"name": "retailer_slug", "type": "STRING"},
+                {"name": "processed_transaction_id", "type": "INTEGER"},
+                {"name": "campaign_slug", "type": "STRING"},
+                {"name": "adjustment_amount", "type": "INTEGER"},
+                {"name": "idempotency_token", "type": "STRING"},
+            )
+        ],
+    )
 
 
 def upgrade() -> None:
@@ -65,6 +72,7 @@ def upgrade() -> None:
         sa.Column("task_type_id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("path", sa.String(), nullable=False),
+        sa.Column("queue_name", sa.String(), nullable=False),
         sa.PrimaryKeyConstraint("task_type_id"),
     )
     op.create_index(op.f("ix_task_type_name"), "task_type", ["name"], unique=True)
@@ -78,7 +86,7 @@ def upgrade() -> None:
         ),
         sa.Column("retry_task_id", sa.Integer(), nullable=False),
         sa.Column("attempts", sa.Integer(), nullable=False),
-        sa.Column("audit_data", postgresql.JSONB(astext_type=sa.Text()), nullable=False),  # type: ignore [call-arg]
+        sa.Column("audit_data", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("next_attempt_time", sa.DateTime(), nullable=True),
         sa.Column("status", retrytaskstatuses, nullable=False),
         sa.Column("task_type_id", sa.Integer(), nullable=False),
@@ -149,7 +157,7 @@ def downgrade() -> None:
         sa.Column("next_attempt_time", postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
         sa.Column(
             "response_data",
-            postgresql.JSONB(astext_type=sa.Text()),  # type: ignore [call-arg]
+            postgresql.JSONB(astext_type=sa.Text()),
             autoincrement=False,
             nullable=False,
         ),

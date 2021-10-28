@@ -6,12 +6,13 @@ from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.asynchronous import async_create_task
 from sqlalchemy.exc import IntegrityError
 
+from app.core.config import settings
 from app.db.base_class import async_run_query
 from app.enums import HttpErrors
 from app.models import ProcessedTransaction, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sqlalchemy.exc.asyncio import AsyncSession  # type: ignore
+    from sqlalchemy.exc.asyncio import AsyncSession
 
 
 async def create_transaction(
@@ -64,7 +65,7 @@ async def create_reward_adjustment_tasks(
         for campaign_slug, amount in adj_amounts.items():
             adjustment_task = await async_create_task(
                 db_session,
-                task_type_name="reward_adjustment",
+                task_type_name=settings.REWARD_ADJUSTMENT_TASK_NAME,
                 params={
                     "account_holder_uuid": processed_transaction.account_holder_uuid,
                     "retailer_slug": processed_transaction.retailer.slug,

@@ -25,7 +25,8 @@ asyncpg = "*"
 tenacity = "*"
 httpx = "*"
 requests = "*"
-retry-tasks-lib = {version=">=1.5.0", index="gitlab-libraries"}
+retry-tasks-lib = {version=">=1.7.0", index="gitlab-libraries"}
+hiredis = "*"
 
 [dev-packages]
 typing-extensions = "*"
@@ -43,7 +44,6 @@ types-redis = "*"
 httpretty = "*"
 pytest-asyncio = "*"
 sqlalchemy-utils = "*"
-sqlalchemy-stubs = "*"
 
 [requires]
 python_version = "3.9"

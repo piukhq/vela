@@ -8,9 +8,8 @@ import sentry_sdk
 
 from retry_tasks_lib.db.models import load_models_to_metadata
 from sqlalchemy import Column, DateTime, Integer, exc, text
-from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore # pylance cant find the ext.asyncio package
-from sqlalchemy.orm import declarative_base  # type: ignore
-from sqlalchemy.orm import Session, declarative_mixin  # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, declarative_base, declarative_mixin
 
 from app.core.config import settings
 from app.version import __version__

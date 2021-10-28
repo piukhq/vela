@@ -152,14 +152,12 @@ def test_adjust_balance(
         body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
         status=200,
     )
-    # 'http://localhost:8000/bpl/loyalty/test-retailer/accounts/b23539a5-0c52-4698-8074-3ed013fc8d2d/adjustments'
     httpretty.register_uri(
         "POST",
         allocation_url,
         body=json.dumps({"account_url": "http://account-url/"}),
         status=202,
     )
-    # 'http://localhost:9000/bpl/vouchers/test-retailer/vouchers/the-big-voucher-slug/allocation'
 
     adjust_balance(reward_adjustment_task.retry_task_id)
 

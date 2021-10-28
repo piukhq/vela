@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy.future import select  # type: ignore
+from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from app.db.base_class import async_run_query
@@ -9,7 +9,7 @@ from app.enums import CampaignStatuses, HttpErrors
 from app.models import Campaign, EarnRule, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -> RetailerRewards:

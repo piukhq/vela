@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
@@ -36,7 +36,7 @@ async def _campaign_status_change(
     db_session: "AsyncSession", campaign_slugs: list[str], requested_status: CampaignStatuses, retailer: RetailerRewards
 ) -> tuple[list[HttpErrors], list[str]]:
     async def _query(campaign: Campaign) -> None:
-        campaign.status = requested_status  # type: ignore
+        campaign.status = requested_status
         await db_session.commit()
 
     errors: list[HttpErrors] = []
@@ -45,7 +45,7 @@ async def _campaign_status_change(
         db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer
     )
     for campaign in campaigns:
-        if requested_status.is_valid_status_transition(current_status=campaign.status):  # type: ignore
+        if requested_status.is_valid_status_transition(current_status=campaign.status):
             await async_run_query(_query, db_session, campaign=campaign)
         else:
             errors.append(HttpErrors.INVALID_STATUS_REQUESTED)
