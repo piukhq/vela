@@ -63,7 +63,7 @@ async def create_reward_adjustment_tasks(
     async def _query() -> List[RetryTask]:
         adjustments = []
         for campaign_slug, amount in adj_amounts.items():
-            adjustment_task = await async_create_task(
+            adjustment_task = await async_create_task(  # pragma: no cover
                 db_session,
                 task_type_name=settings.REWARD_ADJUSTMENT_TASK_NAME,
                 params={

@@ -17,7 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class LogLevel(str):
+class LogLevel(str):  # pragma: no cover
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
         field_schema.update(type="string", format="log_level")
@@ -36,7 +36,7 @@ class LogLevel(str):
         return v
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # pragma: no cover
     API_PREFIX: str = "/bpl/rewards"
     SERVER_NAME: str = "test"
     SERVER_HOST: str = "http://localhost:8000"

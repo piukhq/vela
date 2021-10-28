@@ -25,7 +25,7 @@ from app.models import Campaign, RewardRule
 
 from . import BalanceAdjustmentEnqueueException, logger
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
 
 

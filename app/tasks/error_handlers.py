@@ -41,7 +41,7 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
 
             sync_run_query(_update_exc_tasks, db_session)
 
-        else:
+        else:  # pragma: no cover
 
             handle_request_exception(
                 db_session=db_session,
