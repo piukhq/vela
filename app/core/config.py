@@ -176,7 +176,7 @@ class Settings(BaseSettings):  # pragma: no cover
 
     POLARIS_URL: str = "http://polaris-api"
     REDIS_URL: str
-    REWARD_ADJUSTMENT_TASK_NAME = "reward-adjustments"
+    REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
     REWARD_ADJUSTMENT_MAX_RETRIES: int = 6
     REWARD_ADJUSTMENT_BACKOFF_BASE: float = 3
 
