@@ -3,7 +3,7 @@ import os
 import sys
 
 from logging.config import dictConfig
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
@@ -17,9 +17,9 @@ if TYPE_CHECKING:  # pragma: no cover
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class LogLevel(str):
+class LogLevel(str):  # pragma: no cover
     @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
+    def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
         field_schema.update(type="string", format="log_level")
 
     @classmethod
@@ -28,7 +28,7 @@ class LogLevel(str):
         yield cls.validate
 
     @classmethod
-    def validate(cls, value: Union[str]) -> str:
+    def validate(cls, value: str) -> str:
         v = value.upper()
         if v not in ["CRITICAL", "FATAL", "ERROR", "WARN", "WARNING", "INFO", "DEBUG", "NOTSET"]:
             raise ValueError(f"{value} is not a valid LOG_LEVEL value")
@@ -36,7 +36,7 @@ class LogLevel(str):
         return v
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # pragma: no cover
     API_PREFIX: str = "/bpl/rewards"
     SERVER_NAME: str = "test"
     SERVER_HOST: str = "http://localhost:8000"
@@ -96,10 +96,11 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "vela"
     SQLALCHEMY_DATABASE_URI: str = ""
+    SQLALCHEMY_DATABASE_URI_PSYCOPG2: str = ""
     DB_CONNECTION_RETRY_TIMES: int = 3
 
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
-    def assemble_db_connection(cls, v: str, values: Dict[str, Any]) -> Any:
+    def assemble_db_connection(cls, v: str, values: dict[str, Any]) -> Any:
         if v != "":
             db_uri = v
 
@@ -118,11 +119,20 @@ class Settings(BaseSettings):
 
         return db_uri
 
+    @validator("SQLALCHEMY_DATABASE_URI_PSYCOPG2", pre=True)
+    def adapt_db_connection_to_psycopg2(cls, v: str, values: dict[str, Any]) -> Any:
+        if v != "":
+            db_uri = v
+        else:
+            db_uri = values["SQLALCHEMY_DATABASE_URI"].replace("+asyncpg", "+psycopg2").replace("ssl=", "sslmode=")
+
+        return db_uri
+
     KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
     SECRET_KEY: Optional[str] = None
 
     @validator("SECRET_KEY")
-    def fetch_secret_key(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+    def fetch_secret_key(cls, v: Optional[str], values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -137,7 +147,7 @@ class Settings(BaseSettings):
     VELA_AUTH_TOKEN: Optional[str] = None
 
     @validator("VELA_AUTH_TOKEN")
-    def fetch_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+    def fetch_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -152,7 +162,7 @@ class Settings(BaseSettings):
     POLARIS_AUTH_TOKEN: Optional[str] = None
 
     @validator("POLARIS_AUTH_TOKEN")
-    def fetch_polaris_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+    def fetch_polaris_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -166,14 +176,14 @@ class Settings(BaseSettings):
 
     POLARIS_URL: str = "http://polaris-api"
     REDIS_URL: str
-    REWARD_ADJUSTMENT_TASK_QUEUE: str = "bpl_reward_adjustments"
+    REWARD_ADJUSTMENT_TASK_NAME = "reward-adjustments"
     REWARD_ADJUSTMENT_MAX_RETRIES: int = 6
     REWARD_ADJUSTMENT_BACKOFF_BASE: float = 3
 
     CARINA_AUTH_TOKEN: Optional[str] = None
 
     @validator("CARINA_AUTH_TOKEN")
-    def fetch_carina_auth_token(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+    def fetch_carina_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
