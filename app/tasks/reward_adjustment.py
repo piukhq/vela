@@ -1,7 +1,7 @@
 import logging
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 from uuid import uuid4
 
 import click
@@ -63,7 +63,7 @@ def _process_voucher_allocation(task_params: dict, voucher_type_slug: str) -> di
     return response_audit
 
 
-def _voucher_is_awardable(db_session: "Session", campaign_slug: str, new_balance: int) -> Tuple[bool, RewardRule]:
+def _voucher_is_awardable(db_session: "Session", campaign_slug: str, new_balance: int) -> tuple[bool, RewardRule]:
     reward_rule: RewardRule = sync_run_query(
         lambda: db_session.execute(
             select(RewardRule).where(RewardRule.campaign_id == Campaign.id, Campaign.slug == campaign_slug)
@@ -94,9 +94,9 @@ def send_request_with_metrics(
     method: str,
     url: str,
     *,
-    headers: Optional[Dict[str, Any]] = None,
-    json: Optional[Dict[str, Any]] = None,
-    timeout: Tuple[float, int],
+    headers: Optional[dict[str, Any]] = None,
+    json: Optional[dict[str, Any]] = None,
+    timeout: tuple[float, int],
 ) -> requests.Response:
 
     return requests.request(
@@ -104,7 +104,7 @@ def send_request_with_metrics(
     )
 
 
-def _process_adjustment(task_params: dict) -> Tuple[int, str, dict]:
+def _process_adjustment(task_params: dict) -> tuple[int, str, dict]:
     logger.info(f"Sending balance adjustment for tx: {task_params['processed_transaction_id']}")
     timestamp = datetime.utcnow()
     request_url = "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
