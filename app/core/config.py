@@ -96,6 +96,7 @@ class Settings(BaseSettings):  # pragma: no cover
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "vela"
     SQLALCHEMY_DATABASE_URI: str = ""
+    SQLALCHEMY_DATABASE_URI_PSYCOPG2: Optional[str] = None
     DB_CONNECTION_RETRY_TIMES: int = 3
 
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
@@ -115,6 +116,15 @@ class Settings(BaseSettings):  # pragma: no cover
 
         if values["TESTING"]:
             db_uri += "_test"
+
+        return db_uri
+
+    @validator("SQLALCHEMY_DATABASE_URI_PSYCOPG2", pre=True)
+    def adapt_db_connection_to_psycopg2(cls, v: str, values: dict[str, Any]) -> Any:
+        if isinstance(v, str):
+            db_uri = v
+        else:
+            db_uri = values["SQLALCHEMY_DATABASE_URI"].replace("+asyncpg", "+psycopg2").replace("ssl=", "sslmode=")
 
         return db_uri
 
