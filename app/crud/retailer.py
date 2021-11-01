@@ -77,9 +77,9 @@ async def get_adjustment_amounts(
     for earn in earn_rules:
         if transaction.amount >= earn.threshold:
             if earn.campaign.earn_inc_is_tx_value:
-                amount = transaction.amount * earn.increment_multiplier
+                amount = int(transaction.amount * earn.increment_multiplier)
             else:
-                amount = earn.increment * earn.increment_multiplier
+                amount = int(earn.increment * earn.increment_multiplier)
 
             if earn.campaign.slug in adjustment_amounts:
                 adjustment_amounts[earn.campaign.slug] += amount
