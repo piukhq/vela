@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, AsyncGenerator
 
 from fastapi import Depends, Header
-from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.core.config import settings
@@ -9,7 +9,6 @@ from app.db.session import AsyncSessionMaker
 from app.enums import HttpErrors
 
 if TYPE_CHECKING:  # pragma: no cover
-
     from app.models import RetailerRewards
 
 

@@ -4,6 +4,6 @@ logger = logging.getLogger(__name__)
 
 
 class BalanceAdjustmentEnqueueException(Exception):
-    def __init__(self, reward_adjustment_id: int, *args: object) -> None:
+    def __init__(self, retry_task_id: int, *args: object) -> None:
         super().__init__(*args)
-        self.reward_adjustment_id = reward_adjustment_id
+        self.retry_task_id = retry_task_id

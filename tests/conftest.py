@@ -4,8 +4,11 @@ from typing import TYPE_CHECKING, Callable, Dict, Generator
 
 import pytest
 
+from retry_tasks_lib.db.models import TaskType, TaskTypeKey
+from retry_tasks_lib.enums import TaskParamsKeyTypes
 from sqlalchemy_utils import create_database, database_exists, drop_database
 
+from app.core.config import settings
 from app.db.session import SyncSessionMaker, sync_engine
 from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards
@@ -90,7 +93,7 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
         mock_campaign_params = deepcopy(mock_campaign)
         mock_campaign_params["retailer_id"] = retailer.id
 
-        mock_campaign_params.update(campaign_params)  # type: ignore
+        mock_campaign_params.update(campaign_params)
         campaign = Campaign(**mock_campaign_params)
         db_session.add(campaign)
         db_session.commit()
@@ -110,7 +113,7 @@ def create_mock_retailer(db_session: "Session", mock_retailer: Dict) -> Callable
         """
         mock_retailer_params = deepcopy(mock_retailer)
 
-        mock_retailer_params.update(retailer_params)  # type: ignore
+        mock_retailer_params.update(retailer_params)
         retailer = RetailerRewards(**mock_retailer_params)
         db_session.add(retailer)
         db_session.commit()
@@ -118,3 +121,25 @@ def create_mock_retailer(db_session: "Session", mock_retailer: Dict) -> Callable
         return retailer
 
     return _create_mock_retailer
+
+
+@pytest.fixture(scope="function")
+def reward_adjustment_task_type(db_session: "Session") -> TaskType:
+    task_type = TaskType(name=settings.REWARD_ADJUSTMENT_TASK_NAME, path="sample.path", queue_name="test_queue")
+    db_session.add(task_type)
+    db_session.flush()
+    db_session.bulk_save_objects(
+        [
+            TaskTypeKey(task_type_id=task_type.task_type_id, name=key_name, type=key_type)
+            for key_name, key_type in (
+                ("account_holder_uuid", TaskParamsKeyTypes.STRING),
+                ("retailer_slug", TaskParamsKeyTypes.STRING),
+                ("processed_transaction_id", TaskParamsKeyTypes.INTEGER),
+                ("campaign_slug", TaskParamsKeyTypes.STRING),
+                ("adjustment_amount", TaskParamsKeyTypes.INTEGER),
+                ("idempotency_token", TaskParamsKeyTypes.STRING),
+            )
+        ]
+    )
+    db_session.commit()
+    return task_type

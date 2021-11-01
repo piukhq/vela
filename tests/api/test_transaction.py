@@ -18,6 +18,7 @@ from asgi import app
 from tests.api.conftest import SetupType
 
 if TYPE_CHECKING:
+    from retry_tasks_lib.db.models import TaskType
     from sqlalchemy.orm import Session
 
 client = TestClient(app, raise_server_exceptions=False)
@@ -48,12 +49,12 @@ def payload() -> dict:
 
 
 def test_post_transaction_happy_path(
-    setup: SetupType, payload: dict, earn_rule: EarnRule, mocker: MockerFixture
+    setup: SetupType, payload: dict, earn_rule: EarnRule, mocker: MockerFixture, reward_adjustment_task_type: "TaskType"
 ) -> None:
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
-    mocker.patch("app.tasks.transaction.rq.Queue")
+    mocker.patch("app.tasks.transaction.enqueue_many_retry_tasks")
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 

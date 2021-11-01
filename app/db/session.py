@@ -1,8 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import (  # type: ignore # pylance cant find the ext.asyncio package
-    AsyncSession,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -19,7 +16,7 @@ async_engine = create_async_engine(
     settings.SQLALCHEMY_DATABASE_URI, pool_pre_ping=True, future=True, echo=settings.SQL_DEBUG, **null_pool
 )
 sync_engine = create_engine(
-    settings.SQLALCHEMY_DATABASE_URI.replace("asyncpg", "psycopg2").replace("ssl=", "sslmode="),
+    settings.SQLALCHEMY_DATABASE_URI_PSYCOPG2,
     pool_pre_ping=True,
     poolclass=NullPool,
     echo=settings.SQL_DEBUG,

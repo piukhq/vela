@@ -3,7 +3,7 @@ import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
@@ -37,8 +37,10 @@ async def record_transaction(
     await crud.delete_transaction(db_session, transaction)
 
     if adjustment_amounts:
-        adjustment_ids = await crud.create_reward_adjustments(db_session, processed_transaction.id, adjustment_amounts)
-        asyncio.create_task(enqueue_reward_adjustment_tasks(reward_adjustment_ids=adjustment_ids))
+        adjustment_tasks_ids = await crud.create_reward_adjustment_tasks(
+            db_session, processed_transaction, adjustment_amounts
+        )
+        asyncio.create_task(enqueue_reward_adjustment_tasks(retry_tasks_ids=adjustment_tasks_ids))
         response = "Awarded"
     else:
         response = "Threshold not met"
