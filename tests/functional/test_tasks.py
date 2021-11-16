@@ -16,7 +16,9 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.enums import CampaignStatuses
 from app.models import RewardRule
+from app.models.retailer import Campaign
 from app.tasks import BalanceAdjustmentEnqueueException
 from app.tasks.reward_adjustment import (
     _process_adjustment,
@@ -183,6 +185,27 @@ def test_adjust_balance(
     assert post_voucher_adjustment_task is not None
     assert post_voucher_adjustment_task.get_params()["adjustment_amount"] < 0
     mock_enqueue.assert_called_once()
+
+
+@mock.patch("app.tasks.reward_adjustment.requests")
+def test_adjust_balance_task_cancelled_when_campaign_cancelled(
+    mock_requests: mock.MagicMock,
+    db_session: "Session",
+    reward_adjustment_task: RetryTask,
+    campaign: Campaign,
+) -> None:
+    reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
+    campaign.status = CampaignStatuses.CANCELLED
+    db_session.commit()
+
+    adjust_balance(reward_adjustment_task.retry_task_id)
+
+    db_session.refresh(reward_adjustment_task)
+
+    mock_requests.assert_not_called()
+    assert reward_adjustment_task.attempts == 1
+    assert reward_adjustment_task.next_attempt_time is None
+    assert reward_adjustment_task.status == RetryTaskStatuses.CANCELLED
 
 
 @httpretty.activate
