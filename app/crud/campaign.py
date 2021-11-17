@@ -1,12 +1,10 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.orm import noload, selectinload
 
 from app.db.base_class import async_run_query
-from app.models import Campaign, EarnRule, RetailerRewards
-from app.models.retailer import RewardRule
+from app.models import Campaign, RetailerRewards
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession

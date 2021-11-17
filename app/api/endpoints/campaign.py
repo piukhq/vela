@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.expression import update
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
