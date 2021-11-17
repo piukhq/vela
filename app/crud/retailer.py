@@ -19,10 +19,10 @@ async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -
         ).scalar_one_or_none()
 
     retailer = await async_run_query(_query, db_session, rollback_on_exc=False)
-    if not retailer:
+    if not retailer:  # pragma: coverage bug 1012
         raise HttpErrors.INVALID_RETAILER.value
 
-    return retailer
+    return retailer  # pragma: coverage bug 1012
 
 
 async def get_active_campaign_slugs(
@@ -39,7 +39,7 @@ async def get_active_campaign_slugs(
 
     campaign_rows = await async_run_query(_query, db_session, rollback_on_exc=False)
 
-    if transaction_time is not None:
+    if transaction_time is not None:  # pragma: coverage bug 1012
         valid_campaigns = [
             slug
             for slug, start, end in campaign_rows
@@ -49,10 +49,10 @@ async def get_active_campaign_slugs(
     else:
         valid_campaigns = [row[0] for row in campaign_rows]
 
-    if not valid_campaigns:
+    if not valid_campaigns:  # pragma: coverage bug 1012
         raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
 
-    return valid_campaigns
+    return valid_campaigns  # pragma: coverage bug 1012
 
 
 async def get_adjustment_amounts(
@@ -73,8 +73,8 @@ async def get_adjustment_amounts(
         )
 
     earn_rules = await async_run_query(_query, db_session, rollback_on_exc=False)
-    adjustment_amounts: dict = {}
-    for earn in earn_rules:
+    adjustment_amounts: dict = {}  # pragma: coverage bug 1012
+    for earn in earn_rules:  # pragma: coverage bug 1012
         if transaction.amount >= earn.threshold:
             if earn.campaign.earn_inc_is_tx_value:
                 amount = int(transaction.amount * earn.increment_multiplier)
@@ -86,4 +86,4 @@ async def get_adjustment_amounts(
             else:
                 adjustment_amounts[earn.campaign.slug] = amount
 
-    return adjustment_amounts
+    return adjustment_amounts  # pragma: coverage bug 1012

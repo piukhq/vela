@@ -37,13 +37,13 @@ async def record_transaction(
     )
     await crud.delete_transaction(db_session, transaction)
 
-    if adjustment_amounts:
+    if adjustment_amounts:  # pragma: coverage bug 1012
         adjustment_tasks_ids = await crud.create_reward_adjustment_tasks(
             db_session, processed_transaction, adjustment_amounts
         )
         asyncio.create_task(enqueue_reward_adjustment_tasks(retry_tasks_ids=adjustment_tasks_ids))
         response = "Awarded"
-    else:
+    else:  # pragma: coverage bug 1012
         response = "Threshold not met"
 
-    return response
+    return response  # pragma: coverage bug 1012
