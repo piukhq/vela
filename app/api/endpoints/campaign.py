@@ -2,11 +2,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.expression import update
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
 from app.db.base_class import async_run_query
-from app.enums import CampaignStatuses, HttpErrors
+from app.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates
 from app.models.retailer import Campaign, RetailerRewards
 from app.schemas import CampaignsStatusChangeSchema
 
@@ -34,29 +35,49 @@ async def _check_remaining_active_campaigns(
 
 async def _campaign_status_change(
     db_session: "AsyncSession", campaign_slugs: list[str], requested_status: CampaignStatuses, retailer: RetailerRewards
-) -> tuple[list[HttpErrors], list[str]]:
-    async def _query(campaign: Campaign) -> None:
-        campaign.status = requested_status
-        await db_session.commit()
+) -> tuple[list[dict], int]:
+    status_code = status.HTTP_200_OK
+    is_activation = requested_status == CampaignStatuses.ACTIVE
 
-    errors: list[HttpErrors] = []
-    failed_campaign_slugs: list[str] = []
+    errors: dict[HttpsErrorTemplates, list[str]] = {
+        HttpsErrorTemplates.NO_CAMPAIGN_FOUND: [],
+        HttpsErrorTemplates.INVALID_STATUS_REQUESTED: [],
+        HttpsErrorTemplates.MISSING_CAMPAIGN_COMPONENTS: [],
+    }
+
     campaigns: list[Campaign] = await crud.get_campaigns_by_slug(
-        db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer
+        db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer, load_rules=is_activation
     )
+    # Add in any campaigns that were not found
+    missing_campaigns = list(set(campaign_slugs) - {campaign.slug for campaign in campaigns})
+    if missing_campaigns:
+        errors[HttpsErrorTemplates.NO_CAMPAIGN_FOUND] = missing_campaigns
+        status_code = status.HTTP_404_NOT_FOUND
+
+    valid_campaigns: list[Campaign] = []
     for campaign in campaigns:
         if requested_status.is_valid_status_transition(current_status=campaign.status):
-            await async_run_query(_query, db_session, campaign=campaign)
+            if not is_activation or campaign.is_activable():
+                valid_campaigns.append(campaign)
+            else:
+                status_code = status.HTTP_409_CONFLICT
+                errors[HttpsErrorTemplates.MISSING_CAMPAIGN_COMPONENTS].append(campaign.slug)
         else:
-            errors.append(HttpErrors.INVALID_STATUS_REQUESTED)
-            failed_campaign_slugs.append(campaign.slug)
+            status_code = status.HTTP_409_CONFLICT
+            errors[HttpsErrorTemplates.INVALID_STATUS_REQUESTED].append(campaign.slug)
 
-    # Add in any campaigns that were not found
-    for campaign_slug_not_found in set(campaign_slugs) - set([campaign.slug for campaign in campaigns]):
-        errors.append(HttpErrors.NO_CAMPAIGN_FOUND)
-        failed_campaign_slugs.append(campaign_slug_not_found)
+    async def _query(campaigns: list[Campaign]) -> None:
+        for campaign in campaigns:
+            campaign.status = requested_status
 
-    return errors, failed_campaign_slugs
+        await db_session.commit()
+
+    await async_run_query(_query, db_session, campaigns=valid_campaigns)
+
+    formatted_errors = [
+        error_type.value_with_slugs(campaign_slugs) for error_type, campaign_slugs in errors.items() if campaign_slugs
+    ]
+    return formatted_errors, status_code
 
 
 @router.post(
@@ -76,7 +97,7 @@ async def campaigns_status_change(
             db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer
         )
 
-    errors, failed_campaign_slugs = await _campaign_status_change(
+    errors, status_code = await _campaign_status_change(
         db_session=db_session,
         campaign_slugs=payload.campaign_slugs,
         requested_status=payload.requested_status,
@@ -84,19 +105,4 @@ async def campaigns_status_change(
     )
 
     if errors:  # pragma: no cover
-        # If there are only NO_CAMPAIGN_FOUND errors AND ALL the campaign_slugs provided produced this error
-        if HttpErrors.NO_CAMPAIGN_FOUND in errors and len(errors) == len(payload.campaign_slugs):
-            raise HttpErrors.NO_CAMPAIGN_FOUND.value
-        # If there are only INVALID_STATUS_REQUEST errors AND ALL the campaign_slugs provided produced this error
-        elif HttpErrors.INVALID_STATUS_REQUESTED in errors and len(errors) == len(payload.campaign_slugs):
-            raise HttpErrors.INVALID_STATUS_REQUESTED.value
-        # If there are (possibly mixed) errors, but some requested changes succeeded, inform the end user
-        elif errors:
-            raise HTTPException(
-                detail={
-                    "display_message": "Not all campaigns were updated as requested.",
-                    "error": "INCOMPLETE_STATUS_UPDATE",
-                    "failed_campaigns": failed_campaign_slugs,
-                },
-                status_code=status.HTTP_409_CONFLICT,
-            )
+        raise HTTPException(detail=errors, status_code=status_code)

@@ -24,6 +24,7 @@ async def create_transaction(
             db_session.add(transaction)
             await db_session.commit()
         except IntegrityError:
+            await db_session.rollback()
             raise HttpErrors.DUPLICATE_TRANSACTION.value
 
         return transaction

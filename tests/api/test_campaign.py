@@ -1,19 +1,42 @@
-from typing import Callable, cast
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Callable, cast
 
 import pytest
 
+from fastapi import status as fastapi_http_status
 from fastapi.testclient import TestClient
 from requests import Response
-from starlette import status as starlette_http_status
+from sqlalchemy import delete
 
 from app.core.config import settings
-from app.enums import CampaignStatuses, HttpErrors
-from app.models import Campaign, RetailerRewards
+from app.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates
+from app.models import Campaign, EarnRule, RetailerRewards, RewardRule
 from asgi import app
 from tests.api.conftest import SetupType
 
-client = TestClient(app)
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+client = TestClient(app, raise_server_exceptions=False)
 auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}", "Bpl-User-Channel": "channel"}
+
+
+@pytest.fixture(scope="function")
+def activable_campaign(setup: SetupType) -> Campaign:
+    db_session, retailer, _ = setup
+    campaign = Campaign(
+        name="activable campaign",
+        slug="activable-campaign",
+        start_date=datetime.utcnow() - timedelta(days=-1),
+        retailer_id=retailer.id,
+    )
+    db_session.add(campaign)
+    db_session.flush()
+
+    db_session.add(EarnRule(threshold=200, increment=100, increment_multiplier=1.5, campaign_id=campaign.id))
+    db_session.add(RewardRule(reward_goal=150, voucher_type_slug="test-voucher-type", campaign_id=campaign.id))
+    db_session.commit()
+    return campaign
 
 
 def validate_error_response(response: Response, error: HttpErrors) -> None:
@@ -22,6 +45,13 @@ def validate_error_response(response: Response, error: HttpErrors) -> None:
     assert response.status_code == error.value.status_code
     assert resp_json["display_message"] == error_detail["display_message"]
     assert resp_json["error"] == error_detail["error"]
+
+
+def validate_composite_error_response(response: Response, exptected_errors: list[dict]) -> None:
+    for error, expected_error in zip(response.json(), exptected_errors):
+        assert error["error"] == expected_error["error"]
+        assert error["display_message"] == expected_error["display_message"]
+        assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
 
 
 def test_update_campaign_active_status_to_ended(setup: SetupType, create_mock_campaign: Callable) -> None:
@@ -48,7 +78,7 @@ def test_update_campaign_active_status_to_ended(setup: SetupType, create_mock_ca
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_200_OK
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
 
@@ -93,7 +123,7 @@ def test_update_multiple_campaigns_ok(setup: SetupType, create_mock_campaign: Ca
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_200_OK
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
     db_session.refresh(second_campaign)
@@ -111,7 +141,7 @@ def test_status_change_mangled_json(setup: SetupType) -> None:
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_400_BAD_REQUEST
+    assert resp.status_code == fastapi_http_status.HTTP_400_BAD_REQUEST
     assert resp.json() == {
         "display_message": "Malformed request.",
         "error": "MALFORMED_REQUEST",
@@ -164,7 +194,17 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
         headers=auth_headers,
     )
 
-    validate_error_response(resp, HttpErrors.NO_CAMPAIGN_FOUND)
+    assert resp.status_code == fastapi_http_status.HTTP_404_NOT_FOUND
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "Campaign not found for provided slug.",
+                "error": "NO_CAMPAIGN_FOUND",
+                "campaigns": payload["campaign_slugs"],
+            }
+        ],
+    )
 
 
 def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, create_mock_retailer: Callable) -> None:
@@ -188,7 +228,17 @@ def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, cr
         headers=auth_headers,
     )
 
-    validate_error_response(resp, HttpErrors.NO_CAMPAIGN_FOUND)
+    assert resp.status_code == fastapi_http_status.HTTP_404_NOT_FOUND
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "Campaign not found for provided slug.",
+                "error": "NO_CAMPAIGN_FOUND",
+                "campaigns": payload["campaign_slugs"],
+            }
+        ],
+    )
 
 
 @pytest.mark.parametrize("campaign_slugs", [["    ", " "], ["\t\t\t\r"], ["\t\t\t\n"], ["\t\n", "  "], [""]])
@@ -205,7 +255,7 @@ def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, s
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == fastapi_http_status.HTTP_422_UNPROCESSABLE_ENTITY
     assert resp.json() == {
         "display_message": "BPL Schema not matched.",
         "error": "INVALID_CONTENT",
@@ -228,7 +278,7 @@ def test_status_change_empty_strings_and_legit_campaign(setup: SetupType) -> Non
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == fastapi_http_status.HTTP_422_UNPROCESSABLE_ENTITY
     assert resp.json() == {
         "display_message": "BPL Schema not matched.",
         "error": "INVALID_CONTENT",
@@ -253,7 +303,7 @@ def test_status_change_fields_fail_validation(setup: SetupType) -> None:
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == fastapi_http_status.HTTP_422_UNPROCESSABLE_ENTITY
     assert resp.json() == {
         "display_message": "BPL Schema not matched.",
         "error": "INVALID_CONTENT",
@@ -292,7 +342,18 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
         headers=auth_headers,
     )
 
-    validate_error_response(resp, HttpErrors.INVALID_STATUS_REQUESTED)
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "The requested status change could not be performed.",
+                "error": "INVALID_STATUS_REQUESTED",
+                "campaigns": payload["campaign_slugs"],
+            }
+        ],
+    )
+
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.DRAFT
 
@@ -341,19 +402,24 @@ def test_mixed_status_changes_to_legal_and_illegal_states(setup: SetupType, crea
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_409_CONFLICT
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.DRAFT  # i.e. no change
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED  # i.e. no change
-    assert resp.json()["display_message"] == "Not all campaigns were updated as requested."
-    assert resp.json()["error"] == "INCOMPLETE_STATUS_UPDATE"
-    failed_campaigns: list[str] = resp.json()["failed_campaigns"]
-    assert len(failed_campaigns) == 2
-    assert second_campaign.slug in failed_campaigns
-    assert third_campaign.slug in failed_campaigns
+
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "The requested status change could not be performed.",
+                "error": "INVALID_STATUS_REQUESTED",
+                "campaigns": [second_campaign.slug, third_campaign.slug],
+            }
+        ],
+    )
 
 
 def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belonging_to_retailer(
@@ -426,24 +492,26 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_409_CONFLICT
-    db_session.refresh(campaign)
-    assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
-    db_session.refresh(second_campaign)
-    assert second_campaign.status == CampaignStatuses.DRAFT  # i.e. no change
-    db_session.refresh(third_campaign)
-    assert third_campaign.status == CampaignStatuses.ENDED  # i.e. no change
-    db_session.refresh(second_retailer_owned_campaign)
-    assert second_retailer_owned_campaign.status == CampaignStatuses.ACTIVE  # i.e. no change
-    assert resp.json()["display_message"] == "Not all campaigns were updated as requested."
-    assert resp.json()["error"] == "INCOMPLETE_STATUS_UPDATE"
-    failed_campaigns: list[str] = resp.json()["failed_campaigns"]
-    assert len(failed_campaigns) == 5
-    assert second_campaign.slug in failed_campaigns
-    assert third_campaign.slug in failed_campaigns
-    assert "NON_EXISTENT_CAMPAIGN_1" in failed_campaigns
-    assert "NON_EXISTENT_CAMPAIGN_2" in failed_campaigns
-    assert second_retailer_owned_campaign.slug in failed_campaigns
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "Campaign not found for provided slug.",
+                "error": "NO_CAMPAIGN_FOUND",
+                "campaigns": [
+                    "NON_EXISTENT_CAMPAIGN_1",
+                    "NON_EXISTENT_CAMPAIGN_2",
+                    second_retailer_owned_campaign.slug,
+                ],
+            },
+            {
+                "display_message": "The requested status change could not be performed.",
+                "error": "INVALID_STATUS_REQUESTED",
+                "campaigns": [second_campaign.slug, third_campaign.slug],
+            },
+        ],
+    )
 
 
 def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
@@ -499,21 +567,29 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         headers=auth_headers,
     )
 
-    assert resp.status_code == starlette_http_status.HTTP_409_CONFLICT
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.DRAFT  # i.e. no change
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED  # i.e. no change
-    assert resp.json()["display_message"] == "Not all campaigns were updated as requested."
-    assert resp.json()["error"] == "INCOMPLETE_STATUS_UPDATE"
-    failed_campaigns: list[str] = resp.json()["failed_campaigns"]
-    assert len(failed_campaigns) == 4
-    assert second_campaign.slug in failed_campaigns
-    assert third_campaign.slug in failed_campaigns
-    assert "NON_EXISTENT_CAMPAIGN_1" in failed_campaigns
-    assert "NON_EXISTENT_CAMPAIGN_2" in failed_campaigns
+
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "Campaign not found for provided slug.",
+                "error": "NO_CAMPAIGN_FOUND",
+                "campaigns": ["NON_EXISTENT_CAMPAIGN_1", "NON_EXISTENT_CAMPAIGN_2"],
+            },
+            {
+                "display_message": "The requested status change could not be performed.",
+                "error": "INVALID_STATUS_REQUESTED",
+                "campaigns": [second_campaign.slug, third_campaign.slug],
+            },
+        ],
+    )
 
 
 def test_leaving_no_active_campaigns_gives_error(setup: SetupType, create_mock_campaign: Callable) -> None:
@@ -588,3 +664,128 @@ def test_having_no_active_campaigns_gives_invalid_status_error(
     assert campaign.status == CampaignStatuses.DRAFT
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.DRAFT
+
+
+def test_activating_a_campaign(setup: SetupType, activable_campaign: Campaign) -> None:
+    db_session, retailer, _ = setup
+    payload = {
+        "requested_status": "Active",
+        "campaign_slugs": [activable_campaign.slug],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    db_session.refresh(activable_campaign)
+    assert activable_campaign.status == CampaignStatuses.ACTIVE
+
+
+def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_campaign: Campaign) -> None:
+    db_session, retailer, _ = setup
+
+    db_session.execute(delete(EarnRule).where(EarnRule.id.in_([rule.id for rule in activable_campaign.earn_rules])))
+    db_session.commit()
+
+    payload = {
+        "requested_status": "Active",
+        "campaign_slugs": [activable_campaign.slug],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "the provided campaign(s) could not be made active",
+                "error": "MISSING_CAMPAIGN_COMPONENTS",
+                "campaigns": payload["campaign_slugs"],
+            },
+        ],
+    )
+
+    db_session.refresh(activable_campaign)
+    assert activable_campaign.status == CampaignStatuses.DRAFT
+
+
+def test_activating_a_campaign_with_no_reward_rule(setup: SetupType, activable_campaign: Campaign) -> None:
+    db_session, retailer, _ = setup
+
+    db_session.execute(delete(RewardRule).where(RewardRule.id.in_([rule.id for rule in activable_campaign.earn_rules])))
+    db_session.commit()
+
+    payload = {
+        "requested_status": "Active",
+        "campaign_slugs": [activable_campaign.slug],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "the provided campaign(s) could not be made active",
+                "error": "MISSING_CAMPAIGN_COMPONENTS",
+                "campaigns": payload["campaign_slugs"],
+            },
+        ],
+    )
+
+    db_session.refresh(activable_campaign)
+    assert activable_campaign.status == CampaignStatuses.DRAFT
+
+
+def test_activating_a_campaign_with_no_reward_rule_multiple_errors(
+    setup: SetupType, activable_campaign: Campaign
+) -> None:
+    db_session, retailer, campaign = setup
+
+    campaign.status = CampaignStatuses.CANCELLED
+    db_session.execute(delete(RewardRule).where(RewardRule.id.in_([rule.id for rule in activable_campaign.earn_rules])))
+    db_session.commit()
+
+    payload = {
+        "requested_status": "Active",
+        "campaign_slugs": [campaign.slug, activable_campaign.slug],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
+    validate_composite_error_response(
+        resp,
+        [
+            {
+                "display_message": "The requested status change could not be performed.",
+                "error": "INVALID_STATUS_REQUESTED",
+                "campaigns": [campaign.slug],
+            },
+            {
+                "display_message": "the provided campaign(s) could not be made active",
+                "error": "MISSING_CAMPAIGN_COMPONENTS",
+                "campaigns": [activable_campaign.slug],
+            },
+        ],
+    )
+
+    db_session.refresh(activable_campaign)
+    assert activable_campaign.status == CampaignStatuses.DRAFT
