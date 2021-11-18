@@ -21,7 +21,8 @@ from tenacity.wait import wait_fixed
 from app.core.config import redis, settings
 from app.db.base_class import sync_run_query
 from app.db.session import SyncSessionMaker
-from app.models import Campaign, RewardRule
+from app.enums import CampaignStatuses
+from app.models import Campaign, RetailerRewards, RewardRule
 
 from . import BalanceAdjustmentEnqueueException, logger
 
@@ -168,6 +169,22 @@ def adjust_balance(retry_task_id: int) -> None:
         retry_task: RetryTask = get_retry_task(db_session, retry_task_id)
         task_params: dict = retry_task.get_params()
         retry_task.update_task(db_session, increase_attempts=True)
+
+        campaign_status: CampaignStatuses = sync_run_query(
+            lambda: db_session.execute(
+                select(Campaign.status)
+                .join(RetailerRewards)
+                .where(
+                    RetailerRewards.slug == task_params["retailer_slug"], Campaign.slug == task_params["campaign_slug"]
+                )
+            ).scalar_one(),
+            db_session,
+            rollback_on_exc=False,
+        )
+
+        if campaign_status == CampaignStatuses.CANCELLED:
+            retry_task.update_task(db_session, status=RetryTaskStatuses.CANCELLED, clear_next_attempt_time=True)
+            return
 
         balance, campaign_slug, response_audit = _process_adjustment(task_params)
 
