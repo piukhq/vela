@@ -61,7 +61,7 @@ async def create_processed_transaction(
 async def create_reward_adjustment_tasks(
     db_session: "AsyncSession", processed_transaction: ProcessedTransaction, adj_amounts: dict
 ) -> List[int]:
-    async def _query() -> List[RetryTask]:  # pragma: coverage bug 1012
+    async def _query() -> List[RetryTask]:
         adjustments = []
         for campaign_slug, amount in adj_amounts.items():
             adjustment_task = await async_create_task(  # pragma: no cover
@@ -77,10 +77,10 @@ async def create_reward_adjustment_tasks(
                 },
             )
 
-            adjustments.append(adjustment_task)
+            adjustments.append(adjustment_task)  # pragma: coverage bug 1012
 
         await db_session.commit()
-        return adjustments
+        return adjustments  # pragma: coverage bug 1012
 
     return [task.retry_task_id for task in await async_run_query(_query, db_session)]
 
