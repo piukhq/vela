@@ -18,12 +18,13 @@ if TYPE_CHECKING:  # pragma: no cover
 async def create_transaction(
     db_session: "AsyncSession", retailer: RetailerRewards, transaction_data: dict
 ) -> Transaction:
-    async def _query() -> Transaction:
+    async def _query() -> Transaction:  # pragma: coverage bug 1012
         transaction = Transaction(retailer_id=retailer.id, **transaction_data)
         try:
             db_session.add(transaction)
             await db_session.commit()
         except IntegrityError:
+            await db_session.rollback()
             raise HttpErrors.DUPLICATE_TRANSACTION.value
 
         return transaction
@@ -42,7 +43,7 @@ async def delete_transaction(db_session: "AsyncSession", transaction: Transactio
 async def create_processed_transaction(
     db_session: "AsyncSession", retailer: RetailerRewards, campaign_slugs: List[str], transaction_data: dict
 ) -> ProcessedTransaction:
-    async def _query() -> ProcessedTransaction:
+    async def _query() -> ProcessedTransaction:  # pragma: coverage bug 1012
         processed_transaction = ProcessedTransaction(
             retailer_id=retailer.id, campaign_slugs=campaign_slugs, **transaction_data
         )
@@ -76,10 +77,10 @@ async def create_reward_adjustment_tasks(
                 },
             )
 
-            adjustments.append(adjustment_task)
+            adjustments.append(adjustment_task)  # pragma: coverage bug 1012
 
         await db_session.commit()
-        return adjustments
+        return adjustments  # pragma: coverage bug 1012
 
     return [task.retry_task_id for task in await async_run_query(_query, db_session)]
 
@@ -87,8 +88,8 @@ async def create_reward_adjustment_tasks(
 async def update_reward_adjustment_task_status(
     db_session: "AsyncSession", reward_adjustment_task: RetryTask, status: RetryTaskStatuses
 ) -> None:
-    async def _query() -> None:
+    async def _query() -> None:  # pragma: coverage bug 1012
         reward_adjustment_task.status = status
         await db_session.commit()
 
-    await async_run_query(_query, db_session)
+    await async_run_query(_query, db_session)  # pragma: coverage bug 1012

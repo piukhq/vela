@@ -43,6 +43,9 @@ class Campaign(Base, TimestampMixin):
     def __str__(self) -> str:  # pragma: no cover
         return str(self.name)
 
+    def is_activable(self) -> bool:
+        return self.status == CampaignStatuses.DRAFT and self.reward_rule is not None and len(self.earn_rules) >= 1
+
 
 class EarnRule(Base, TimestampMixin):
     __tablename__ = "earn_rule"
