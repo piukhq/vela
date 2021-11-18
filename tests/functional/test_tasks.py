@@ -17,8 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.enums import CampaignStatuses
-from app.models import RewardRule
-from app.models.retailer import Campaign
+from app.models import Campaign, RewardRule
 from app.tasks import BalanceAdjustmentEnqueueException
 from app.tasks.reward_adjustment import (
     _process_adjustment,
