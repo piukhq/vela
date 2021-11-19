@@ -79,6 +79,27 @@ class HttpErrors(Enum):
     )
 
 
+class HttpsErrorTemplates(Enum):
+    INVALID_STATUS_REQUESTED = {
+        "display_message": "The requested status change could not be performed.",
+        "error": "INVALID_STATUS_REQUESTED",
+    }
+
+    NO_CAMPAIGN_FOUND = {
+        "display_message": "Campaign not found for provided slug.",
+        "error": "NO_CAMPAIGN_FOUND",
+    }
+
+    MISSING_CAMPAIGN_COMPONENTS = {
+        "display_message": "the provided campaign(s) could not be made active",
+        "error": "MISSING_CAMPAIGN_COMPONENTS",
+    }
+
+    def value_with_slugs(self, campaign_slugs: list[str]) -> dict:
+        self.value["campaigns"] = campaign_slugs  # type: ignore [assignment]
+        return self.value
+
+
 class RewardAdjustmentStatuses(Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"

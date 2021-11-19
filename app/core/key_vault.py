@@ -17,9 +17,11 @@ class KeyVault:
             self.client = None
             logger.info("Key Vault not initialised as this is either a test or a migration.")
         else:
-            self.client = SecretClient(vault_url=vault_url, credential=DefaultAzureCredential())
+            self.client = SecretClient(
+                vault_url=vault_url, credential=DefaultAzureCredential()
+            )  # pragma: coverage bug 1012
 
-    def get_secret(self, secret_name: str) -> str:
+    def get_secret(self, secret_name: str) -> str:  # pragma: coverage bug 1012
         if not self.client:
             return "testing-token"
 
