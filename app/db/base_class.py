@@ -114,5 +114,3 @@ async def async_run_query(
             else:
                 sentry_sdk.capture_message(f"Max db connection attempts reached: {repr(ex)}")
                 raise
-        except Exception as e:
-            pass

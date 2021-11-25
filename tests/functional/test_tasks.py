@@ -186,7 +186,7 @@ def test_adjust_balance(
     mock_enqueue.assert_called_once()
 
 
-@mock.patch("app.tasks.reward_adjustment.requests")
+@mock.patch("app.tasks.requests")
 def test_adjust_balance_task_cancelled_when_campaign_cancelled(
     mock_requests: mock.MagicMock,
     db_session: "Session",

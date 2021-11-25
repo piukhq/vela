@@ -39,12 +39,9 @@ async def get_campaigns_by_slug(
 async def create_voucher_status_adjustment_tasks(
     db_session: "AsyncSession", campaign_slugs: list[str], retailer: RetailerRewards, status: CampaignStatuses
 ) -> List[int]:
-    try:
-        campaigns: list[Campaign] = await get_campaigns_by_slug(
-            db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer, load_rules=True
-        )
-    except Exception as e:
-        pass
+    campaigns: list[Campaign] = await get_campaigns_by_slug(
+        db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer, load_rules=True
+    )
 
     async def _query() -> List[RetryTask]:
         adjustments = []
@@ -64,10 +61,6 @@ async def create_voucher_status_adjustment_tasks(
         await db_session.commit()
         return adjustments  # pragma: coverage bug 1012
 
-    try:
-        retry_task_ids = [task.retry_task_id for task in await async_run_query(_query, db_session)]
-    except Exception as e:
-        pass
-
+    retry_task_ids = [task.retry_task_id for task in await async_run_query(_query, db_session)]
 
     return retry_task_ids

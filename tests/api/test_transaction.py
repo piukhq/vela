@@ -181,9 +181,9 @@ def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, 
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
-    # resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
-    #
-    # assert resp.status_code == status.HTTP_200_OK
+    resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
+
+    assert resp.status_code == status.HTTP_200_OK
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
