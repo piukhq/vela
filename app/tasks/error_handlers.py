@@ -51,3 +51,19 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
                 job=job,
                 exc_value=exc_value,
             )
+
+
+# NOTE: Inter-dependency: If this function's name or module changes, ensure that
+# it is relevantly reflected in the TaskType table
+def handle_retry_task_request_error(
+    job: rq.job.Job, exc_type: type, exc_value: Exception, traceback: "Traceback"
+) -> None:
+    with SyncSessionMaker() as db_session:
+        handle_request_exception(
+            db_session=db_session,
+            connection=redis,
+            backoff_base=settings.TASK_RETRY_BACKOFF_BASE,
+            max_retries=settings.TASK_MAX_RETRIES,
+            job=job,
+            exc_value=exc_value,
+        )

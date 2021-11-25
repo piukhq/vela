@@ -3,14 +3,15 @@ import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from retry_tasks_lib.utils.asynchronous import enqueue_many_retry_tasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
+from app.core.config import redis
 from app.internal_requests import validate_account_holder_uuid
 from app.models import RetailerRewards
 from app.schemas import CreateTransactionSchema
-from app.tasks.transaction import enqueue_reward_adjustment_tasks
 
 router = APIRouter()
 
@@ -40,7 +41,9 @@ async def record_transaction(
         adjustment_tasks_ids = await crud.create_reward_adjustment_tasks(
             db_session, processed_transaction, adjustment_amounts
         )
-        asyncio.create_task(enqueue_reward_adjustment_tasks(retry_tasks_ids=adjustment_tasks_ids))
+        asyncio.create_task(
+            enqueue_many_retry_tasks(db_session=db_session, retry_tasks_ids=adjustment_tasks_ids, connection=redis)
+        )
         response = "Awarded"
     else:  # pragma: coverage bug 1012
         response = "Threshold not met"

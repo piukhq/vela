@@ -1,10 +1,14 @@
+import asyncio
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from retry_tasks_lib.utils.asynchronous import enqueue_many_retry_tasks, enqueue_retry_task
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
+from app.core.config import redis, settings
 from app.db.base_class import async_run_query
 from app.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates
 from app.models.retailer import Campaign, RetailerRewards
@@ -105,3 +109,16 @@ async def campaigns_status_change(
 
     if errors:  # pragma: no cover
         raise HTTPException(detail=errors, status_code=status_code)
+
+    try:
+        adjustment_tasks_ids = await crud.create_voucher_status_adjustment_tasks(
+            db_session=db_session,
+            campaign_slugs=payload.campaign_slugs,
+            retailer=retailer,
+            status=payload.requested_status,
+        )
+    except Exception as e:
+        pass
+    asyncio.create_task(
+        enqueue_many_retry_tasks(db_session=db_session, retry_tasks_ids=adjustment_tasks_ids, connection=redis)
+    )

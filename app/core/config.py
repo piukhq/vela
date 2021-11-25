@@ -179,6 +179,12 @@ class Settings(BaseSettings):  # pragma: no cover
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
     REWARD_ADJUSTMENT_MAX_RETRIES: int = 6
     REWARD_ADJUSTMENT_BACKOFF_BASE: float = 3
+    VOUCHER_STATUS_ADJUSTMENT_TASK_NAME = "voucher-status-adjustment"
+
+    TASK_MAX_RETRIES: int = 6
+    TASK_RETRY_BACKOFF_BASE: float = 3.0
+    TASK_QUEUE_PREFIX: str = "vela:"
+    TASK_QUEUES: Optional[list[str]] = None
 
     CARINA_AUTH_TOKEN: Optional[str] = None
 
