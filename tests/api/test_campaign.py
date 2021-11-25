@@ -5,9 +5,12 @@ import pytest
 
 from fastapi import status as fastapi_http_status
 from fastapi.testclient import TestClient
+from pytest_mock import MockerFixture
 from requests import Response
-from retry_tasks_lib.db.models import TaskType
+from retry_tasks_lib.db.models import RetryTask, TaskType
+from retry_tasks_lib.enums import RetryTaskStatuses
 from sqlalchemy import delete
+from sqlalchemy.future import select
 
 from app.core.config import settings
 from app.enums import CampaignStatuses, HttpErrors
@@ -57,6 +60,7 @@ def test_update_campaign_active_status_to_ended(
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
     voucher_status_adjustment_task_type: TaskType,
+    mocker: MockerFixture,
 ) -> None:
     db_session, retailer, campaign = setup
     payload = {
@@ -75,15 +79,32 @@ def test_update_campaign_active_status_to_ended(
         }
     )
 
+    import app.api.endpoints.campaign as endpoints_campaign
+
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
+
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
         headers=auth_headers,
     )
 
+    activation_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
+    spy.assert_called_once()
+    assert activation_task.status == RetryTaskStatuses.PENDING
 
 
 def test_update_multiple_campaigns_ok(
@@ -92,6 +113,7 @@ def test_update_multiple_campaigns_ok(
     create_mock_reward_rule: Callable,
     reward_rule: RewardRule,
     voucher_status_adjustment_task_type: TaskType,
+    mocker: MockerFixture,
 ) -> None:
     """Test that multiple campaigns are handled, when they all transition to legal states"""
     db_session, retailer, campaign = setup
@@ -127,11 +149,25 @@ def test_update_multiple_campaigns_ok(
             "slug": "fourth-test-campaign",
         }
     )
+    import app.api.endpoints.campaign as endpoints_campaign
 
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
         headers=auth_headers,
+    )
+
+    activation_tasks = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalars()
+        .all()
     )
 
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
@@ -141,6 +177,10 @@ def test_update_multiple_campaigns_ok(
     assert second_campaign.status == CampaignStatuses.ENDED
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED
+    spy.assert_called_once()
+    assert len(activation_tasks) == 3
+    for activation_task in activation_tasks:
+        assert activation_task.status == RetryTaskStatuses.PENDING
 
 
 def test_status_change_mangled_json(setup: SetupType) -> None:
@@ -682,8 +722,14 @@ def test_activating_a_campaign(
     activable_campaign: Campaign,
     create_mock_reward_rule: Callable,
     voucher_status_adjustment_task_type: TaskType,
+    mocker: MockerFixture,
 ) -> None:
     db_session, retailer, _ = setup
+
+    import app.api.endpoints.campaign as endpoints_campaign
+
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
+
     create_mock_reward_rule(voucher_type_slug="activable-voucher-type", campaign_id=activable_campaign.id)
     payload = {
         "requested_status": "Active",
@@ -696,9 +742,21 @@ def test_activating_a_campaign(
         headers=auth_headers,
     )
 
+    activation_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(activable_campaign)
     assert activable_campaign.status == CampaignStatuses.ACTIVE
+    spy.assert_called_once()
+    assert activation_task.status == RetryTaskStatuses.PENDING
 
 
 def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_campaign: Campaign) -> None:
