@@ -10,7 +10,6 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from httpx import Request, Response
 from pytest_mock import MockerFixture
-from retry_tasks_lib.db.models import TaskType
 
 from app.core.config import settings
 from app.enums import CampaignStatuses
@@ -56,7 +55,7 @@ def test_post_transaction_happy_path(
     mocker: MockerFixture,
     reward_adjustment_task_type: "TaskType",
     create_mock_reward_rule: Callable,
-    voucher_status_adjustment_task_type: TaskType,
+    voucher_status_adjustment_task_type: "TaskType",
 ) -> None:
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
