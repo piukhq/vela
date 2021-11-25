@@ -20,9 +20,11 @@ def upgrade() -> None:
     conn = op.get_bind()
     op.add_column("task_type", sa.Column("error_handler_path", sa.String(), nullable=True))
     task_type = sa.Table("task_type", sa.MetaData(), autoload_with=conn)
-    conn.execute(sa.update(task_type).where(task_type.c.name == "reward-adjustment").values(
-        queue_name="vela:default", error_handler_path="app.tasks.error_handlers.handle_adjust_balance_error"
-    ))
+    conn.execute(
+        sa.update(task_type)
+        .where(task_type.c.name == "reward-adjustment")
+        .values(queue_name="vela:default", error_handler_path="app.tasks.error_handlers.handle_adjust_balance_error")
+    )
     op.alter_column("task_type", "error_handler_path", nullable=True)
 
 
@@ -30,6 +32,6 @@ def downgrade() -> None:
     conn = op.get_bind()
     op.drop_column("task_type", "error_handler_path")
     task_type = sa.Table("task_type", sa.MetaData(), autoload_with=conn)
-    conn.execute(sa.update(task_type).where(task_type.c.name == "reward-adjustment").values(
-        queue_name="bpl_reward_adjustments"
-    ))
+    conn.execute(
+        sa.update(task_type).where(task_type.c.name == "reward-adjustment").values(queue_name="bpl_reward_adjustments")
+    )
