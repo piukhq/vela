@@ -110,7 +110,7 @@ def test_post_transaction_no_active_campaigns(
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
-    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "error": "NO_ACTIVE_CAMPAIGNS"}
+    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
 
     transaction = db_session.query(Transaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
 
@@ -134,7 +134,7 @@ def test_post_transaction_no_active_campaigns_pre_start_date(
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
-    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "error": "NO_ACTIVE_CAMPAIGNS"}
+    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
 
     transaction = db_session.query(Transaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
 
@@ -158,7 +158,7 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
-    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "error": "NO_ACTIVE_CAMPAIGNS"}
+    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
 
     transaction = db_session.query(Transaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
 
@@ -181,13 +181,13 @@ def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
-    assert resp.json() == {"display_message": "Duplicate Transaction.", "error": "DUPLICATE_TRANSACTION"}
+    assert resp.json() == {"display_message": "Duplicate Transaction.", "code": "DUPLICATE_TRANSACTION"}
 
 
 def test_post_transaction_wrong_retailer(payload: dict) -> None:
     resp = client.post("/bpl/rewards/NOT_A_RETIALER/transaction", json=payload, headers=auth_headers)
     assert resp.status_code == status.HTTP_403_FORBIDDEN
-    assert resp.json() == {"display_message": "Requested retailer is invalid.", "error": "INVALID_RETAILER"}
+    assert resp.json() == {"display_message": "Requested retailer is invalid.", "code": "INVALID_RETAILER"}
 
 
 def test_post_transaction_account_holder_validation_errors(
@@ -207,14 +207,14 @@ def test_post_transaction_account_holder_validation_errors(
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
-    assert resp.json() == {"display_message": "User Account not Active", "error": "USER_NOT_ACTIVE"}
+    assert resp.json() == {"display_message": "User Account not Active", "code": "USER_NOT_ACTIVE"}
 
     mocked_session.return_value = Response(status.HTTP_404_NOT_FOUND, request=request)
 
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
-    assert resp.json() == {"display_message": "Unknown User.", "error": "USER_NOT_FOUND"}
+    assert resp.json() == {"display_message": "Unknown User.", "code": "USER_NOT_FOUND"}
 
     mocked_session.return_value = Response(status.HTTP_500_INTERNAL_SERVER_ERROR, request=request)
 
@@ -223,14 +223,14 @@ def test_post_transaction_account_holder_validation_errors(
     assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
     assert resp.json() == {
         "display_message": "An unexpected system error occurred, please try again later.",
-        "error": "INTERNAL_ERROR",
+        "code": "INTERNAL_ERROR",
     }
 
 
 def _check_transaction_endpoint_422_response(retailer_slug: str, bad_payload: dict) -> None:
     resp = client.post(f"/bpl/rewards/{retailer_slug}/transaction", json=bad_payload, headers=auth_headers)
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert resp.json() == {"display_message": "BPL Schema not matched.", "error": "INVALID_CONTENT"}
+    assert resp.json() == {"display_message": "BPL Schema not matched.", "code": "INVALID_CONTENT"}
 
 
 def test_post_transaction_account_holder_empty_val_validation_errors(

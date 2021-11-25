@@ -27,13 +27,13 @@ class CampaignStatuses(Enum):
 
 class HttpErrors(Enum):
     NO_ACTIVE_CAMPAIGNS = HTTPException(
-        detail={"display_message": "No active campaigns found for retailer.", "error": "NO_ACTIVE_CAMPAIGNS"},
+        detail={"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"},
         status_code=status.HTTP_404_NOT_FOUND,
     )
     INVALID_RETAILER = HTTPException(
         detail={
             "display_message": "Requested retailer is invalid.",
-            "error": "INVALID_RETAILER",
+            "code": "INVALID_RETAILER",
         },
         status_code=status.HTTP_403_FORBIDDEN,
     )
@@ -41,39 +41,39 @@ class HttpErrors(Enum):
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail={
             "display_message": "Supplied token is invalid.",
-            "error": "INVALID_TOKEN",
+            "code": "INVALID_TOKEN",
         },
     )
     DUPLICATE_TRANSACTION = HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail={"display_message": "Duplicate Transaction.", "error": "DUPLICATE_TRANSACTION"},
+        detail={"display_message": "Duplicate Transaction.", "code": "DUPLICATE_TRANSACTION"},
     )
     USER_NOT_FOUND = HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail={"display_message": "Unknown User.", "error": "USER_NOT_FOUND"},
+        detail={"display_message": "Unknown User.", "code": "USER_NOT_FOUND"},
     )
     USER_NOT_ACTIVE = HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail={"display_message": "User Account not Active", "error": "USER_NOT_ACTIVE"},
+        detail={"display_message": "User Account not Active", "code": "USER_NOT_ACTIVE"},
     )
     GENERIC_HANDLED_ERROR = HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail={
             "display_message": "An unexpected system error occurred, please try again later.",
-            "error": "INTERNAL_ERROR",
+            "code": "INTERNAL_ERROR",
         },
     )
     INVALID_STATUS_REQUESTED = HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail={
             "display_message": "The requested status change could not be performed.",
-            "error": "INVALID_STATUS_REQUESTED",
+            "code": "INVALID_STATUS_REQUESTED",
         },
     )
     NO_CAMPAIGN_FOUND = HTTPException(
         detail={
             "display_message": "Campaign not found for provided slug.",
-            "error": "NO_CAMPAIGN_FOUND",
+            "code": "NO_CAMPAIGN_FOUND",
         },
         status_code=status.HTTP_404_NOT_FOUND,
     )
@@ -82,17 +82,17 @@ class HttpErrors(Enum):
 class HttpsErrorTemplates(Enum):
     INVALID_STATUS_REQUESTED = {
         "display_message": "The requested status change could not be performed.",
-        "error": "INVALID_STATUS_REQUESTED",
+        "code": "INVALID_STATUS_REQUESTED",
     }
 
     NO_CAMPAIGN_FOUND = {
         "display_message": "Campaign not found for provided slug.",
-        "error": "NO_CAMPAIGN_FOUND",
+        "code": "NO_CAMPAIGN_FOUND",
     }
 
     MISSING_CAMPAIGN_COMPONENTS = {
         "display_message": "the provided campaign(s) could not be made active",
-        "error": "MISSING_CAMPAIGN_COMPONENTS",
+        "code": "MISSING_CAMPAIGN_COMPONENTS",
     }
 
     def value_with_slugs(self, campaign_slugs: list[str]) -> dict:

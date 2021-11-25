@@ -41,12 +41,12 @@ def validate_error_response(response: Response, error: HttpErrors) -> None:
     error_detail = cast(dict, error.value.detail)
     assert response.status_code == error.value.status_code
     assert resp_json["display_message"] == error_detail["display_message"]
-    assert resp_json["error"] == error_detail["error"]
+    assert resp_json["code"] == error_detail["code"]
 
 
 def validate_composite_error_response(response: Response, exptected_errors: list[dict]) -> None:
     for error, expected_error in zip(response.json(), exptected_errors):
-        assert error["error"] == expected_error["error"]
+        assert error["code"] == expected_error["code"]
         assert error["display_message"] == expected_error["display_message"]
         assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
 
@@ -141,7 +141,7 @@ def test_status_change_mangled_json(setup: SetupType) -> None:
     assert resp.status_code == fastapi_http_status.HTTP_400_BAD_REQUEST
     assert resp.json() == {
         "display_message": "Malformed request.",
-        "error": "MALFORMED_REQUEST",
+        "code": "MALFORMED_REQUEST",
     }
 
 
@@ -197,7 +197,7 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
         [
             {
                 "display_message": "Campaign not found for provided slug.",
-                "error": "NO_CAMPAIGN_FOUND",
+                "code": "NO_CAMPAIGN_FOUND",
                 "campaigns": payload["campaign_slugs"],
             }
         ],
@@ -231,7 +231,7 @@ def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, cr
         [
             {
                 "display_message": "Campaign not found for provided slug.",
-                "error": "NO_CAMPAIGN_FOUND",
+                "code": "NO_CAMPAIGN_FOUND",
                 "campaigns": payload["campaign_slugs"],
             }
         ],
@@ -255,7 +255,7 @@ def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, s
     assert resp.status_code == fastapi_http_status.HTTP_422_UNPROCESSABLE_ENTITY
     assert resp.json() == {
         "display_message": "BPL Schema not matched.",
-        "error": "INVALID_CONTENT",
+        "code": "INVALID_CONTENT",
     }
 
 
@@ -278,7 +278,7 @@ def test_status_change_empty_strings_and_legit_campaign(setup: SetupType) -> Non
     assert resp.status_code == fastapi_http_status.HTTP_422_UNPROCESSABLE_ENTITY
     assert resp.json() == {
         "display_message": "BPL Schema not matched.",
-        "error": "INVALID_CONTENT",
+        "code": "INVALID_CONTENT",
     }
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ACTIVE  # i.e. not changed
@@ -303,7 +303,7 @@ def test_status_change_fields_fail_validation(setup: SetupType) -> None:
     assert resp.status_code == fastapi_http_status.HTTP_422_UNPROCESSABLE_ENTITY
     assert resp.json() == {
         "display_message": "BPL Schema not matched.",
-        "error": "INVALID_CONTENT",
+        "code": "INVALID_CONTENT",
     }
 
 
@@ -345,7 +345,7 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
         [
             {
                 "display_message": "The requested status change could not be performed.",
-                "error": "INVALID_STATUS_REQUESTED",
+                "code": "INVALID_STATUS_REQUESTED",
                 "campaigns": payload["campaign_slugs"],
             }
         ],
@@ -412,7 +412,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(setup: SetupType, crea
         [
             {
                 "display_message": "The requested status change could not be performed.",
-                "error": "INVALID_STATUS_REQUESTED",
+                "code": "INVALID_STATUS_REQUESTED",
                 "campaigns": [second_campaign.slug, third_campaign.slug],
             }
         ],
@@ -495,7 +495,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         [
             {
                 "display_message": "Campaign not found for provided slug.",
-                "error": "NO_CAMPAIGN_FOUND",
+                "code": "NO_CAMPAIGN_FOUND",
                 "campaigns": [
                     "NON_EXISTENT_CAMPAIGN_1",
                     "NON_EXISTENT_CAMPAIGN_2",
@@ -504,7 +504,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
             },
             {
                 "display_message": "The requested status change could not be performed.",
-                "error": "INVALID_STATUS_REQUESTED",
+                "code": "INVALID_STATUS_REQUESTED",
                 "campaigns": [second_campaign.slug, third_campaign.slug],
             },
         ],
@@ -577,12 +577,12 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         [
             {
                 "display_message": "Campaign not found for provided slug.",
-                "error": "NO_CAMPAIGN_FOUND",
+                "code": "NO_CAMPAIGN_FOUND",
                 "campaigns": ["NON_EXISTENT_CAMPAIGN_1", "NON_EXISTENT_CAMPAIGN_2"],
             },
             {
                 "display_message": "The requested status change could not be performed.",
-                "error": "INVALID_STATUS_REQUESTED",
+                "code": "INVALID_STATUS_REQUESTED",
                 "campaigns": [second_campaign.slug, third_campaign.slug],
             },
         ],
@@ -704,7 +704,7 @@ def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_ca
         [
             {
                 "display_message": "the provided campaign(s) could not be made active",
-                "error": "MISSING_CAMPAIGN_COMPONENTS",
+                "code": "MISSING_CAMPAIGN_COMPONENTS",
                 "campaigns": payload["campaign_slugs"],
             },
         ],
@@ -737,7 +737,7 @@ def test_activating_a_campaign_with_no_reward_rule(setup: SetupType, activable_c
         [
             {
                 "display_message": "the provided campaign(s) could not be made active",
-                "error": "MISSING_CAMPAIGN_COMPONENTS",
+                "code": "MISSING_CAMPAIGN_COMPONENTS",
                 "campaigns": payload["campaign_slugs"],
             },
         ],
@@ -773,12 +773,12 @@ def test_activating_a_campaign_with_no_reward_rule_multiple_errors(
         [
             {
                 "display_message": "The requested status change could not be performed.",
-                "error": "INVALID_STATUS_REQUESTED",
+                "code": "INVALID_STATUS_REQUESTED",
                 "campaigns": [campaign.slug],
             },
             {
                 "display_message": "the provided campaign(s) could not be made active",
-                "error": "MISSING_CAMPAIGN_COMPONENTS",
+                "code": "MISSING_CAMPAIGN_COMPONENTS",
                 "campaigns": [activable_campaign.slug],
             },
         ],
