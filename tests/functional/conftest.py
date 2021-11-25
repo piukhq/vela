@@ -11,7 +11,6 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import sync_engine
 from app.models import Campaign, ProcessedTransaction
-from app.models.retailer import RewardRule
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -67,19 +66,6 @@ def reward_adjustment_task(
     )
     db_session.commit()
     return task
-
-
-@pytest.fixture
-def voucher_type_slug() -> str:
-    return "the-big-voucher-slug"
-
-
-@pytest.fixture(scope="function")
-def reward_rule(db_session: "Session", campaign: Campaign, voucher_type_slug: str) -> RewardRule:
-    reward_rule = RewardRule(reward_goal=5, voucher_type_slug=voucher_type_slug, campaign_id=campaign.id)
-    db_session.add(reward_rule)
-    db_session.commit()
-    return reward_rule
 
 
 @pytest.fixture(scope="function")

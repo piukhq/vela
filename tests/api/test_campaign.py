@@ -6,6 +6,7 @@ import pytest
 from fastapi import status as fastapi_http_status
 from fastapi.testclient import TestClient
 from requests import Response
+from retry_tasks_lib.db.models import TaskType
 from sqlalchemy import delete
 
 from app.core.config import settings
@@ -51,7 +52,12 @@ def validate_composite_error_response(response: Response, exptected_errors: list
         assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
 
 
-def test_update_campaign_active_status_to_ended(setup: SetupType, create_mock_campaign: Callable) -> None:
+def test_update_campaign_active_status_to_ended(
+    setup: SetupType,
+    create_mock_campaign: Callable,
+    reward_rule: RewardRule,
+    voucher_status_adjustment_task_type: TaskType,
+) -> None:
     db_session, retailer, campaign = setup
     payload = {
         "requested_status": "Ended",
@@ -80,13 +86,19 @@ def test_update_campaign_active_status_to_ended(setup: SetupType, create_mock_ca
     assert campaign.status == CampaignStatuses.ENDED
 
 
-def test_update_multiple_campaigns_ok(setup: SetupType, create_mock_campaign: Callable) -> None:
+def test_update_multiple_campaigns_ok(
+    setup: SetupType,
+    create_mock_campaign: Callable,
+    create_mock_reward_rule: Callable,
+    reward_rule: RewardRule,
+    voucher_status_adjustment_task_type: TaskType,
+) -> None:
     """Test that multiple campaigns are handled, when they all transition to legal states"""
     db_session, retailer, campaign = setup
     # Set the first campaign to ACTIVE, this should transition to ENDED ok
     campaign.status = CampaignStatuses.ACTIVE
     db_session.commit()
-    # Create second and third campaigns
+    # Create second and third campaigns, along with reward rules
     second_campaign: Campaign = create_mock_campaign(
         **{
             "status": CampaignStatuses.ACTIVE,
@@ -94,6 +106,7 @@ def test_update_multiple_campaigns_ok(setup: SetupType, create_mock_campaign: Ca
             "slug": "second-test-campaign",
         }
     )
+    create_mock_reward_rule(voucher_type_slug="second-voucher-type", campaign_id=second_campaign.id)
     third_campaign: Campaign = create_mock_campaign(
         **{
             "status": CampaignStatuses.ACTIVE,
@@ -101,6 +114,7 @@ def test_update_multiple_campaigns_ok(setup: SetupType, create_mock_campaign: Ca
             "slug": "third-test-campaign",
         }
     )
+    create_mock_reward_rule(voucher_type_slug="third-voucher-type", campaign_id=third_campaign.id)
     payload = {
         "requested_status": "Ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
@@ -663,8 +677,14 @@ def test_having_no_active_campaigns_gives_invalid_status_error(
     assert second_campaign.status == CampaignStatuses.DRAFT
 
 
-def test_activating_a_campaign(setup: SetupType, activable_campaign: Campaign) -> None:
+def test_activating_a_campaign(
+    setup: SetupType,
+    activable_campaign: Campaign,
+    create_mock_reward_rule: Callable,
+    voucher_status_adjustment_task_type: TaskType,
+) -> None:
     db_session, retailer, _ = setup
+    create_mock_reward_rule(voucher_type_slug="activable-voucher-type", campaign_id=activable_campaign.id)
     payload = {
         "requested_status": "Active",
         "campaign_slugs": [activable_campaign.slug],
