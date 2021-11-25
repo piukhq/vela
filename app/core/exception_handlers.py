@@ -12,12 +12,12 @@ def _format_validation_errors(payload: List[dict]) -> Tuple[int, Union[List[dict
         if error["type"] == "value_error.jsondecode":
             return (
                 HTTP_400_BAD_REQUEST,
-                {"display_message": "Malformed request.", "error": "MALFORMED_REQUEST"},
+                {"display_message": "Malformed request.", "code": "MALFORMED_REQUEST"},
             )
 
     return (
         HTTP_422_UNPROCESSABLE_ENTITY,
-        {"display_message": "BPL Schema not matched.", "error": "INVALID_CONTENT"},
+        {"display_message": "BPL Schema not matched.", "code": "INVALID_CONTENT"},
     )
 
 
@@ -41,6 +41,6 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> UJSONR
 async def unexpected_exception_handler(request: Request, exc: Exception) -> UJSONResponse:
 
     return UJSONResponse(
-        {"display_message": "An unexpected system error occurred, please try again later.", "error": "INTERNAL_ERROR"},
+        {"display_message": "An unexpected system error occurred, please try again later.", "code": "INTERNAL_ERROR"},
         status_code=HTTP_500_INTERNAL_SERVER_ERROR,
     )
