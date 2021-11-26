@@ -1,5 +1,3 @@
-import sentry_sdk
-
 from fastapi import FastAPI, status
 from fastapi.exceptions import RequestValidationError
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
@@ -20,12 +18,6 @@ def create_app() -> FastAPI:
     app.add_exception_handler(status.HTTP_500_INTERNAL_SERVER_ERROR, unexpected_exception_handler)
 
     if settings.SENTRY_DSN:  # pragma: no cover
-        sentry_sdk.init(
-            dsn=settings.SENTRY_DSN,
-            environment=settings.SENTRY_ENV,
-            traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-            release=__version__,
-        )
         app.add_middleware(SentryAsgiMiddleware)
 
     # Prevent 307 temporary redirects if URLs have slashes on the end

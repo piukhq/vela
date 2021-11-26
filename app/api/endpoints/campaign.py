@@ -85,7 +85,7 @@ async def _campaign_status_change(
 
 @router.post(
     path="/{retailer_slug}/campaigns/status_change",
-    response_model=str,
+    status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(user_is_authorised)],
 )
 async def campaigns_status_change(

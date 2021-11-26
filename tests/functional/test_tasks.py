@@ -25,6 +25,7 @@ from app.tasks.reward_adjustment import (
     _voucher_is_awardable,
     adjust_balance,
 )
+from app.tasks.voucher_status_adjustment import _process_voucher_status_adjustment, voucher_status_adjustment
 
 fake_now = datetime.utcnow()
 
@@ -420,3 +421,37 @@ def test__voucher_is_awardable(
     _compare_result(_voucher_is_awardable(db_session, campaign_slug, -5), (False, voucher_type_slug))
     _compare_result(_voucher_is_awardable(db_session, campaign_slug, 5), (True, voucher_type_slug))
     _compare_result(_voucher_is_awardable(db_session, campaign_slug, 10), (True, voucher_type_slug))
+
+
+@httpretty.activate
+def test_voucher_status_adjustment(
+    db_session: "Session", voucher_status_adjustment_retry_task: RetryTask, voucher_status_adjustment_url: str
+) -> None:
+    voucher_status_adjustment_retry_task.status = RetryTaskStatuses.IN_PROGRESS
+    db_session.commit()
+
+    httpretty.register_uri("PATCH", voucher_status_adjustment_url, body="OK", status=202)
+
+    voucher_status_adjustment(voucher_status_adjustment_retry_task.retry_task_id)
+
+    db_session.refresh(voucher_status_adjustment_retry_task)
+
+    assert voucher_status_adjustment_retry_task.attempts == 1
+    assert voucher_status_adjustment_retry_task.next_attempt_time is None
+    assert voucher_status_adjustment_retry_task.status == RetryTaskStatuses.SUCCESS
+
+
+def test_voucher_status_adjustment_wrong_status(
+    db_session: "Session", voucher_status_adjustment_retry_task: RetryTask
+) -> None:
+    voucher_status_adjustment_retry_task.status = RetryTaskStatuses.FAILED
+    db_session.commit()
+
+    with pytest.raises(ValueError):
+        voucher_status_adjustment(voucher_status_adjustment_retry_task.retry_task_id)
+
+    db_session.refresh(voucher_status_adjustment_retry_task)
+
+    assert voucher_status_adjustment_retry_task.attempts == 0
+    assert voucher_status_adjustment_retry_task.next_attempt_time is None
+    assert voucher_status_adjustment_retry_task.status == RetryTaskStatuses.FAILED
