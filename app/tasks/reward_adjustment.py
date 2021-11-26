@@ -1,22 +1,11 @@
-import logging
-
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
-import click
-import requests
-import rq
-
-from retry_tasks_lib.db.models import RetryTask, TaskType
+from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import enqueue_retry_task, get_retry_task, sync_create_task
 from sqlalchemy.future import select
-from tenacity import retry
-from tenacity.before import before_log
-from tenacity.retry import retry_if_exception_type, retry_if_result
-from tenacity.stop import stop_after_attempt
-from tenacity.wait import wait_fixed
 
 from app.core.config import redis, settings
 from app.db.base_class import sync_run_query
@@ -24,7 +13,7 @@ from app.db.session import SyncSessionMaker
 from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards, RewardRule
 
-from . import BalanceAdjustmentEnqueueException, logger
+from . import BalanceAdjustmentEnqueueException, logger, send_request_with_metrics
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
@@ -75,34 +64,6 @@ def _voucher_is_awardable(db_session: "Session", campaign_slug: str, new_balance
     if goal_met := new_balance >= cast(int, reward_rule.reward_goal):
         logger.info(f"Reward goal ({reward_rule.reward_goal}) met (current balance: {new_balance}).")
     return goal_met, reward_rule
-
-
-def update_metrics_hook(resp: requests.Response, *args: Any, **kwargs: Any) -> None:
-    # placeholder for when we add prometheus metrics
-    pass
-
-
-@retry(
-    stop=stop_after_attempt(2),
-    wait=wait_fixed(1),
-    reraise=True,
-    before=before_log(logger, logging.INFO),
-    retry_error_callback=lambda retry_state: retry_state.outcome.result(),
-    retry=retry_if_result(lambda resp: 501 <= resp.status_code < 600)
-    | retry_if_exception_type(requests.RequestException),
-)
-def send_request_with_metrics(
-    method: str,
-    url: str,
-    *,
-    headers: Optional[dict[str, Any]] = None,
-    json: Optional[dict[str, Any]] = None,
-    timeout: tuple[float, int],
-) -> requests.Response:
-
-    return requests.request(
-        method, url, hooks={"response": update_metrics_hook}, headers=headers, json=json, timeout=timeout
-    )
 
 
 def _process_adjustment(task_params: dict) -> tuple[int, str, dict]:
@@ -204,36 +165,3 @@ def adjust_balance(retry_task_id: int) -> None:
             adjust_balance_for_issued_voucher(db_session, task_params, reward_rule)
 
         retry_task.update_task(db_session, status=RetryTaskStatuses.SUCCESS, clear_next_attempt_time=True)
-
-
-@click.group()
-def cli() -> None:  # pragma: no cover
-    pass
-
-
-@cli.command()
-def worker(burst: bool = False) -> None:  # pragma: no cover
-    from app.tasks.error_handlers import handle_adjust_balance_error
-
-    # placeholder for when we implement prometheus metrics
-    # registry = prometheus_client.CollectorRegistry()
-    # prometheus_client.multiprocess.MultiProcessCollector(registry)
-    # prometheus_client.start_http_server(9100, registry=registry)
-
-    with SyncSessionMaker() as db_session:
-        task_queue_name = db_session.execute(
-            select(TaskType.queue_name).where(TaskType.name == settings.REWARD_ADJUSTMENT_TASK_NAME)
-        ).scalar_one()
-
-    q = rq.Queue(task_queue_name, connection=redis)
-    worker = rq.Worker(
-        queues=[q],
-        connection=redis,
-        log_job_description=True,
-        exception_handlers=[handle_adjust_balance_error],
-    )
-    worker.work(burst=burst, with_scheduler=True)
-
-
-if __name__ == "__main__":  # pragma: no cover
-    cli()

@@ -1,6 +1,6 @@
 from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -49,12 +49,18 @@ def payload() -> dict:
 
 
 def test_post_transaction_happy_path(
-    setup: SetupType, payload: dict, earn_rule: EarnRule, mocker: MockerFixture, reward_adjustment_task_type: "TaskType"
+    setup: SetupType,
+    payload: dict,
+    earn_rule: EarnRule,
+    mocker: MockerFixture,
+    reward_adjustment_task_type: "TaskType",
+    create_mock_reward_rule: Callable,
+    voucher_status_adjustment_task_type: "TaskType",
 ) -> None:
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
-    mocker.patch("app.tasks.transaction.enqueue_many_retry_tasks")
+    mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 

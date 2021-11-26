@@ -25,6 +25,7 @@ from app.tasks.reward_adjustment import (
     _voucher_is_awardable,
     adjust_balance,
 )
+from app.tasks.voucher_status_adjustment import _process_voucher_status_adjustment, voucher_status_adjustment
 
 fake_now = datetime.utcnow()
 
@@ -186,7 +187,7 @@ def test_adjust_balance(
     mock_enqueue.assert_called_once()
 
 
-@mock.patch("app.tasks.reward_adjustment.requests")
+@mock.patch("app.tasks.requests")
 def test_adjust_balance_task_cancelled_when_campaign_cancelled(
     mock_requests: mock.MagicMock,
     db_session: "Session",
@@ -420,3 +421,98 @@ def test__voucher_is_awardable(
     _compare_result(_voucher_is_awardable(db_session, campaign_slug, -5), (False, voucher_type_slug))
     _compare_result(_voucher_is_awardable(db_session, campaign_slug, 5), (True, voucher_type_slug))
     _compare_result(_voucher_is_awardable(db_session, campaign_slug, 10), (True, voucher_type_slug))
+
+
+@httpretty.activate
+def test__process_voucher_status_adjustment_ok(
+    voucher_status_adjustment_retry_task: RetryTask,
+    voucher_status_adjustment_expected_payload: dict,
+    voucher_status_adjustment_url: str,
+) -> None:
+
+    httpretty.register_uri("PATCH", voucher_status_adjustment_url, body="OK", status=202)
+
+    response_audit = _process_voucher_status_adjustment(voucher_status_adjustment_retry_task.get_params())
+
+    last_request = httpretty.last_request()
+    assert last_request.method == "PATCH"
+    assert json.loads(last_request.body) == voucher_status_adjustment_expected_payload
+    assert response_audit == {
+        "timestamp": mock.ANY,
+        "response": {
+            "status": 202,
+            "body": "OK",
+        },
+    }
+
+
+@httpretty.activate
+def test__process_voucher_status_adjustment_http_errors(
+    voucher_status_adjustment_retry_task: RetryTask,
+    voucher_status_adjustment_expected_payload: dict,
+    voucher_status_adjustment_url: str,
+) -> None:
+
+    for status, body in [
+        (401, "Unauthorized"),
+        (500, "Internal Server Error"),
+    ]:
+        httpretty.register_uri("PATCH", voucher_status_adjustment_url, body=body, status=status)
+
+        with pytest.raises(requests.RequestException) as excinfo:
+            _process_voucher_status_adjustment(voucher_status_adjustment_retry_task.get_params())
+
+        assert isinstance(excinfo.value, requests.RequestException)
+        assert excinfo.value.response.status_code == status
+
+        last_request = httpretty.last_request()
+        assert last_request.method == "PATCH"
+        assert json.loads(last_request.body) == voucher_status_adjustment_expected_payload
+
+
+@mock.patch("app.tasks.voucher_status_adjustment.send_request_with_metrics")
+def test__process_voucher_status_adjustment_connection_error(
+    mock_send_request_with_metrics: mock.MagicMock, voucher_status_adjustment_retry_task: RetryTask
+) -> None:
+
+    mock_send_request_with_metrics.side_effect = requests.Timeout("Request timed out")
+
+    with pytest.raises(requests.RequestException) as excinfo:
+        _process_voucher_status_adjustment(voucher_status_adjustment_retry_task.get_params())
+
+    assert isinstance(excinfo.value, requests.Timeout)
+    assert excinfo.value.response is None
+
+
+@httpretty.activate
+def test_voucher_status_adjustment(
+    db_session: "Session", voucher_status_adjustment_retry_task: RetryTask, voucher_status_adjustment_url: str
+) -> None:
+    voucher_status_adjustment_retry_task.status = RetryTaskStatuses.IN_PROGRESS
+    db_session.commit()
+
+    httpretty.register_uri("PATCH", voucher_status_adjustment_url, body="OK", status=202)
+
+    voucher_status_adjustment(voucher_status_adjustment_retry_task.retry_task_id)
+
+    db_session.refresh(voucher_status_adjustment_retry_task)
+
+    assert voucher_status_adjustment_retry_task.attempts == 1
+    assert voucher_status_adjustment_retry_task.next_attempt_time is None
+    assert voucher_status_adjustment_retry_task.status == RetryTaskStatuses.SUCCESS
+
+
+def test_voucher_status_adjustment_wrong_status(
+    db_session: "Session", voucher_status_adjustment_retry_task: RetryTask
+) -> None:
+    voucher_status_adjustment_retry_task.status = RetryTaskStatuses.FAILED
+    db_session.commit()
+
+    with pytest.raises(ValueError):
+        voucher_status_adjustment(voucher_status_adjustment_retry_task.retry_task_id)
+
+    db_session.refresh(voucher_status_adjustment_retry_task)
+
+    assert voucher_status_adjustment_retry_task.attempts == 0
+    assert voucher_status_adjustment_retry_task.next_attempt_time is None
+    assert voucher_status_adjustment_retry_task.status == RetryTaskStatuses.FAILED

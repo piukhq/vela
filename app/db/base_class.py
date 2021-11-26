@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, declarative_base, declarative_mixin
 
 from app.core.config import settings
-from app.version import __version__
 
 
 class ModelBase:
@@ -25,14 +24,6 @@ load_models_to_metadata(Base.metadata)
 utc_timestamp_sql = text("TIMEZONE('utc', CURRENT_TIMESTAMP)")
 
 logger = logging.getLogger("db-base-class")
-
-if settings.SENTRY_DSN:  # pragma: no cover
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.SENTRY_ENV,
-        release=__version__,
-        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-    )
 
 
 @declarative_mixin
