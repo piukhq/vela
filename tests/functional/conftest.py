@@ -123,6 +123,14 @@ def voucher_status_adjustment_retry_task(
 
 
 @pytest.fixture(scope="function")
+def voucher_status_adjustment_expected_payload(voucher_status_adjustment_retry_task: RetryTask) -> dict:
+    params = voucher_status_adjustment_retry_task.get_params()
+    return {
+        "status": params["status"],
+    }
+
+
+@pytest.fixture(scope="function")
 def voucher_status_adjustment_url(voucher_status_adjustment_task_params: dict) -> str:
     return "{base_url}/bpl/vouchers/{retailer_slug}/vouchers/{voucher_type_slug}/status".format(
         base_url=settings.CARINA_URL,

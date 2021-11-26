@@ -424,6 +424,67 @@ def test__voucher_is_awardable(
 
 
 @httpretty.activate
+def test__process_voucher_status_adjustment_ok(
+    voucher_status_adjustment_retry_task: RetryTask,
+    voucher_status_adjustment_expected_payload: dict,
+    voucher_status_adjustment_url: str,
+) -> None:
+
+    httpretty.register_uri("PATCH", voucher_status_adjustment_url, body="OK", status=202)
+
+    response_audit = _process_voucher_status_adjustment(voucher_status_adjustment_retry_task.get_params())
+
+    last_request = httpretty.last_request()
+    assert last_request.method == "PATCH"
+    assert json.loads(last_request.body) == voucher_status_adjustment_expected_payload
+    assert response_audit == {
+        "timestamp": mock.ANY,
+        "response": {
+            "status": 202,
+            "body": "OK",
+        },
+    }
+
+
+@httpretty.activate
+def test__process_voucher_status_adjustment_http_errors(
+    voucher_status_adjustment_retry_task: RetryTask,
+    voucher_status_adjustment_expected_payload: dict,
+    voucher_status_adjustment_url: str,
+) -> None:
+
+    for status, body in [
+        (401, "Unauthorized"),
+        (500, "Internal Server Error"),
+    ]:
+        httpretty.register_uri("PATCH", voucher_status_adjustment_url, body=body, status=status)
+
+        with pytest.raises(requests.RequestException) as excinfo:
+            _process_voucher_status_adjustment(voucher_status_adjustment_retry_task.get_params())
+
+        assert isinstance(excinfo.value, requests.RequestException)
+        assert excinfo.value.response.status_code == status
+
+        last_request = httpretty.last_request()
+        assert last_request.method == "PATCH"
+        assert json.loads(last_request.body) == voucher_status_adjustment_expected_payload
+
+
+@mock.patch("app.tasks.voucher_status_adjustment.send_request_with_metrics")
+def test__process_voucher_status_adjustment_connection_error(
+    mock_send_request_with_metrics: mock.MagicMock, voucher_status_adjustment_retry_task: RetryTask
+) -> None:
+
+    mock_send_request_with_metrics.side_effect = requests.Timeout("Request timed out")
+
+    with pytest.raises(requests.RequestException) as excinfo:
+        _process_voucher_status_adjustment(voucher_status_adjustment_retry_task.get_params())
+
+    assert isinstance(excinfo.value, requests.Timeout)
+    assert excinfo.value.response is None
+
+
+@httpretty.activate
 def test_voucher_status_adjustment(
     db_session: "Session", voucher_status_adjustment_retry_task: RetryTask, voucher_status_adjustment_url: str
 ) -> None:
