@@ -81,7 +81,7 @@ def test_update_campaign_active_status_to_ended(
 
     import app.api.endpoints.campaign as endpoints_campaign
 
-    spy = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
@@ -151,7 +151,7 @@ def test_update_multiple_campaigns_ok(
     )
     import app.api.endpoints.campaign as endpoints_campaign
 
-    spy = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
@@ -728,7 +728,7 @@ def test_activating_a_campaign(
 
     import app.api.endpoints.campaign as endpoints_campaign
 
-    spy = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
 
     create_mock_reward_rule(voucher_type_slug="activable-voucher-type", campaign_id=activable_campaign.id)
     payload = {
