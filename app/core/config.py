@@ -187,6 +187,12 @@ class Settings(BaseSettings):  # pragma: no cover
     TASK_QUEUE_PREFIX: str = "vela:"
     TASK_QUEUES: Optional[list[str]] = None
 
+    @validator("TASK_QUEUES")
+    def task_queues(cls, v: Optional[list[str]], values: dict[str, Any]) -> Any:
+        if v and isinstance(v, list):
+            return v
+        return (values["TASK_QUEUE_PREFIX"] + name for name in ("high", "default", "low"))
+
     CARINA_AUTH_TOKEN: Optional[str] = None
 
     @validator("CARINA_AUTH_TOKEN")
