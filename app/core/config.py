@@ -5,11 +5,14 @@ import sys
 from logging.config import dictConfig
 from typing import TYPE_CHECKING, Any, Optional
 
+import sentry_sdk
+
 from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
 from redis import Redis
 
 from app.core.key_vault import KeyVault
+from app.version import __version__
 
 if TYPE_CHECKING:  # pragma: no cover
     from pydantic.typing import CallableGenerator
@@ -177,8 +180,18 @@ class Settings(BaseSettings):  # pragma: no cover
     POLARIS_URL: str = "http://polaris-api"
     REDIS_URL: str
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
-    REWARD_ADJUSTMENT_MAX_RETRIES: int = 6
-    REWARD_ADJUSTMENT_BACKOFF_BASE: float = 3
+    VOUCHER_STATUS_ADJUSTMENT_TASK_NAME = "voucher-status-adjustment"
+
+    TASK_MAX_RETRIES: int = 6
+    TASK_RETRY_BACKOFF_BASE: float = 3.0
+    TASK_QUEUE_PREFIX: str = "vela:"
+    TASK_QUEUES: Optional[list[str]] = None
+
+    @validator("TASK_QUEUES")
+    def task_queues(cls, v: Optional[list[str]], values: dict[str, Any]) -> Any:
+        if v and isinstance(v, list):
+            return v
+        return (values["TASK_QUEUE_PREFIX"] + name for name in ("high", "default", "low"))
 
     CARINA_AUTH_TOKEN: Optional[str] = None
 
@@ -261,3 +274,11 @@ redis = Redis.from_url(
     socket_keepalive=True,
     retry_on_timeout=False,
 )
+
+if settings.SENTRY_DSN:  # pragma: no cover
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.SENTRY_ENV,
+        release=__version__,
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+    )

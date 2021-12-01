@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.session import SyncSessionMaker, sync_engine
 from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards
+from app.models.retailer import RewardRule
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -82,6 +83,19 @@ def campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Di
     return campaign
 
 
+@pytest.fixture
+def voucher_type_slug() -> str:
+    return "the-big-voucher-slug"
+
+
+@pytest.fixture(scope="function")
+def reward_rule(db_session: "Session", campaign: Campaign, voucher_type_slug: str) -> RewardRule:
+    reward_rule = RewardRule(reward_goal=5, voucher_type_slug=voucher_type_slug, campaign_id=campaign.id)
+    db_session.add(reward_rule)
+    db_session.commit()
+    return reward_rule
+
+
 @pytest.fixture(scope="function")
 def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
     def _create_mock_campaign(**campaign_params: Dict) -> Campaign:
@@ -101,6 +115,21 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
         return campaign
 
     return _create_mock_campaign
+
+
+@pytest.fixture(scope="function")
+def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
+    def _create_mock_reward_rule(voucher_type_slug: str, campaign_id: int, reward_goal: int = 5) -> RewardRule:
+        """
+        Create a reward rule in the test DB
+        :return: Callable function
+        """
+        reward_rule = RewardRule(reward_goal=reward_goal, voucher_type_slug=voucher_type_slug, campaign_id=campaign_id)
+        db_session.add(reward_rule)
+        db_session.commit()
+        return reward_rule
+
+    return _create_mock_reward_rule
 
 
 @pytest.fixture(scope="function")
@@ -125,7 +154,12 @@ def create_mock_retailer(db_session: "Session", mock_retailer: Dict) -> Callable
 
 @pytest.fixture(scope="function")
 def reward_adjustment_task_type(db_session: "Session") -> TaskType:
-    task_type = TaskType(name=settings.REWARD_ADJUSTMENT_TASK_NAME, path="sample.path", queue_name="test_queue")
+    task_type = TaskType(
+        name=settings.REWARD_ADJUSTMENT_TASK_NAME,
+        path="sample.path",
+        queue_name="test_queue",
+        error_handler_path="path.to.error_handler",
+    )
     db_session.add(task_type)
     db_session.flush()
     db_session.bulk_save_objects(
@@ -143,3 +177,29 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
     )
     db_session.commit()
     return task_type
+
+
+@pytest.fixture(scope="function")
+def voucher_status_adjustment_task_type(db_session: "Session") -> TaskType:
+    task = TaskType(
+        name=settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+        path="sample.path",
+        queue_name="test_queue",
+        error_handler_path="path.to.error_handler",
+    )
+    db_session.add(task)
+    db_session.flush()
+
+    db_session.bulk_save_objects(
+        [
+            TaskTypeKey(task_type_id=task.task_type_id, name=key_name, type=key_type)
+            for key_name, key_type in (
+                ("voucher_type_slug", "STRING"),
+                ("retailer_slug", "STRING"),
+                ("status", "STRING"),
+            )
+        ]
+    )
+
+    db_session.commit()
+    return task

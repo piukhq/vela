@@ -63,7 +63,7 @@ def test_active_campaign_slugs_invalid_token(setup: SetupType) -> None:
     assert resp.status_code == status.HTTP_401_UNAUTHORIZED
     assert resp.json() == {
         "display_message": "Supplied token is invalid.",
-        "error": "INVALID_TOKEN",
+        "code": "INVALID_TOKEN",
     }
 
 
@@ -80,7 +80,7 @@ def test_active_campaign_slugs_invalid_retailer(setup: SetupType) -> None:
 
     # THEN
     assert resp.status_code == status.HTTP_403_FORBIDDEN
-    assert resp.json() == {"display_message": "Requested retailer is invalid.", "error": "INVALID_RETAILER"}
+    assert resp.json() == {"display_message": "Requested retailer is invalid.", "code": "INVALID_RETAILER"}
 
 
 def test_active_campaign_slugs_no_active_campaigns(retailer: RetailerRewards) -> None:
@@ -92,4 +92,4 @@ def test_active_campaign_slugs_no_active_campaigns(retailer: RetailerRewards) ->
 
     # THEN
     assert resp.status_code == status.HTTP_404_NOT_FOUND
-    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "error": "NO_ACTIVE_CAMPAIGNS"}
+    assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
