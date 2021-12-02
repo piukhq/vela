@@ -100,7 +100,7 @@ def test_update_campaign_active_status_to_ended(
         .scalar_one()
     )
 
-    assert resp.status_code == fastapi_http_status.HTTP_202_ACCEPTED
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
     spy.assert_called_once()
@@ -170,7 +170,7 @@ def test_update_multiple_campaigns_ok(
         .all()
     )
 
-    assert resp.status_code == fastapi_http_status.HTTP_202_ACCEPTED
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
     db_session.refresh(second_campaign)
@@ -752,7 +752,7 @@ def test_activating_a_campaign(
         .unique()
         .scalar_one()
     )
-    assert resp.status_code == fastapi_http_status.HTTP_202_ACCEPTED
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(activable_campaign)
     assert activable_campaign.status == CampaignStatuses.ACTIVE
     spy.assert_called_once()
