@@ -84,7 +84,7 @@ async def _campaign_status_change(
 
 @router.post(
     path="/{retailer_slug}/campaigns/status_change",
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_200_OK,
     dependencies=[Depends(user_is_authorised)],
 )
 async def campaigns_status_change(
@@ -116,3 +116,5 @@ async def campaigns_status_change(
         status=payload.requested_status,
     )
     asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=adjustment_tasks_ids))
+
+    return {}
