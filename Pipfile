@@ -27,6 +27,7 @@ httpx = "*"
 requests = "*"
 retry-tasks-lib = {version=">=1.9.1", index="pypi-cloud"}
 hiredis = "*"
+prometheus-client = "*"
 
 [dev-packages]
 typing-extensions = "*"

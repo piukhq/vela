@@ -14,6 +14,7 @@ from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards, RewardRule
 
 from . import BalanceAdjustmentEnqueueException, logger, send_request_with_metrics
+from .prometheus import tasks_run_total
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
@@ -125,6 +126,7 @@ def adjust_balance_for_issued_voucher(db_session: "Session", task_params: dict, 
 
 
 def adjust_balance(retry_task_id: int) -> None:
+    tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_ADJUSTMENT_TASK_NAME).inc()
     with SyncSessionMaker() as db_session:
 
         retry_task: RetryTask = get_retry_task(db_session, retry_task_id)

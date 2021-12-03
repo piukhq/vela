@@ -65,7 +65,7 @@ class Settings(BaseSettings):  # pragma: no cover
             return True
         return v
 
-    PROJECT_NAME: str = "Vela"
+    PROJECT_NAME: str = "vela"
     ROOT_LOG_LEVEL: Optional[LogLevel] = None
     QUERY_LOG_LEVEL: Optional[LogLevel] = None
     LOG_FORMATTER: str = "json"
@@ -192,6 +192,7 @@ class Settings(BaseSettings):  # pragma: no cover
     TASK_RETRY_BACKOFF_BASE: float = 3.0
     TASK_QUEUE_PREFIX: str = "vela:"
     TASK_QUEUES: Optional[list[str]] = None
+    PROMETHEUS_HTTP_SERVER_PORT: int = 9100
 
     @validator("TASK_QUEUES")
     def task_queues(cls, v: Optional[list[str]], values: dict[str, Any]) -> Any:
