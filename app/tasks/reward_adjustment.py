@@ -143,7 +143,7 @@ def adjust_balance(retry_task_id: int) -> None:
             rollback_on_exc=False,
         )
 
-        if campaign_status == CampaignStatuses.CANCELLED:
+        if campaign_status in (CampaignStatuses.ENDED, CampaignStatuses.CANCELLED):
             retry_task.update_task(db_session, status=RetryTaskStatuses.CANCELLED, clear_next_attempt_time=True)
             return
 
