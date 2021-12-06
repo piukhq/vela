@@ -188,24 +188,27 @@ def test_adjust_balance(
 
 
 @mock.patch("app.tasks.requests")
-def test_adjust_balance_task_cancelled_when_campaign_cancelled(
+def test_adjust_balance_task_cancelled_when_campaign_cancelled_or_ended(
     mock_requests: mock.MagicMock,
     db_session: "Session",
     reward_adjustment_task: RetryTask,
     campaign: Campaign,
 ) -> None:
-    reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
-    campaign.status = CampaignStatuses.CANCELLED
-    db_session.commit()
+    attempts = reward_adjustment_task.attempts
+    for status in (CampaignStatuses.ENDED, CampaignStatuses.CANCELLED):
+        attempts = reward_adjustment_task.attempts
+        reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
+        campaign.status = status
+        db_session.commit()
 
-    adjust_balance(reward_adjustment_task.retry_task_id)
+        adjust_balance(reward_adjustment_task.retry_task_id)
 
-    db_session.refresh(reward_adjustment_task)
+        db_session.refresh(reward_adjustment_task)
 
-    mock_requests.assert_not_called()
-    assert reward_adjustment_task.attempts == 1
-    assert reward_adjustment_task.next_attempt_time is None
-    assert reward_adjustment_task.status == RetryTaskStatuses.CANCELLED
+        mock_requests.assert_not_called()
+        assert reward_adjustment_task.attempts == attempts + 1
+        assert reward_adjustment_task.next_attempt_time is None
+        assert reward_adjustment_task.status == RetryTaskStatuses.CANCELLED
 
 
 @httpretty.activate
