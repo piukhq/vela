@@ -15,7 +15,7 @@ from app.core.config import settings
 
 
 class ModelBase:
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
 
 
 Base = declarative_base(cls=ModelBase)
