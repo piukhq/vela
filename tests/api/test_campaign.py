@@ -60,6 +60,7 @@ def test_update_campaign_active_status_to_ended(
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
     voucher_status_adjustment_task_type: TaskType,
+    delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
     db_session, retailer, campaign = setup
@@ -113,6 +114,8 @@ def test_update_multiple_campaigns_ok(
     create_mock_reward_rule: Callable,
     reward_rule: RewardRule,
     voucher_status_adjustment_task_type: TaskType,
+    create_campaign_balances_task_type: TaskType,
+    delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
     """Test that multiple campaigns are handled, when they all transition to legal states"""
@@ -722,6 +725,7 @@ def test_activating_a_campaign(
     activable_campaign: Campaign,
     create_mock_reward_rule: Callable,
     voucher_status_adjustment_task_type: TaskType,
+    create_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
     db_session, retailer, _ = setup
