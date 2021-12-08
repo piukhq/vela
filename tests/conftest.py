@@ -203,3 +203,53 @@ def voucher_status_adjustment_task_type(db_session: "Session") -> TaskType:
 
     db_session.commit()
     return task
+
+
+@pytest.fixture(scope="function")
+def create_campaign_balances_task_type(db_session: "Session") -> TaskType:
+    task = TaskType(
+        name=settings.CREATE_CAMPAIGN_BALANCES_TASK_NAME,
+        path="sample.path",
+        queue_name="test_queue",
+        error_handler_path="path.to.error_handler",
+    )
+    db_session.add(task)
+    db_session.flush()
+
+    db_session.bulk_save_objects(
+        [
+            TaskTypeKey(task_type_id=task.task_type_id, name=key_name, type=key_type)
+            for key_name, key_type in (
+                ("retailer_slug", "STRING"),
+                ("campaign_slug", "STRING"),
+            )
+        ]
+    )
+
+    db_session.commit()
+    return task
+
+
+@pytest.fixture(scope="function")
+def delete_campaign_balances_task_type(db_session: "Session") -> TaskType:
+    task = TaskType(
+        name=settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
+        path="sample.path",
+        queue_name="test_queue",
+        error_handler_path="path.to.error_handler",
+    )
+    db_session.add(task)
+    db_session.flush()
+
+    db_session.bulk_save_objects(
+        [
+            TaskTypeKey(task_type_id=task.task_type_id, name=key_name, type=key_type)
+            for key_name, key_type in (
+                ("retailer_slug", "STRING"),
+                ("campaign_slug", "STRING"),
+            )
+        ]
+    )
+
+    db_session.commit()
+    return task

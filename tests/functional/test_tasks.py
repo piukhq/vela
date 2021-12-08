@@ -10,8 +10,9 @@ import pytest
 import requests
 
 from pytest_mock import MockerFixture
-from retry_tasks_lib.db.models import RetryTask, TaskTypeKey, TaskTypeKeyValue
+from retry_tasks_lib.db.models import RetryTask, TaskType, TaskTypeKey, TaskTypeKeyValue
 from retry_tasks_lib.enums import RetryTaskStatuses
+from retry_tasks_lib.utils.synchronous import sync_create_task
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 
@@ -19,6 +20,7 @@ from app.core.config import settings
 from app.enums import CampaignStatuses
 from app.models import Campaign, RewardRule
 from app.tasks import BalanceAdjustmentEnqueueException
+from app.tasks.campaign_balances import update_campaign_balances
 from app.tasks.reward_adjustment import (
     _process_adjustment,
     _process_voucher_allocation,
@@ -519,3 +521,45 @@ def test_voucher_status_adjustment_wrong_status(
     assert voucher_status_adjustment_retry_task.attempts == 0
     assert voucher_status_adjustment_retry_task.next_attempt_time is None
     assert voucher_status_adjustment_retry_task.status == RetryTaskStatuses.FAILED
+
+
+@httpretty.activate
+def test_update_campaign_balances(
+    db_session: "Session", create_campaign_balances_task_type: TaskType, delete_campaign_balances_task_type: TaskType
+) -> None:
+    params = {"retailer_slug": "sample-retailer", "campaign_slug": "sample-campaign"}
+    url = "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{campaign_slug}/balances".format(
+        base_url=settings.POLARIS_URL, **params
+    )
+
+    httpretty.register_uri("POST", url, body={}, status=202)
+    httpretty.register_uri("DELETE", url, body={}, status=202)
+
+    create_campaign_balances_task = sync_create_task(
+        db_session, task_type_name=create_campaign_balances_task_type.name, params=params
+    )
+    delete_campaign_balances_task = sync_create_task(
+        db_session, task_type_name=delete_campaign_balances_task_type.name, params=params
+    )
+    db_session.commit()
+
+    update_campaign_balances(create_campaign_balances_task.retry_task_id)
+    create_request = httpretty.last_request()
+
+    update_campaign_balances(delete_campaign_balances_task.retry_task_id)
+    delete_request = httpretty.last_request()
+
+    db_session.refresh(create_campaign_balances_task)
+    db_session.refresh(delete_campaign_balances_task)
+
+    assert create_request.url == url
+    assert create_request.method == "POST"
+    assert create_campaign_balances_task.status == RetryTaskStatuses.SUCCESS
+    assert create_campaign_balances_task.attempts == 1
+    assert create_campaign_balances_task.next_attempt_time is None
+
+    assert delete_request.url == url
+    assert delete_request.method == "DELETE"
+    assert delete_campaign_balances_task.status == RetryTaskStatuses.SUCCESS
+    assert delete_campaign_balances_task.attempts == 1
+    assert delete_campaign_balances_task.next_attempt_time is None
