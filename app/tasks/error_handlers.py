@@ -64,6 +64,7 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
                 max_retries=settings.TASK_MAX_RETRIES,
                 job=job,
                 exc_value=exc_value,
+                extra_status_codes_to_retry=[409],
             )
 
 

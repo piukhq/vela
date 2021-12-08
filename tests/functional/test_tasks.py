@@ -214,6 +214,31 @@ def test_adjust_balance_task_cancelled_when_campaign_cancelled_or_ended(
 
 
 @httpretty.activate
+@mock.patch("app.tasks.reward_adjustment._voucher_is_awardable")
+def test_adjust_balance_fails_with_409_no_balance_for_campaign_slug(
+    mock__voucher_is_awardable: mock.MagicMock,
+    db_session: "Session",
+    reward_adjustment_task: RetryTask,
+    reward_rule: RewardRule,
+    adjustment_url: str,
+) -> None:
+    reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
+    db_session.commit()
+    task_params = reward_adjustment_task.get_params()
+
+    httpretty.register_uri(
+        "POST",
+        adjustment_url,
+        body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
+        status=409,
+    )
+
+    with pytest.raises(requests.RequestException):
+        adjust_balance(reward_adjustment_task.retry_task_id)
+    mock__voucher_is_awardable.assert_not_called()
+
+
+@httpretty.activate
 def test_adjust_balance_voucher_allocation_call_fails(
     db_session: "Session",
     reward_adjustment_task: RetryTask,
