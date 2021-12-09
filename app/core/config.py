@@ -181,6 +181,8 @@ class Settings(BaseSettings):  # pragma: no cover
     REDIS_URL: str
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
     VOUCHER_STATUS_ADJUSTMENT_TASK_NAME = "voucher-status-adjustment"
+    CREATE_CAMPAIGN_BALANCES_TASK_NAME = "create-campaign-balances"
+    DELETE_CAMPAIGN_BALANCES_TASK_NAME = "delete-campaign-balances"
 
     TASK_MAX_RETRIES: int = 6
     TASK_RETRY_BACKOFF_BASE: float = 3.0

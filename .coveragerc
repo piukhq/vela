@@ -5,6 +5,7 @@ omit = *test*
         app/tests
         app/api/healthz.py
         app/core/reporting.py
+        app/tasks/worker.py
 branch = True
 
 [report]

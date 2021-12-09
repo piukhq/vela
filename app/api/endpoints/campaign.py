@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
 from app.api.tasks import enqueue_many_tasks
+from app.core.config import settings
 from app.db.base_class import async_run_query
 from app.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates
 from app.models.retailer import Campaign, RetailerRewards
@@ -92,12 +93,14 @@ async def campaigns_status_change(
     retailer: RetailerRewards = Depends(retailer_is_valid),
     db_session: AsyncSession = Depends(get_session),
 ) -> Any:
+    balance_task_type: str = settings.CREATE_CAMPAIGN_BALANCES_TASK_NAME
 
     # Check that this retailer will not be left with no Active campaigns
     if payload.requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
         await _check_remaining_active_campaigns(
             db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer
         )
+        balance_task_type = settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME  # pragma: coverage bug 1012
 
     errors, status_code = await _campaign_status_change(
         db_session=db_session,
@@ -109,12 +112,14 @@ async def campaigns_status_change(
     if errors:  # pragma: no cover
         raise HTTPException(detail=errors, status_code=status_code)
 
-    adjustment_tasks_ids = await crud.create_voucher_status_adjustment_tasks(
+    retry_tasks_ids = await crud.create_voucher_status_adjustment_and_campaign_balances_tasks(
         db_session=db_session,
         campaign_slugs=payload.campaign_slugs,
         retailer=retailer,
         status=payload.requested_status,
+        balance_task_type=balance_task_type,
     )
-    asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=adjustment_tasks_ids))
 
-    return {}
+    asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=retry_tasks_ids))  # pragma: coverage bug 1012
+
+    return {}  # pragma: coverage bug 1012
