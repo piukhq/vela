@@ -95,7 +95,7 @@ async def campaigns_status_change(
 ) -> Any:
     balance_task_type: str = settings.CREATE_CAMPAIGN_BALANCES_TASK_NAME
 
-    # Check that this retailer will not be left with no Active campaigns
+    # Check that this retailer will not be left with no active campaigns
     if payload.requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
         await _check_remaining_active_campaigns(
             db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer

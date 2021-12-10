@@ -4,10 +4,10 @@ from fastapi import HTTPException, status
 
 
 class CampaignStatuses(Enum):
-    ACTIVE = "Active"
-    DRAFT = "Draft"
-    CANCELLED = "Cancelled"
-    ENDED = "Ended"
+    ACTIVE = "active"
+    DRAFT = "draft"
+    CANCELLED = "cancelled"
+    ENDED = "ended"
 
     @classmethod
     def status_transitions(cls) -> dict[Enum, tuple]:
