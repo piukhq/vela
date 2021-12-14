@@ -99,7 +99,7 @@ class Settings(BaseSettings):  # pragma: no cover
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "vela"
     SQLALCHEMY_DATABASE_URI: str = ""
-    SQLALCHEMY_DATABASE_URI_PSYCOPG2: str = ""
+    SQLALCHEMY_DATABASE_URI_ASYNC: str = ""
     DB_CONNECTION_RETRY_TIMES: int = 3
 
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
@@ -109,7 +109,7 @@ class Settings(BaseSettings):  # pragma: no cover
 
         else:
             db_uri = PostgresDsn.build(
-                scheme="postgresql+asyncpg",
+                scheme="postgresql",
                 user=values.get("POSTGRES_USER"),
                 password=values.get("POSTGRES_PASSWORD"),
                 host=values.get("POSTGRES_HOST"),
@@ -122,12 +122,16 @@ class Settings(BaseSettings):  # pragma: no cover
 
         return db_uri
 
-    @validator("SQLALCHEMY_DATABASE_URI_PSYCOPG2", pre=True)
-    def adapt_db_connection_to_psycopg2(cls, v: str, values: dict[str, Any]) -> Any:
+    @validator("SQLALCHEMY_DATABASE_URI_ASYNC", pre=True)
+    def adapt_db_connection_to_async(cls, v: str, values: dict[str, Any]) -> Any:
         if v != "":
             db_uri = v
         else:
-            db_uri = values["SQLALCHEMY_DATABASE_URI"].replace("+asyncpg", "+psycopg2").replace("ssl=", "sslmode=")
+            db_uri = (
+                values["SQLALCHEMY_DATABASE_URI"]
+                .replace("postgresql://", "postgresql+asyncpg://")
+                .replace("sslmode=", "ssl=")
+            )
 
         return db_uri
 

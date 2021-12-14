@@ -46,7 +46,7 @@ def run_migrations_offline() -> None:
     """
     context.configure(
         # alembic will run the migrations synchronously with psycopg2
-        url=settings.SQLALCHEMY_DATABASE_URI_PSYCOPG2,
+        url=settings.SQLALCHEMY_DATABASE_URI,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -68,7 +68,7 @@ def run_migrations_online() -> None:
         raise ValueError("empty configuration.")
 
     # alembic will run the migrations synchronously with psycopg2
-    configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI_PSYCOPG2
+    configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI
 
     connectable = engine_from_config(
         configuration,
