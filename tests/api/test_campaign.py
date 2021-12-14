@@ -65,7 +65,7 @@ def test_update_campaign_active_status_to_ended(
 ) -> None:
     db_session, retailer, campaign = setup
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug],
     }
     campaign.status = CampaignStatuses.ACTIVE
@@ -141,7 +141,7 @@ def test_update_multiple_campaigns_ok(
     )
     create_mock_reward_rule(voucher_type_slug="third-voucher-type", campaign_id=third_campaign.id)
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
     }
     # Set up a fourth ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
@@ -205,7 +205,7 @@ def test_status_change_mangled_json(setup: SetupType) -> None:
 def test_status_change_invalid_token(setup: SetupType) -> None:
     _, retailer, campaign = setup
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug],
     }
 
@@ -221,7 +221,7 @@ def test_status_change_invalid_token(setup: SetupType) -> None:
 def test_status_change_invalid_retailer(setup: SetupType) -> None:
     _, _, campaign = setup
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug],
     }
     bad_retailer = "WRONG_RETAILER"
@@ -238,7 +238,7 @@ def test_status_change_invalid_retailer(setup: SetupType) -> None:
 def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None:
     _, retailer, _ = setup
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": ["WRONG_CAMPAIGN_SLUG_1", "WRONG_CAMPAIGN_SLUG_2"],
     }
 
@@ -266,7 +266,7 @@ def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, cr
     campaign.status = CampaignStatuses.DRAFT  # Set to DRAFT just so the status transition requested won't trigger 409
     db_session.commit()
     payload = {
-        "requested_status": "Active",
+        "requested_status": "active",
         "campaign_slugs": [campaign.slug],  # legitimate slug
     }
     # Create a second retailer who should not be able to change status of the campaign above
@@ -299,7 +299,7 @@ def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, cr
 def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, setup: SetupType) -> None:
     _, retailer, _ = setup
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": campaign_slugs,
     }
 
@@ -322,7 +322,7 @@ def test_status_change_empty_strings_and_legit_campaign(setup: SetupType) -> Non
     db_session.commit()
 
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug, "  "],
     }
 
@@ -377,7 +377,7 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
         }
     )
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug],
     }
     # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
@@ -437,7 +437,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(setup: SetupType, crea
         }
     )
     payload = {
-        "requested_status": "Cancelled",
+        "requested_status": "cancelled",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
     }
     # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
@@ -504,7 +504,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         }
     )
     payload = {
-        "requested_status": "Cancelled",
+        "requested_status": "cancelled",
         "campaign_slugs": [
             campaign.slug,
             second_campaign.slug,
@@ -596,7 +596,7 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         }
     )
     payload = {
-        "requested_status": "Cancelled",
+        "requested_status": "cancelled",
         "campaign_slugs": [
             campaign.slug,
             second_campaign.slug,
@@ -668,7 +668,7 @@ def test_leaving_no_active_campaigns_gives_error(setup: SetupType, create_mock_c
         }
     )
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
     }
 
@@ -703,7 +703,7 @@ def test_having_no_active_campaigns_gives_invalid_status_error(
         }
     )
     payload = {
-        "requested_status": "Ended",
+        "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug],
     }
 
@@ -736,7 +736,7 @@ def test_activating_a_campaign(
 
     create_mock_reward_rule(voucher_type_slug="activable-voucher-type", campaign_id=activable_campaign.id)
     payload = {
-        "requested_status": "Active",
+        "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
     }
 
@@ -770,7 +770,7 @@ def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_ca
     db_session.commit()
 
     payload = {
-        "requested_status": "Active",
+        "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
     }
 
@@ -803,7 +803,7 @@ def test_activating_a_campaign_with_no_reward_rule(setup: SetupType, activable_c
     db_session.commit()
 
     payload = {
-        "requested_status": "Active",
+        "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
     }
 
@@ -839,7 +839,7 @@ def test_activating_a_campaign_with_no_reward_rule_multiple_errors(
     db_session.commit()
 
     payload = {
-        "requested_status": "Active",
+        "requested_status": "active",
         "campaign_slugs": [campaign.slug, activable_campaign.slug],
     }
 
