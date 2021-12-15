@@ -41,10 +41,9 @@ class LogLevel(str):  # pragma: no cover
 
 class Settings(BaseSettings):  # pragma: no cover
     API_PREFIX: str = "/bpl/rewards"
-    SERVER_NAME: str = "test"
-    SERVER_HOST: str = "http://localhost:8000"
     TESTING: bool = False
     SQL_DEBUG: bool = False
+    METRICS_DEBUG: bool = False
 
     @validator("TESTING")
     def is_test(cls, v: bool) -> bool:

@@ -20,14 +20,14 @@ azure-keyvault = "*"
 azure-identity = "*"
 sentry-sdk = "*"
 redis = "*"
+hiredis = "*"
 rq = "*"
 asyncpg = "*"
 tenacity = "*"
 httpx = "*"
 requests = "*"
 retry-tasks-lib = {version=">=1.9.1", index="pypi-cloud"}
-hiredis = "*"
-prometheus-client = "*"
+fastapi-prometheus-metrics = {version=">=0.1.0", index="pypi-cloud"}
 
 [dev-packages]
 typing-extensions = "*"
