@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
@@ -8,8 +8,6 @@ from retry_tasks_lib.db.models import RetryTask, TaskType, TaskTypeKeyValue
 from retry_tasks_lib.utils.synchronous import sync_create_task
 
 from app.core.config import settings
-from app.db.base import Base
-from app.db.session import sync_engine
 from app.enums import CampaignStatuses
 from app.models import Campaign, ProcessedTransaction
 
@@ -17,20 +15,6 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 # conftest for API tests: tables will be dropped after each test to ensure a clean state
-
-
-@pytest.fixture(scope="function", autouse=True)
-def setup_tables() -> Generator:
-    """
-    autouse set to True so will be run before each test function, to set up tables
-    and tear them down after each test runs
-    """
-    Base.metadata.create_all(bind=sync_engine)
-
-    yield
-
-    # Drop all tables after each test
-    Base.metadata.drop_all(bind=sync_engine)
 
 
 @pytest.fixture(scope="function")
