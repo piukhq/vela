@@ -1,3 +1,4 @@
+from collections import namedtuple
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Callable, Dict, Generator
@@ -9,6 +10,7 @@ from retry_tasks_lib.enums import TaskParamsKeyTypes
 from sqlalchemy_utils import create_database, database_exists, drop_database
 
 from app.core.config import settings
+from app.db.base import Base
 from app.db.session import SyncSessionMaker, sync_engine
 from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards
@@ -18,6 +20,9 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 # Top-level conftest for tests, doing things like setting up DB
+
+
+SetupType = namedtuple("SetupType", ["db_session", "retailer", "campaign"])
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -33,6 +38,25 @@ def setup_db() -> Generator:
 
     # At end of all tests, drop the test db
     drop_database(sync_engine.url)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_tables() -> Generator:
+    """
+    autouse set to True so will be run before each test function, to set up tables
+    and tear them down after each test runs
+    """
+    Base.metadata.create_all(bind=sync_engine)
+
+    yield
+
+    # Drop all tables after each test
+    Base.metadata.drop_all(bind=sync_engine)
+
+
+@pytest.fixture(scope="function")
+def setup(db_session: "Session", retailer: RetailerRewards, campaign: Campaign) -> Generator[SetupType, None, None]:
+    yield SetupType(db_session, retailer, campaign)
 
 
 @pytest.fixture(scope="module")
