@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.enums import CampaignStatuses
 from app.models import Campaign, EarnRule, ProcessedTransaction, Transaction
 from asgi import app
-from tests.api.conftest import SetupType
+from tests.conftest import SetupType
 
 if TYPE_CHECKING:
     from retry_tasks_lib.db.models import TaskType

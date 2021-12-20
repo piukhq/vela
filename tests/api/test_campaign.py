@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.enums import CampaignStatuses, HttpErrors
 from app.models import Campaign, EarnRule, RetailerRewards, RewardRule
 from asgi import app
-from tests.api.conftest import SetupType
+from tests.conftest import SetupType
 
 client = TestClient(app, raise_server_exceptions=False)
 auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}", "Bpl-User-Channel": "channel"}
