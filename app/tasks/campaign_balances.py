@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.session import SyncSessionMaker
 
 from . import logger, send_request_with_metrics
+from .prometheus import tasks_run_total
 
 
 def _process_campaign_balances_update(task_type_name: str, task_params: dict) -> dict:
@@ -46,6 +47,7 @@ def update_campaign_balances(retry_task_id: int) -> None:
     with SyncSessionMaker() as db_session:
 
         retry_task = get_retry_task(db_session, retry_task_id)
+        tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=retry_task.task_type.name).inc()
         retry_task.update_task(db_session, increase_attempts=True)
 
         response_audit = _process_campaign_balances_update(retry_task.task_type.name, retry_task.get_params())
