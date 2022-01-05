@@ -41,10 +41,9 @@ class LogLevel(str):  # pragma: no cover
 
 class Settings(BaseSettings):  # pragma: no cover
     API_PREFIX: str = "/bpl/rewards"
-    SERVER_NAME: str = "test"
-    SERVER_HOST: str = "http://localhost:8000"
     TESTING: bool = False
     SQL_DEBUG: bool = False
+    METRICS_DEBUG: bool = False
 
     @validator("TESTING")
     def is_test(cls, v: bool) -> bool:
@@ -65,7 +64,7 @@ class Settings(BaseSettings):  # pragma: no cover
             return True
         return v
 
-    PROJECT_NAME: str = "Vela"
+    PROJECT_NAME: str = "vela"
     ROOT_LOG_LEVEL: Optional[LogLevel] = None
     QUERY_LOG_LEVEL: Optional[LogLevel] = None
     LOG_FORMATTER: str = "json"
@@ -192,6 +191,7 @@ class Settings(BaseSettings):  # pragma: no cover
     TASK_RETRY_BACKOFF_BASE: float = 3.0
     TASK_QUEUE_PREFIX: str = "vela:"
     TASK_QUEUES: Optional[list[str]] = None
+    PROMETHEUS_HTTP_SERVER_PORT: int = 9100
 
     @validator("TASK_QUEUES")
     def task_queues(cls, v: Optional[list[str]], values: dict[str, Any]) -> Any:
