@@ -43,9 +43,3 @@ def send_request_with_metrics(
     except requests.RequestException as ex:
         update_metrics_exception_handler(ex, method, url)
         raise
-
-
-class BalanceAdjustmentEnqueueException(Exception):
-    def __init__(self, retry_task_id: int, *args: object) -> None:
-        super().__init__(*args)
-        self.retry_task_id = retry_task_id
