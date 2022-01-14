@@ -393,7 +393,7 @@ def test__process_voucher_allocation(
     assert "idempotency-token" in last_request.headers
     assert last_request.url == allocation_url
     assert json.loads(last_request.body) == {
-        "account_url": f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/vouchers",
+        "account_url": f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/rewards",
     }
     assert response_audit == {
         "request": {"url": allocation_url},
@@ -430,7 +430,7 @@ def test__process_voucher_allocation_http_errors(
         assert last_request.method == "POST"
         assert json.loads(last_request.body) == {
             "account_url": (
-                f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/vouchers"
+                f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/rewards"
             ),
         }
 
