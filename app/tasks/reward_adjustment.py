@@ -36,7 +36,7 @@ def _process_voucher_allocation(task_params: dict, voucher_type_slug: str) -> di
         "POST",
         request_url,
         json={
-            "account_url": "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/vouchers".format(
+            "account_url": "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/rewards".format(
                 base_url=settings.POLARIS_URL,
                 retailer_slug=task_params["retailer_slug"],
                 account_holder_uuid=task_params["account_holder_uuid"],
