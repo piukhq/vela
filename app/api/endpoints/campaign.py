@@ -26,13 +26,13 @@ async def _check_remaining_active_campaigns(
 ) -> None:
     try:
         active_campaign_slugs: list[str] = await crud.get_active_campaign_slugs(db_session, retailer)
-    except HTTPException as e:  # pragma: coverage bug 1012
+    except HTTPException as e:
         # This would actually be an invalid status request
         if e.detail["code"] == "NO_ACTIVE_CAMPAIGNS":  # type: ignore
             raise HttpErrors.INVALID_STATUS_REQUESTED.value
 
     # If you've requested to end or cancel all of your active campaigns..
-    if set(active_campaign_slugs).issubset(set(campaign_slugs)):  # pragma: coverage bug 1012
+    if set(active_campaign_slugs).issubset(set(campaign_slugs)):
         raise HttpErrors.INVALID_STATUS_REQUESTED.value
 
 
@@ -53,12 +53,12 @@ async def _campaign_status_change(
     )
     # Add in any campaigns that were not found
     missing_campaigns = list(set(campaign_slugs) - {campaign.slug for campaign in campaigns})
-    if missing_campaigns:  # pragma: coverage bug 1012
+    if missing_campaigns:
         errors[HttpsErrorTemplates.NO_CAMPAIGN_FOUND] = missing_campaigns
         status_code = status.HTTP_404_NOT_FOUND
 
-    valid_campaigns: list[Campaign] = []  # pragma: coverage bug 1012
-    for campaign in campaigns:  # pragma: coverage bug 1012
+    valid_campaigns: list[Campaign] = []
+    for campaign in campaigns:
         if requested_status.is_valid_status_transition(current_status=campaign.status):
             if not is_activation or campaign.is_activable():
                 valid_campaigns.append(campaign)
@@ -69,7 +69,7 @@ async def _campaign_status_change(
             status_code = status.HTTP_409_CONFLICT
             errors[HttpsErrorTemplates.INVALID_STATUS_REQUESTED].append(campaign.slug)
 
-    async def _query(campaigns: list[Campaign]) -> None:  # pragma: coverage bug 1012
+    async def _query(campaigns: list[Campaign]) -> None:
         for campaign in campaigns:
             campaign.status = requested_status
 
@@ -80,7 +80,7 @@ async def _campaign_status_change(
     formatted_errors = [
         error_type.value_with_slugs(campaign_slugs) for error_type, campaign_slugs in errors.items() if campaign_slugs
     ]
-    return formatted_errors, status_code  # pragma: coverage bug 1012
+    return formatted_errors, status_code
 
 
 @router.post(
@@ -100,7 +100,7 @@ async def campaigns_status_change(
         await _check_remaining_active_campaigns(
             db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer
         )
-        balance_task_type = settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME  # pragma: coverage bug 1012
+        balance_task_type = settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME
 
     errors, status_code = await _campaign_status_change(
         db_session=db_session,
@@ -120,6 +120,6 @@ async def campaigns_status_change(
         balance_task_type=balance_task_type,
     )
 
-    asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=retry_tasks_ids))  # pragma: coverage bug 1012
+    asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=retry_tasks_ids))
 
-    return {}  # pragma: coverage bug 1012
+    return {}

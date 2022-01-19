@@ -153,7 +153,7 @@ def adjust_balance(retry_task_id: int) -> None:
 
         retry_task.update_task(db_session, response_audit=response_audit)
 
-        if campaign_slug != task_params["campaign_slug"]:  # pragma: coverage bug 1012
+        if campaign_slug != task_params["campaign_slug"]:
             raise ValueError(
                 f"Adjustment campaign slug ({task_params['campaign_slug']}) does not match campaign slug returned in "
                 f"adjustment response ({campaign_slug})"
@@ -161,7 +161,7 @@ def adjust_balance(retry_task_id: int) -> None:
 
         voucher_awardable, reward_rule = _voucher_is_awardable(db_session, task_params["campaign_slug"], balance)
 
-        if voucher_awardable:  # pragma: coverage bug 1012
+        if voucher_awardable:
             response_audit = _process_voucher_allocation(task_params, reward_rule.voucher_type_slug)
             retry_task.update_task(db_session, response_audit=response_audit)
             adjust_balance_for_issued_voucher(db_session, task_params, reward_rule)

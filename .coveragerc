@@ -7,8 +7,9 @@ omit = *test*
         app/core/reporting.py
         app/tasks/worker.py
 branch = True
+concurrency = thread
+              greenlet
 
 [report]
 fail_under = 85
 exclude_lines = pragma: no cover
-                pragma: coverage bug 1012
