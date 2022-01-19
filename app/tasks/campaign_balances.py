@@ -18,7 +18,7 @@ def _process_campaign_balances_update(task_type_name: str, task_params: dict) ->
         action = "deletion"
         method = "DELETE"
     else:
-        raise ValueError("Invalid task type.")  # pragma: coverage bug 1012
+        raise ValueError("Invalid task type.")
 
     logger.info(f"Processing balance {action} for campaign: {task_params['campaign_slug']}")
     timestamp = datetime.utcnow()
