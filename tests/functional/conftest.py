@@ -116,7 +116,7 @@ def voucher_status_adjustment_expected_payload(voucher_status_adjustment_retry_t
 
 @pytest.fixture(scope="function")
 def voucher_status_adjustment_url(voucher_status_adjustment_task_params: dict) -> str:
-    return "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{voucher_type_slug}/status".format(
+    return "{base_url}/bpl/rewards/{retailer_slug}/rewards/{voucher_type_slug}/status".format(
         base_url=settings.CARINA_URL,
         retailer_slug=voucher_status_adjustment_task_params["retailer_slug"],
         voucher_type_slug=voucher_status_adjustment_task_params["voucher_type_slug"],
