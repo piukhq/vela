@@ -47,7 +47,7 @@ async def create_voucher_status_adjustment_and_campaign_balances_tasks(
         db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer, load_rules=True
     )
 
-    async def _query() -> List[RetryTask]:  # pragma: coverage bug 1012
+    async def _query() -> List[RetryTask]:
         tasks = []
         for campaign in campaigns:
             tasks.append(
@@ -73,6 +73,6 @@ async def create_voucher_status_adjustment_and_campaign_balances_tasks(
             )
 
         await db_session.commit()
-        return tasks  # pragma: coverage bug 1012
+        return tasks
 
     return [task.retry_task_id for task in await async_run_query(_query, db_session)]
