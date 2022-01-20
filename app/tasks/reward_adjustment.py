@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 def _process_voucher_allocation(task_params: dict, voucher_type_slug: str) -> dict:
     logger.info(f"Requesting voucher allocation for tx: {task_params['processed_transaction_id']}")
     timestamp = datetime.utcnow()
-    request_url = "{base_url}/bpl/vouchers/{retailer_slug}/vouchers/{voucher_type_slug}/allocation".format(
+    request_url = "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{voucher_type_slug}/allocation".format(
         base_url=settings.CARINA_URL,
         retailer_slug=task_params["retailer_slug"],
         voucher_type_slug=voucher_type_slug,
