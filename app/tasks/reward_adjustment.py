@@ -20,14 +20,14 @@ if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
 
 
-def _process_voucher_allocation(
-    *, retailer_slug: str, voucher_type_slug: str, account_holder_uuid: str, idempotency_token: str
+def _process_reward_allocation(
+    *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str
 ) -> dict:
     timestamp = datetime.utcnow()
-    request_url = "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{voucher_type_slug}/allocation".format(
+    request_url = "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/allocation".format(
         base_url=settings.CARINA_URL,
         retailer_slug=retailer_slug,
-        voucher_type_slug=voucher_type_slug,
+        reward_slug=reward_slug,
     )
     response_audit: dict = {
         "timestamp": timestamp.isoformat(),
@@ -54,7 +54,7 @@ def _process_voucher_allocation(
     return response_audit
 
 
-def _voucher_is_awardable(db_session: "Session", campaign_slug: str, new_balance: int) -> tuple[bool, RewardRule]:
+def _reward_achieved(db_session: "Session", campaign_slug: str, new_balance: int) -> tuple[bool, RewardRule]:
     reward_rule: RewardRule = sync_run_query(
         lambda: db_session.execute(
             select(RewardRule).where(RewardRule.campaign_id == Campaign.id, Campaign.slug == campaign_slug)
@@ -163,23 +163,23 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             f"adjustment response ({campaign_slug})"
         )
 
-    voucher_awardable, reward_rule = _voucher_is_awardable(db_session, task_params["campaign_slug"], balance)
+    reward_achieved, reward_rule = _reward_achieved(db_session, task_params["campaign_slug"], balance)
 
-    if voucher_awardable:
+    if reward_achieved:
 
         token_param_name = "allocation_idempotency_token"
         allocation_idempotency_token = retry_task.get_params().get(token_param_name) or _create_idempotency_token(
             retry_task, token_param_name, db_session
         )
 
-        logger.info(f"Requesting voucher allocation for tx: {task_params['processed_transaction_id']}")
-        response_audit = _process_voucher_allocation(
+        logger.info(f"Requesting reward allocation for tx: {task_params['processed_transaction_id']}")
+        response_audit = _process_reward_allocation(
             retailer_slug=task_params["retailer_slug"],
-            voucher_type_slug=reward_rule.voucher_type_slug,
+            reward_slug=reward_rule.reward_slug,
             account_holder_uuid=task_params["account_holder_uuid"],
             idempotency_token=allocation_idempotency_token,
         )
-        logger.info("Voucher allocation request complete")
+        logger.info("Reward allocation request complete")
         retry_task.update_task(db_session, response_audit=response_audit)
 
         token_param_name = "dec_adjustment_idempotency_token"

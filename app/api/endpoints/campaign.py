@@ -112,7 +112,7 @@ async def campaigns_status_change(
     if errors:  # pragma: no cover
         raise HTTPException(detail=errors, status_code=status_code)
 
-    retry_tasks_ids = await crud.create_voucher_status_adjustment_and_campaign_balances_tasks(
+    retry_tasks_ids = await crud.create_reward_status_adjustment_and_campaign_balances_tasks(
         db_session=db_session,
         campaign_slugs=payload.campaign_slugs,
         retailer=retailer,

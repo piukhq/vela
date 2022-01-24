@@ -55,7 +55,7 @@ def test_post_transaction_happy_path(
     mocker: MockerFixture,
     reward_adjustment_task_type: "TaskType",
     create_mock_reward_rule: Callable,
-    voucher_status_adjustment_task_type: "TaskType",
+    reward_status_adjustment_task_type: "TaskType",
 ) -> None:
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
