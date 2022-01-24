@@ -46,7 +46,7 @@ def reward_adjustment_task(
             "processed_transaction_id": processed_transaction.id,
             "campaign_slug": processed_transaction.campaign_slugs[0],
             "adjustment_amount": 100,
-            "idempotency_token": uuid4(),
+            "inc_adjustment_idempotency_token": uuid4(),
         },
     )
     db_session.commit()

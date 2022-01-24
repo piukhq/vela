@@ -195,7 +195,9 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
                 ("processed_transaction_id", TaskParamsKeyTypes.INTEGER),
                 ("campaign_slug", TaskParamsKeyTypes.STRING),
                 ("adjustment_amount", TaskParamsKeyTypes.INTEGER),
-                ("idempotency_token", TaskParamsKeyTypes.STRING),
+                ("inc_adjustment_idempotency_token", TaskParamsKeyTypes.STRING),
+                ("dec_adjustment_idempotency_token", TaskParamsKeyTypes.STRING),
+                ("allocation_idempotency_token", TaskParamsKeyTypes.STRING),
             )
         ]
     )

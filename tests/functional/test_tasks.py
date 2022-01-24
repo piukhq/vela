@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from typing import Optional
 from unittest import mock
+from uuid import uuid4
 
 import httpretty
 import httpx
@@ -12,14 +13,13 @@ import requests
 from pytest_mock import MockerFixture
 from retry_tasks_lib.db.models import RetryTask, TaskType, TaskTypeKey, TaskTypeKeyValue
 from retry_tasks_lib.enums import RetryTaskStatuses
-from retry_tasks_lib.utils.synchronous import sync_create_task
+from retry_tasks_lib.utils.synchronous import IncorrectRetryTaskStatusError, sync_create_task
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.enums import CampaignStatuses
 from app.models import Campaign, RewardRule
-from app.tasks import BalanceAdjustmentEnqueueException
 from app.tasks.campaign_balances import update_campaign_balances
 from app.tasks.reward_adjustment import (
     _process_adjustment,
@@ -49,7 +49,13 @@ def test__process_adjustment_ok(
         status=200,
     )
 
-    new_balance, campaign_slug, response_audit = _process_adjustment(task_params)
+    new_balance, campaign_slug, response_audit = _process_adjustment(
+        retailer_slug=task_params["retailer_slug"],
+        account_holder_uuid=task_params["account_holder_uuid"],
+        adjustment_amount=task_params["adjustment_amount"],
+        campaign_slug=task_params["campaign_slug"],
+        idempotency_token=task_params["inc_adjustment_idempotency_token"],
+    )
 
     last_request = httpretty.last_request()
     assert last_request.method == "POST"
@@ -93,7 +99,13 @@ def test__process_adjustment_http_errors(
         httpretty.register_uri("POST", adjustment_url, body=body, status=status)
 
         with pytest.raises(requests.RequestException) as excinfo:
-            _process_adjustment(task_params)
+            _process_adjustment(
+                retailer_slug=task_params["retailer_slug"],
+                account_holder_uuid=task_params["account_holder_uuid"],
+                adjustment_amount=task_params["adjustment_amount"],
+                campaign_slug=task_params["campaign_slug"],
+                idempotency_token=task_params["inc_adjustment_idempotency_token"],
+            )
 
         assert isinstance(excinfo.value, requests.RequestException)
         assert excinfo.value.response.status_code == status
@@ -113,9 +125,16 @@ def test__process_adjustment_connection_error(
 ) -> None:
 
     mock_send_request_with_metrics.side_effect = httpx.TimeoutException("Request timed out")
+    task_params = reward_adjustment_task.get_params()
 
     with pytest.raises(httpx.RequestError) as excinfo:
-        _process_adjustment(reward_adjustment_task.get_params())
+        _process_adjustment(
+            retailer_slug=task_params["retailer_slug"],
+            account_holder_uuid=task_params["account_holder_uuid"],
+            adjustment_amount=task_params["adjustment_amount"],
+            campaign_slug=task_params["campaign_slug"],
+            idempotency_token=task_params["inc_adjustment_idempotency_token"],
+        )
 
     assert isinstance(excinfo.value, httpx.TimeoutException)
     assert not hasattr(excinfo.value, "response")
@@ -130,7 +149,12 @@ def test__process_voucher_allocation_connection_error(
     mock_send_request_with_metrics.side_effect = httpx.TimeoutException("Request timed out")
 
     with pytest.raises(httpx.RequestError) as excinfo:
-        _process_voucher_allocation(reward_adjustment_task.get_params(), "slug")
+        _process_voucher_allocation(
+            retailer_slug="retailer_slug",
+            voucher_type_slug="slug",
+            account_holder_uuid="uuid",
+            idempotency_token="token",
+        )
 
     assert isinstance(excinfo.value, httpx.TimeoutException)
     assert not hasattr(excinfo.value, "response")
@@ -145,8 +169,7 @@ def test_adjust_balance(
     allocation_url: str,
     mocker: MockerFixture,
 ) -> None:
-    mock_enqueue = mocker.patch("app.tasks.reward_adjustment.enqueue_retry_task")
-    reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
+    reward_adjustment_task.status = RetryTaskStatuses.PENDING
     db_session.commit()
     task_params = reward_adjustment_task.get_params()
 
@@ -170,23 +193,7 @@ def test_adjust_balance(
     assert reward_adjustment_task.attempts == 1
     assert reward_adjustment_task.next_attempt_time is None
     assert reward_adjustment_task.status == RetryTaskStatuses.SUCCESS
-    assert len(reward_adjustment_task.audit_data) == 2
-
-    post_voucher_adjustment_task: Optional[RetryTask] = (
-        db_session.execute(
-            select(RetryTask).where(
-                RetryTask.retry_task_id != reward_adjustment_task.retry_task_id,
-                TaskTypeKey.task_type_key_id == TaskTypeKeyValue.task_type_key_id,
-                TaskTypeKeyValue.value == str(task_params["processed_transaction_id"]),
-            )
-        )
-        .unique()
-        .scalar_one_or_none()
-    )
-
-    assert post_voucher_adjustment_task is not None
-    assert post_voucher_adjustment_task.get_params()["adjustment_amount"] < 0
-    mock_enqueue.assert_called_once()
+    assert len(reward_adjustment_task.audit_data) == 3
 
 
 @mock.patch("app.tasks.requests")
@@ -199,7 +206,7 @@ def test_adjust_balance_task_cancelled_when_campaign_cancelled_or_ended(
     attempts = reward_adjustment_task.attempts
     for status in (CampaignStatuses.ENDED, CampaignStatuses.CANCELLED):
         attempts = reward_adjustment_task.attempts
-        reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
+        reward_adjustment_task.status = RetryTaskStatuses.PENDING
         campaign.status = status
         db_session.commit()
 
@@ -222,8 +229,6 @@ def test_adjust_balance_fails_with_409_no_balance_for_campaign_slug(
     reward_rule: RewardRule,
     adjustment_url: str,
 ) -> None:
-    reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
-    db_session.commit()
     task_params = reward_adjustment_task.get_params()
 
     httpretty.register_uri(
@@ -246,8 +251,6 @@ def test_adjust_balance_voucher_allocation_call_fails(
     adjustment_url: str,
     allocation_url: str,
 ) -> None:
-    reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
-    db_session.commit()
     task_params = reward_adjustment_task.get_params()
 
     httpretty.register_uri(
@@ -296,7 +299,7 @@ def test_adjust_balance_wrong_status(
     reward_adjustment_task.status = RetryTaskStatuses.FAILED
     db_session.commit()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(IncorrectRetryTaskStatusError):
         adjust_balance(reward_adjustment_task.retry_task_id)
 
     db_session.refresh(reward_adjustment_task)
@@ -321,52 +324,6 @@ def test_adjust_balance_wrong_status(
 
 
 @httpretty.activate
-@mock.patch("rq.Queue")
-def test_adjust_balance_failed_enqueue(
-    MockQueue: mock.MagicMock,
-    db_session: "Session",
-    reward_adjustment_task: RetryTask,
-    reward_rule: RewardRule,
-    adjustment_url: str,
-    allocation_url: str,
-) -> None:
-    reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS
-    db_session.commit()
-    task_params = reward_adjustment_task.get_params()
-
-    MockQueue.side_effect = Exception("test exception")
-
-    httpretty.register_uri(
-        "POST",
-        adjustment_url,
-        body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
-        status=200,
-    )
-    httpretty.register_uri(
-        "POST",
-        allocation_url,
-        body=json.dumps({"account_url": "http://account-url/"}),
-        status=202,
-    )
-
-    with pytest.raises(BalanceAdjustmentEnqueueException):
-        adjust_balance(reward_adjustment_task.retry_task_id)
-
-    post_voucher_adjustment_task: Optional[RetryTask] = (
-        db_session.execute(
-            select(RetryTask).where(
-                RetryTask.retry_task_id != reward_adjustment_task.retry_task_id,
-                TaskTypeKey.task_type_key_id == TaskTypeKeyValue.task_type_key_id,
-                TaskTypeKeyValue.value == str(reward_adjustment_task.get_params()["processed_transaction_id"]),
-            )
-        )
-        .unique()
-        .scalar_one_or_none()
-    )
-    assert post_voucher_adjustment_task is not None
-
-
-@httpretty.activate
 @mock.patch("app.tasks.reward_adjustment.datetime")
 def test__process_voucher_allocation(
     mock_datetime: mock.MagicMock,
@@ -386,7 +343,12 @@ def test__process_voucher_allocation(
     retailer_slug = task_params["retailer_slug"]
     account_holder_uuid = task_params["account_holder_uuid"]
 
-    response_audit = _process_voucher_allocation(task_params, voucher_type_slug)
+    response_audit = _process_voucher_allocation(
+        retailer_slug=retailer_slug,
+        voucher_type_slug=voucher_type_slug,
+        account_holder_uuid=account_holder_uuid,
+        idempotency_token=str(uuid4()),
+    )
 
     last_request = httpretty.last_request()
     assert last_request.method == "POST"
@@ -414,6 +376,7 @@ def test__process_voucher_allocation_http_errors(
     task_params = reward_adjustment_task.get_params()
     retailer_slug = task_params["retailer_slug"]
     account_holder_uuid = task_params["account_holder_uuid"]
+    idempotency_token = task_params["inc_adjustment_idempotency_token"]
     for status, body in [
         (401, "Unauthorized"),
         (500, "Internal Server Error"),
@@ -421,7 +384,12 @@ def test__process_voucher_allocation_http_errors(
         httpretty.register_uri("POST", allocation_url, body=body, status=status)
 
         with pytest.raises(requests.RequestException) as excinfo:
-            _process_voucher_allocation(task_params, voucher_type_slug)
+            _process_voucher_allocation(
+                retailer_slug=retailer_slug,
+                voucher_type_slug=voucher_type_slug,
+                account_holder_uuid=account_holder_uuid,
+                idempotency_token=idempotency_token,
+            )
 
         assert isinstance(excinfo.value, requests.RequestException)
         assert excinfo.value.response.status_code == status
@@ -518,8 +486,6 @@ def test__process_voucher_status_adjustment_connection_error(
 def test_voucher_status_adjustment(
     db_session: "Session", voucher_status_adjustment_retry_task: RetryTask, voucher_status_adjustment_url: str
 ) -> None:
-    voucher_status_adjustment_retry_task.status = RetryTaskStatuses.IN_PROGRESS
-    db_session.commit()
 
     httpretty.register_uri("PATCH", voucher_status_adjustment_url, body="OK", status=202)
 
@@ -538,7 +504,7 @@ def test_voucher_status_adjustment_wrong_status(
     voucher_status_adjustment_retry_task.status = RetryTaskStatuses.FAILED
     db_session.commit()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(IncorrectRetryTaskStatusError):
         voucher_status_adjustment(voucher_status_adjustment_retry_task.retry_task_id)
 
     db_session.refresh(voucher_status_adjustment_retry_task)
