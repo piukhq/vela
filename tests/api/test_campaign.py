@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, cast
+from unittest import mock
 
 import pytest
 
@@ -55,7 +56,9 @@ def validate_composite_error_response(response: Response, exptected_errors: list
         assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
 
 
+@mock.patch("app.api.endpoints.campaign.datetime")
 def test_update_campaign_active_status_to_ended(
+    mock_datetime: mock.MagicMock,
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
@@ -63,6 +66,8 @@ def test_update_campaign_active_status_to_ended(
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
     db_session, retailer, campaign = setup
     payload = {
         "requested_status": "ended",
@@ -104,11 +109,14 @@ def test_update_campaign_active_status_to_ended(
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
+    assert campaign.end_date == fake_now.replace(tzinfo=None)
     spy.assert_called_once()
     assert activation_task.status == RetryTaskStatuses.PENDING
 
 
+@mock.patch("app.api.endpoints.campaign.datetime")
 def test_update_multiple_campaigns_ok(
+    mock_datetime: mock.MagicMock,
     setup: SetupType,
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
@@ -120,6 +128,8 @@ def test_update_multiple_campaigns_ok(
 ) -> None:
     """Test that multiple campaigns are handled, when they all transition to legal states"""
     db_session, retailer, campaign = setup
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
     # Set the first campaign to ACTIVE, this should transition to ENDED ok
     campaign.status = CampaignStatuses.ACTIVE
     db_session.commit()
@@ -176,10 +186,13 @@ def test_update_multiple_campaigns_ok(
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
+    assert campaign.end_date == fake_now.replace(tzinfo=None)
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.ENDED
+    assert second_campaign.end_date == fake_now.replace(tzinfo=None)
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED
+    assert third_campaign.end_date == fake_now.replace(tzinfo=None)
     spy.assert_called_once()
     assert len(activation_tasks) == 3
     for activation_task in activation_tasks:
@@ -759,6 +772,7 @@ def test_activating_a_campaign(
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(activable_campaign)
     assert activable_campaign.status == CampaignStatuses.ACTIVE
+    assert activable_campaign.end_date is None
     spy.assert_called_once()
     assert activation_task.status == RetryTaskStatuses.PENDING
 
