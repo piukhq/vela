@@ -1,6 +1,6 @@
 import json
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest import mock
 from uuid import uuid4
 
@@ -27,7 +27,7 @@ from app.tasks.reward_adjustment import (
 )
 from app.tasks.reward_status_adjustment import _process_reward_status_adjustment, reward_status_adjustment
 
-fake_now = datetime.utcnow()
+fake_now = datetime.now(tz=timezone.utc)
 
 
 @httpretty.activate
@@ -39,7 +39,7 @@ def test__process_adjustment_ok(
 ) -> None:
     task_params = reward_adjustment_task.get_params()
 
-    mock_datetime.utcnow.return_value = fake_now
+    mock_datetime.now.return_value = fake_now
     httpretty.register_uri(
         "POST",
         adjustment_url,
@@ -303,7 +303,7 @@ def test__process_reward_allocation(
     allocation_url: str,
 ) -> None:
     task_params = reward_adjustment_task.get_params()
-    mock_datetime.utcnow.return_value = fake_now
+    mock_datetime.now.return_value = fake_now
     httpretty.register_uri(
         "POST",
         allocation_url,

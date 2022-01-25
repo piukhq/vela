@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from app.enums import CampaignStatuses
@@ -14,7 +14,7 @@ def test_campaign_is_activable_ok(db_session: "Session", retailer: "RetailerRewa
     campaign = Campaign(
         name="activable campaign",
         slug="activable-campaign",
-        start_date=datetime.utcnow() - timedelta(days=-1),
+        start_date=datetime.now(tz=timezone.utc) - timedelta(days=-1),
         retailer_id=retailer.id,
     )
     db_session.add(campaign)
@@ -31,7 +31,7 @@ def test_campaign_is_activable_no_reward_rule(db_session: "Session", retailer: "
     campaign = Campaign(
         name="activable campaign",
         slug="activable-campaign",
-        start_date=datetime.utcnow() - timedelta(days=-1),
+        start_date=datetime.now(tz=timezone.utc) - timedelta(days=-1),
         retailer_id=retailer.id,
     )
     db_session.add(campaign)
@@ -47,7 +47,7 @@ def test_campaign_is_activable_no_earn_rules(db_session: "Session", retailer: "R
     campaign = Campaign(
         name="activable campaign",
         slug="activable-campaign",
-        start_date=datetime.utcnow() - timedelta(days=-1),
+        start_date=datetime.now(tz=timezone.utc) - timedelta(days=-1),
         retailer_id=retailer.id,
     )
     db_session.add(campaign)
@@ -63,7 +63,7 @@ def test_campaign_is_activable_wrong_status(db_session: "Session", retailer: "Re
     campaign = Campaign(
         name="activable campaign",
         slug="activable-campaign",
-        start_date=datetime.utcnow() - timedelta(days=-1),
+        start_date=datetime.now(tz=timezone.utc) - timedelta(days=-1),
         retailer_id=retailer.id,
     )
     db_session.add(campaign)
