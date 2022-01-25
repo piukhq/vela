@@ -1,5 +1,6 @@
 import asyncio
 
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -72,6 +73,8 @@ async def _campaign_status_change(
     async def _query(campaigns: list[Campaign]) -> None:
         for campaign in campaigns:
             campaign.status = requested_status
+            if requested_status in (CampaignStatuses.CANCELLED, CampaignStatuses.ENDED):
+                campaign.end_date = datetime.now(tz=timezone.utc).replace(tzinfo=None)
 
         await db_session.commit()
 
