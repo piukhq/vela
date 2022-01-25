@@ -35,7 +35,7 @@ def activable_campaign(setup: SetupType) -> Campaign:
     db_session.flush()
 
     db_session.add(EarnRule(threshold=200, increment=100, increment_multiplier=1.5, campaign_id=campaign.id))
-    db_session.add(RewardRule(reward_goal=150, voucher_type_slug="test-voucher-type", campaign_id=campaign.id))
+    db_session.add(RewardRule(reward_goal=150, reward_slug="test-reward-type", campaign_id=campaign.id))
     db_session.commit()
     return campaign
 
@@ -59,7 +59,7 @@ def test_update_campaign_active_status_to_ended(
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
-    voucher_status_adjustment_task_type: TaskType,
+    reward_status_adjustment_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -94,7 +94,7 @@ def test_update_campaign_active_status_to_ended(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
             )
         )
         .unique()
@@ -113,7 +113,7 @@ def test_update_multiple_campaigns_ok(
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
     reward_rule: RewardRule,
-    voucher_status_adjustment_task_type: TaskType,
+    reward_status_adjustment_task_type: TaskType,
     create_campaign_balances_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
@@ -131,7 +131,7 @@ def test_update_multiple_campaigns_ok(
             "slug": "second-test-campaign",
         }
     )
-    create_mock_reward_rule(voucher_type_slug="second-voucher-type", campaign_id=second_campaign.id)
+    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id)
     third_campaign: Campaign = create_mock_campaign(
         **{
             "status": CampaignStatuses.ACTIVE,
@@ -139,7 +139,7 @@ def test_update_multiple_campaigns_ok(
             "slug": "third-test-campaign",
         }
     )
-    create_mock_reward_rule(voucher_type_slug="third-voucher-type", campaign_id=third_campaign.id)
+    create_mock_reward_rule(reward_slug="third-reward-type", campaign_id=third_campaign.id)
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
@@ -165,7 +165,7 @@ def test_update_multiple_campaigns_ok(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
             )
         )
         .unique()
@@ -724,7 +724,7 @@ def test_activating_a_campaign(
     setup: SetupType,
     activable_campaign: Campaign,
     create_mock_reward_rule: Callable,
-    voucher_status_adjustment_task_type: TaskType,
+    reward_status_adjustment_task_type: TaskType,
     create_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -734,7 +734,7 @@ def test_activating_a_campaign(
 
     spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
 
-    create_mock_reward_rule(voucher_type_slug="activable-voucher-type", campaign_id=activable_campaign.id)
+    create_mock_reward_rule(reward_slug="activable-reward-type", campaign_id=activable_campaign.id)
     payload = {
         "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
@@ -750,7 +750,7 @@ def test_activating_a_campaign(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
             )
         )
         .unique()

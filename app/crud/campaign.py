@@ -36,7 +36,7 @@ async def get_campaigns_by_slug(
     return await async_run_query(_query, db_session, rollback_on_exc=False)
 
 
-async def create_voucher_status_adjustment_and_campaign_balances_tasks(
+async def create_reward_status_adjustment_and_campaign_balances_tasks(
     db_session: "AsyncSession",
     campaign_slugs: list[str],
     retailer: RetailerRewards,
@@ -53,10 +53,10 @@ async def create_voucher_status_adjustment_and_campaign_balances_tasks(
             tasks.append(
                 await async_create_task(
                     db_session=db_session,
-                    task_type_name=settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+                    task_type_name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
                     params={
                         "retailer_slug": retailer.slug,
-                        "voucher_type_slug": campaign.reward_rule.voucher_type_slug,
+                        "reward_slug": campaign.reward_rule.reward_slug,
                         "status": status.value,
                     },
                 )
