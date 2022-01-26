@@ -183,7 +183,7 @@ class Settings(BaseSettings):  # pragma: no cover
     POLARIS_URL: str = "http://polaris-api"
     REDIS_URL: str
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
-    VOUCHER_STATUS_ADJUSTMENT_TASK_NAME = "voucher-status-adjustment"
+    REWARD_STATUS_ADJUSTMENT_TASK_NAME = "reward-status-adjustment"
     CREATE_CAMPAIGN_BALANCES_TASK_NAME = "create-campaign-balances"
     DELETE_CAMPAIGN_BALANCES_TASK_NAME = "delete-campaign-balances"
 

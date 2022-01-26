@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -23,7 +23,7 @@ def processed_transaction(db_session: "Session", campaign: Campaign) -> Processe
         transaction_id="TEST123456",
         amount=300,
         mid="123456789",
-        datetime=datetime.utcnow(),
+        datetime=datetime.now(tz=timezone.utc),
         account_holder_uuid=uuid4(),
         retailer_id=campaign.retailer_id,
         campaign_slugs=[campaign.slug],
@@ -46,7 +46,7 @@ def reward_adjustment_task(
             "processed_transaction_id": processed_transaction.id,
             "campaign_slug": processed_transaction.campaign_slugs[0],
             "adjustment_amount": 100,
-            "idempotency_token": uuid4(),
+            "inc_adjustment_idempotency_token": uuid4(),
         },
     )
     db_session.commit()
@@ -65,33 +65,33 @@ def adjustment_url(reward_adjustment_task: RetryTask) -> str:
 
 
 @pytest.fixture(scope="function")
-def allocation_url(reward_adjustment_task: RetryTask, voucher_type_slug: str) -> str:
+def allocation_url(reward_adjustment_task: RetryTask, reward_slug: str) -> str:
 
-    return "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{voucher_type_slug}/allocation".format(
+    return "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/allocation".format(
         base_url=settings.CARINA_URL,
         retailer_slug=reward_adjustment_task.get_params()["retailer_slug"],
-        voucher_type_slug=voucher_type_slug,
+        reward_slug=reward_slug,
     )
 
 
 @pytest.fixture(scope="function")
-def voucher_status_adjustment_task_params(voucher_type_slug: str, mock_retailer: dict) -> dict:
+def reward_status_adjustment_task_params(reward_slug: str, mock_retailer: dict) -> dict:
     return {
         "retailer_slug": mock_retailer["slug"],
-        "voucher_type_slug": voucher_type_slug,
+        "reward_slug": reward_slug,
         "status": CampaignStatuses.ACTIVE.value,
     }
 
 
 @pytest.fixture(scope="function")
-def voucher_status_adjustment_retry_task(
-    db_session: "Session", voucher_status_adjustment_task_params: dict, voucher_status_adjustment_task_type: TaskType
+def reward_status_adjustment_retry_task(
+    db_session: "Session", reward_status_adjustment_task_params: dict, reward_status_adjustment_task_type: TaskType
 ) -> RetryTask:
-    task = RetryTask(task_type_id=voucher_status_adjustment_task_type.task_type_id)
+    task = RetryTask(task_type_id=reward_status_adjustment_task_type.task_type_id)
     db_session.add(task)
     db_session.flush()
 
-    key_ids = voucher_status_adjustment_task_type.get_key_ids_by_name()
+    key_ids = reward_status_adjustment_task_type.get_key_ids_by_name()
     db_session.add_all(
         [
             TaskTypeKeyValue(
@@ -99,7 +99,7 @@ def voucher_status_adjustment_retry_task(
                 value=value,
                 retry_task_id=task.retry_task_id,
             )
-            for key, value in voucher_status_adjustment_task_params.items()
+            for key, value in reward_status_adjustment_task_params.items()
         ]
     )
     db_session.commit()
@@ -107,17 +107,17 @@ def voucher_status_adjustment_retry_task(
 
 
 @pytest.fixture(scope="function")
-def voucher_status_adjustment_expected_payload(voucher_status_adjustment_retry_task: RetryTask) -> dict:
-    params = voucher_status_adjustment_retry_task.get_params()
+def reward_status_adjustment_expected_payload(reward_status_adjustment_retry_task: RetryTask) -> dict:
+    params = reward_status_adjustment_retry_task.get_params()
     return {
         "status": params["status"],
     }
 
 
 @pytest.fixture(scope="function")
-def voucher_status_adjustment_url(voucher_status_adjustment_task_params: dict) -> str:
-    return "{base_url}/bpl/rewards/{retailer_slug}/rewards/{voucher_type_slug}/status".format(
+def reward_status_adjustment_url(reward_status_adjustment_task_params: dict) -> str:
+    return "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/status".format(
         base_url=settings.CARINA_URL,
-        retailer_slug=voucher_status_adjustment_task_params["retailer_slug"],
-        voucher_type_slug=voucher_status_adjustment_task_params["voucher_type_slug"],
+        retailer_slug=reward_status_adjustment_task_params["retailer_slug"],
+        reward_slug=reward_status_adjustment_task_params["reward_slug"],
     )

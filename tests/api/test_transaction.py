@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Callable
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -25,7 +25,7 @@ client = TestClient(app, raise_server_exceptions=False)
 auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}"}
 
 account_holder_uuid = uuid4()
-datetime_now = datetime.utcnow()
+datetime_now = datetime.now(tz=timezone.utc)
 timestamp_now = int(datetime_now.timestamp())
 
 
@@ -55,7 +55,7 @@ def test_post_transaction_happy_path(
     mocker: MockerFixture,
     reward_adjustment_task_type: "TaskType",
     create_mock_reward_rule: Callable,
-    voucher_status_adjustment_task_type: "TaskType",
+    reward_status_adjustment_task_type: "TaskType",
 ) -> None:
     db_session, retailer, _ = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
@@ -74,7 +74,7 @@ def test_post_transaction_happy_path(
     assert processed_transaction is not None
     assert processed_transaction.mid == payload["MID"]
     assert processed_transaction.amount == payload["transaction_total"]
-    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now)
+    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
 
 
@@ -98,7 +98,7 @@ def test_post_transaction_not_awarded(
     assert processed_transaction is not None
     assert processed_transaction.mid == payload["MID"]
     assert processed_transaction.amount == payload["transaction_total"]
-    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now)
+    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
 
 
@@ -123,7 +123,7 @@ def test_post_transaction_no_active_campaigns(
     assert transaction is not None
     assert transaction.mid == payload["MID"]
     assert transaction.amount == payload["transaction_total"]
-    assert transaction.datetime == datetime.fromtimestamp(timestamp_now)
+    assert transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert transaction.account_holder_uuid == account_holder_uuid
 
 
@@ -131,7 +131,7 @@ def test_post_transaction_no_active_campaigns_pre_start_date(
     setup: SetupType, payload: dict, earn_rule: EarnRule, mocker: MockerFixture
 ) -> None:
     db_session, retailer, campaign = setup
-    transaction_timestamp = int((campaign.start_date - timedelta(minutes=5)).timestamp())
+    transaction_timestamp = int((campaign.start_date.replace(tzinfo=timezone.utc) - timedelta(minutes=5)).timestamp())
     payload["datetime"] = transaction_timestamp
 
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
@@ -147,7 +147,7 @@ def test_post_transaction_no_active_campaigns_pre_start_date(
     assert transaction is not None
     assert transaction.mid == payload["MID"]
     assert transaction.amount == payload["transaction_total"]
-    assert transaction.datetime == datetime.fromtimestamp(transaction_timestamp)
+    assert transaction.datetime == datetime.fromtimestamp(transaction_timestamp, tz=timezone.utc).replace(tzinfo=None)
     assert transaction.account_holder_uuid == account_holder_uuid
 
 
@@ -171,7 +171,7 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     assert transaction is not None
     assert transaction.mid == payload["MID"]
     assert transaction.amount == payload["transaction_total"]
-    assert transaction.datetime == datetime.fromtimestamp(timestamp_now)
+    assert transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert transaction.account_holder_uuid == account_holder_uuid
 
 

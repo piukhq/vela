@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, cast
+from unittest import mock
 
 import pytest
 
@@ -28,14 +29,14 @@ def activable_campaign(setup: SetupType) -> Campaign:
     campaign = Campaign(
         name="activable campaign",
         slug="activable-campaign",
-        start_date=datetime.utcnow() - timedelta(days=-1),
+        start_date=datetime.now(tz=timezone.utc) - timedelta(days=-1),
         retailer_id=retailer.id,
     )
     db_session.add(campaign)
     db_session.flush()
 
     db_session.add(EarnRule(threshold=200, increment=100, increment_multiplier=1.5, campaign_id=campaign.id))
-    db_session.add(RewardRule(reward_goal=150, voucher_type_slug="test-voucher-type", campaign_id=campaign.id))
+    db_session.add(RewardRule(reward_goal=150, reward_slug="test-reward-type", campaign_id=campaign.id))
     db_session.commit()
     return campaign
 
@@ -55,14 +56,18 @@ def validate_composite_error_response(response: Response, exptected_errors: list
         assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
 
 
+@mock.patch("app.api.endpoints.campaign.datetime")
 def test_update_campaign_active_status_to_ended(
+    mock_datetime: mock.MagicMock,
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
-    voucher_status_adjustment_task_type: TaskType,
+    reward_status_adjustment_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
     db_session, retailer, campaign = setup
     payload = {
         "requested_status": "ended",
@@ -94,7 +99,7 @@ def test_update_campaign_active_status_to_ended(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
             )
         )
         .unique()
@@ -104,22 +109,27 @@ def test_update_campaign_active_status_to_ended(
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
+    assert campaign.end_date == fake_now.replace(tzinfo=None)
     spy.assert_called_once()
     assert activation_task.status == RetryTaskStatuses.PENDING
 
 
+@mock.patch("app.api.endpoints.campaign.datetime")
 def test_update_multiple_campaigns_ok(
+    mock_datetime: mock.MagicMock,
     setup: SetupType,
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
     reward_rule: RewardRule,
-    voucher_status_adjustment_task_type: TaskType,
+    reward_status_adjustment_task_type: TaskType,
     create_campaign_balances_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
     """Test that multiple campaigns are handled, when they all transition to legal states"""
     db_session, retailer, campaign = setup
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
     # Set the first campaign to ACTIVE, this should transition to ENDED ok
     campaign.status = CampaignStatuses.ACTIVE
     db_session.commit()
@@ -131,7 +141,7 @@ def test_update_multiple_campaigns_ok(
             "slug": "second-test-campaign",
         }
     )
-    create_mock_reward_rule(voucher_type_slug="second-voucher-type", campaign_id=second_campaign.id)
+    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id)
     third_campaign: Campaign = create_mock_campaign(
         **{
             "status": CampaignStatuses.ACTIVE,
@@ -139,7 +149,7 @@ def test_update_multiple_campaigns_ok(
             "slug": "third-test-campaign",
         }
     )
-    create_mock_reward_rule(voucher_type_slug="third-voucher-type", campaign_id=third_campaign.id)
+    create_mock_reward_rule(reward_slug="third-reward-type", campaign_id=third_campaign.id)
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
@@ -165,7 +175,7 @@ def test_update_multiple_campaigns_ok(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
             )
         )
         .unique()
@@ -176,10 +186,13 @@ def test_update_multiple_campaigns_ok(
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
+    assert campaign.end_date == fake_now.replace(tzinfo=None)
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.ENDED
+    assert second_campaign.end_date == fake_now.replace(tzinfo=None)
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED
+    assert third_campaign.end_date == fake_now.replace(tzinfo=None)
     spy.assert_called_once()
     assert len(activation_tasks) == 3
     for activation_task in activation_tasks:
@@ -724,7 +737,7 @@ def test_activating_a_campaign(
     setup: SetupType,
     activable_campaign: Campaign,
     create_mock_reward_rule: Callable,
-    voucher_status_adjustment_task_type: TaskType,
+    reward_status_adjustment_task_type: TaskType,
     create_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -734,7 +747,7 @@ def test_activating_a_campaign(
 
     spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
 
-    create_mock_reward_rule(voucher_type_slug="activable-voucher-type", campaign_id=activable_campaign.id)
+    create_mock_reward_rule(reward_slug="activable-reward-type", campaign_id=activable_campaign.id)
     payload = {
         "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
@@ -750,7 +763,7 @@ def test_activating_a_campaign(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
             )
         )
         .unique()
@@ -759,6 +772,7 @@ def test_activating_a_campaign(
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(activable_campaign)
     assert activable_campaign.status == CampaignStatuses.ACTIVE
+    assert activable_campaign.end_date is None
     spy.assert_called_once()
     assert activation_task.status == RetryTaskStatuses.PENDING
 

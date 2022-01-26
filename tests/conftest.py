@@ -108,13 +108,13 @@ def campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Di
 
 
 @pytest.fixture
-def voucher_type_slug() -> str:
-    return "the-big-voucher-slug"
+def reward_slug() -> str:
+    return "the-big-reward-slug"
 
 
 @pytest.fixture(scope="function")
-def reward_rule(db_session: "Session", campaign: Campaign, voucher_type_slug: str) -> RewardRule:
-    reward_rule = RewardRule(reward_goal=5, voucher_type_slug=voucher_type_slug, campaign_id=campaign.id)
+def reward_rule(db_session: "Session", campaign: Campaign, reward_slug: str) -> RewardRule:
+    reward_rule = RewardRule(reward_goal=5, reward_slug=reward_slug, campaign_id=campaign.id)
     db_session.add(reward_rule)
     db_session.commit()
     return reward_rule
@@ -143,12 +143,12 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
 
 @pytest.fixture(scope="function")
 def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
-    def _create_mock_reward_rule(voucher_type_slug: str, campaign_id: int, reward_goal: int = 5) -> RewardRule:
+    def _create_mock_reward_rule(reward_slug: str, campaign_id: int, reward_goal: int = 5) -> RewardRule:
         """
         Create a reward rule in the test DB
         :return: Callable function
         """
-        reward_rule = RewardRule(reward_goal=reward_goal, voucher_type_slug=voucher_type_slug, campaign_id=campaign_id)
+        reward_rule = RewardRule(reward_goal=reward_goal, reward_slug=reward_slug, campaign_id=campaign_id)
         db_session.add(reward_rule)
         db_session.commit()
         return reward_rule
@@ -195,7 +195,9 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
                 ("processed_transaction_id", TaskParamsKeyTypes.INTEGER),
                 ("campaign_slug", TaskParamsKeyTypes.STRING),
                 ("adjustment_amount", TaskParamsKeyTypes.INTEGER),
-                ("idempotency_token", TaskParamsKeyTypes.STRING),
+                ("inc_adjustment_idempotency_token", TaskParamsKeyTypes.STRING),
+                ("dec_adjustment_idempotency_token", TaskParamsKeyTypes.STRING),
+                ("allocation_idempotency_token", TaskParamsKeyTypes.STRING),
             )
         ]
     )
@@ -204,9 +206,9 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
 
 
 @pytest.fixture(scope="function")
-def voucher_status_adjustment_task_type(db_session: "Session") -> TaskType:
+def reward_status_adjustment_task_type(db_session: "Session") -> TaskType:
     task = TaskType(
-        name=settings.VOUCHER_STATUS_ADJUSTMENT_TASK_NAME,
+        name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
         path="sample.path",
         queue_name="test_queue",
         error_handler_path="path.to.error_handler",
@@ -218,7 +220,7 @@ def voucher_status_adjustment_task_type(db_session: "Session") -> TaskType:
         [
             TaskTypeKey(task_type_id=task.task_type_id, name=key_name, type=key_type)
             for key_name, key_type in (
-                ("voucher_type_slug", "STRING"),
+                ("reward_slug", "STRING"),
                 ("retailer_slug", "STRING"),
                 ("status", "STRING"),
             )

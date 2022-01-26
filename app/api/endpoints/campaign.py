@@ -1,5 +1,6 @@
 import asyncio
 
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -72,6 +73,8 @@ async def _campaign_status_change(
     async def _query(campaigns: list[Campaign]) -> None:
         for campaign in campaigns:
             campaign.status = requested_status
+            if requested_status in (CampaignStatuses.CANCELLED, CampaignStatuses.ENDED):
+                campaign.end_date = datetime.now(tz=timezone.utc).replace(tzinfo=None)
 
         await db_session.commit()
 
@@ -112,7 +115,7 @@ async def campaigns_status_change(
     if errors:  # pragma: no cover
         raise HTTPException(detail=errors, status_code=status_code)
 
-    retry_tasks_ids = await crud.create_voucher_status_adjustment_and_campaign_balances_tasks(
+    retry_tasks_ids = await crud.create_reward_status_adjustment_and_campaign_balances_tasks(
         db_session=db_session,
         campaign_slugs=payload.campaign_slugs,
         retailer=retailer,

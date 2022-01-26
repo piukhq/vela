@@ -62,7 +62,7 @@ class RewardRule(Base, TimestampMixin):
     __tablename__ = "reward_rule"
 
     reward_goal = Column(Integer, nullable=False)
-    voucher_type_slug = Column(String(32), index=True, unique=True, nullable=False)
+    reward_slug = Column(String(32), index=True, unique=True, nullable=False)
 
     campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
     campaign = relationship("Campaign", back_populates="reward_rule")
