@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy.future import select
@@ -9,6 +8,8 @@ from app.enums import CampaignStatuses, HttpErrors
 from app.models import Campaign, EarnRule, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
+    from datetime import datetime
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -26,7 +27,7 @@ async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -
 
 
 async def get_active_campaign_slugs(
-    db_session: "AsyncSession", retailer: RetailerRewards, transaction_time: datetime = None
+    db_session: "AsyncSession", retailer: RetailerRewards, transaction_time: "datetime" = None
 ) -> List[str]:
     async def _query() -> list:
         return (

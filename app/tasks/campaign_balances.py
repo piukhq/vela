@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from retry_tasks_lib.db.models import RetryTask
@@ -26,8 +26,7 @@ def _process_campaign_balances_update(task_type_name: str, task_params: dict) ->
         raise ValueError("Invalid task type.")
 
     logger.info(f"Processing balance {action} for campaign: {task_params['campaign_slug']}")
-    timestamp = datetime.utcnow()
-    response_audit: dict = {"timestamp": timestamp.isoformat()}
+    response_audit: dict = {"timestamp": datetime.now(tz=timezone.utc).isoformat()}
 
     resp = send_request_with_metrics(
         method,

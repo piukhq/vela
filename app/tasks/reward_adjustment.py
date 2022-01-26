@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
@@ -23,14 +23,13 @@ if TYPE_CHECKING:  # pragma: no cover
 def _process_reward_allocation(
     *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str
 ) -> dict:
-    timestamp = datetime.utcnow()
     request_url = "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/allocation".format(
         base_url=settings.CARINA_URL,
         retailer_slug=retailer_slug,
         reward_slug=reward_slug,
     )
     response_audit: dict = {
-        "timestamp": timestamp.isoformat(),
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
         "request": {"url": request_url},
     }
     resp = send_request_with_metrics(
@@ -70,14 +69,13 @@ def _reward_achieved(db_session: "Session", campaign_slug: str, new_balance: int
 def _process_adjustment(
     *, retailer_slug: str, account_holder_uuid: str, adjustment_amount: int, campaign_slug: str, idempotency_token: str
 ) -> tuple[int, str, dict]:
-    timestamp = datetime.utcnow()
     request_url = "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
         base_url=settings.POLARIS_URL,
         retailer_slug=retailer_slug,
         account_holder_uuid=account_holder_uuid,
     )
     response_audit: dict = {
-        "timestamp": timestamp.isoformat(),
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
         "request": {"url": request_url},
     }
 

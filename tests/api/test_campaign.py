@@ -29,7 +29,7 @@ def activable_campaign(setup: SetupType) -> Campaign:
     campaign = Campaign(
         name="activable campaign",
         slug="activable-campaign",
-        start_date=datetime.utcnow() - timedelta(days=-1),
+        start_date=datetime.now(tz=timezone.utc) - timedelta(days=-1),
         retailer_id=retailer.id,
     )
     db_session.add(campaign)

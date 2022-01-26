@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -23,7 +23,7 @@ def processed_transaction(db_session: "Session", campaign: Campaign) -> Processe
         transaction_id="TEST123456",
         amount=300,
         mid="123456789",
-        datetime=datetime.utcnow(),
+        datetime=datetime.now(tz=timezone.utc),
         account_holder_uuid=uuid4(),
         retailer_id=campaign.retailer_id,
         campaign_slugs=[campaign.slug],

@@ -27,6 +27,11 @@ async def record_transaction(
 ) -> Any:
     await validate_account_holder_uuid(payload.account_holder_uuid, retailer.slug)
     transaction_data = payload.dict(exclude_unset=True)
+
+    # asyncpg can't translate tz aware to naive datetimes, remove this once we move to psycopg3.
+    transaction_data["datetime"] = transaction_data["datetime"].replace(tzinfo=None)
+    # ---------------------------------------------------------------------------------------- #
+
     transaction = await crud.create_transaction(db_session, retailer, transaction_data)
     active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction.datetime)
     adjustment_amounts = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
