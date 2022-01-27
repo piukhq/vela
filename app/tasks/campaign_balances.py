@@ -35,7 +35,7 @@ def _process_campaign_balances_update(task_type_name: str, task_params: dict) ->
             retailer_slug=task_params["retailer_slug"],
             campaign_slug=task_params["campaign_slug"],
         ),
-        headers={"Content-Type": "application/json", "Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}"},
+        headers={"Content-Type": "application/json", "Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}"},
         timeout=(3.03, 10),
     )
     resp.raise_for_status()

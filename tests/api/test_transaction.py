@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 client = TestClient(app, raise_server_exceptions=False)
-auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}"}
+auth_headers = {"Authorization": f"Token {settings.VELA_API_AUTH_TOKEN}"}
 
 account_holder_uuid = uuid4()
 datetime_now = datetime.now(tz=timezone.utc)
