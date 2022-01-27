@@ -43,7 +43,7 @@ def _process_reward_allocation(
             )
         },
         headers={
-            "Authorization": f"Token {settings.CARINA_AUTH_TOKEN}",
+            "Authorization": f"Token {settings.CARINA_API_AUTH_TOKEN}",
             "idempotency-token": idempotency_token,
         },
         timeout=(3.03, 10),
@@ -87,7 +87,7 @@ def _process_adjustment(
             "campaign_slug": campaign_slug,
         },
         headers={
-            "Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}",
+            "Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}",
             "idempotency-token": idempotency_token,
         },
         timeout=(3.03, 10),

@@ -40,7 +40,7 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
     resp = await send_async_request_with_retry(
         "GET",
         f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/status",
-        headers={"Authorization": f"Token {settings.POLARIS_AUTH_TOKEN}"},
+        headers={"Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}"},
     )
     try:
         resp.raise_for_status()
