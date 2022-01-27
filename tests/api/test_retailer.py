@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 SetupType = namedtuple("SetupType", ["db_session", "retailer", "campaign"])
 
 client = TestClient(app)
-auth_headers = {"Authorization": f"Token {settings.VELA_AUTH_TOKEN}", "Bpl-User-Channel": "channel"}
+auth_headers = {"Authorization": f"Token {settings.VELA_API_AUTH_TOKEN}", "Bpl-User-Channel": "channel"}
 
 
 @pytest.fixture(scope="function")
