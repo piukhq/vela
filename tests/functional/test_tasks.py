@@ -195,6 +195,40 @@ def test_adjust_balance(
 
 
 @httpretty.activate
+def test_adjust_balance_pending_reward(
+    db_session: "Session", reward_adjustment_task: RetryTask, reward_rule: RewardRule, adjustment_url: str
+) -> None:
+    reward_rule.allocation_window = 15
+    db_session.commit()
+
+    task_params = reward_adjustment_task.get_params()
+    httpretty.register_uri(
+        "POST",
+        adjustment_url,
+        body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
+        status=200,
+    )
+    httpretty.register_uri(
+        "POST",
+        "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
+            base_url=settings.POLARIS_URL,
+            retailer_slug=task_params["retailer_slug"],
+            account_holder_uuid=task_params["account_holder_uuid"],
+        ),
+        status=202,
+    )
+
+    adjust_balance(reward_adjustment_task.retry_task_id)
+
+    db_session.refresh(reward_adjustment_task)
+
+    assert reward_adjustment_task.attempts == 1
+    assert reward_adjustment_task.next_attempt_time is None
+    assert reward_adjustment_task.status == RetryTaskStatuses.SUCCESS
+    assert len(reward_adjustment_task.audit_data) == 3
+
+
+@httpretty.activate
 @mock.patch("app.tasks.reward_adjustment.enqueue_retry_task")
 @mock.patch("app.tasks.reward_adjustment.sync_create_task", return_value=mock.MagicMock(retry_task_id=9999))
 def test_adjust_balance_multiple_rewards(
