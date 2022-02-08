@@ -1,6 +1,6 @@
 import json
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -54,6 +54,51 @@ def _process_reward_allocation(
         json=payload,
         headers={
             "Authorization": f"Token {settings.CARINA_API_AUTH_TOKEN}",
+            "idempotency-token": idempotency_token,
+        },
+        timeout=(3.03, 10),
+    )
+    resp.raise_for_status()
+    response_audit["response"] = {"status": resp.status_code, "body": resp.text}
+    return response_audit
+
+
+def _process_pending_reward_allocation(
+    *,
+    retailer_slug: str,
+    reward_slug: str,
+    account_holder_uuid: str,
+    idempotency_token: str,
+    reward_value: int,
+    allocation_window: int,
+    campaign_slug: str,
+) -> dict:
+    # we are storing the date as a DateTime in Polaris so we want to send a midnight utc datetime
+    today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    request_url = (
+        "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
+            base_url=settings.POLARIS_URL,
+            retailer_slug=retailer_slug,
+            account_holder_uuid=account_holder_uuid,
+        )
+    )
+    payload = {
+        "created_date": today.timestamp(),
+        "conversion_date": (today + timedelta(days=allocation_window)).timestamp(),
+        "value": reward_value,
+        "campaign_slug": campaign_slug,
+        "reward_slug": reward_slug,
+    }
+    response_audit: dict = {
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "request": {"url": request_url, "body": json.dumps(payload)},
+    }
+    resp = send_request_with_metrics(
+        "POST",
+        request_url,
+        json=payload,
+        headers={
+            "Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}",
             "idempotency-token": idempotency_token,
         },
         timeout=(3.03, 10),
@@ -177,6 +222,35 @@ def _enqueue_secondary_reward_only_task(db_session: "Session", retry_task: Retry
     return secondary_reward_task, rq_job
 
 
+def _process_reward_path(
+    log_suffix: str, task_params: dict, campaign_slug: str, reward_rule: RewardRule, allocation_token: str
+) -> dict:
+    if reward_rule.allocation_window > 0:
+        logger.info("Requesting pending reward allocation" + log_suffix)
+        response_audit = _process_pending_reward_allocation(
+            retailer_slug=task_params["retailer_slug"],
+            reward_slug=reward_rule.reward_slug,
+            account_holder_uuid=task_params["account_holder_uuid"],
+            idempotency_token=allocation_token,
+            reward_value=reward_rule.reward_goal,
+            allocation_window=reward_rule.allocation_window,
+            campaign_slug=campaign_slug,
+        )
+        logger.info("Pending reward allocation request complete" + log_suffix)
+
+    else:
+        logger.info("Requesting reward allocation" + log_suffix)
+        response_audit = _process_reward_allocation(
+            retailer_slug=task_params["retailer_slug"],
+            reward_slug=reward_rule.reward_slug,
+            account_holder_uuid=task_params["account_holder_uuid"],
+            idempotency_token=allocation_token,
+        )
+        logger.info("Reward allocation request complete" + log_suffix)
+
+    return response_audit
+
+
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
 # it is relevantly reflected in the TaskType table
 @retryable_task(
@@ -235,14 +309,13 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             db_session, retry_task, token_param_name, str(uuid4())
         )
 
-        logger.info("Requesting reward allocation" + log_suffix)
-        response_audit = _process_reward_allocation(
-            retailer_slug=task_params["retailer_slug"],
-            reward_slug=reward_rule.reward_slug,
-            account_holder_uuid=task_params["account_holder_uuid"],
-            idempotency_token=allocation_token,
+        response_audit = _process_reward_path(
+            log_suffix=log_suffix,
+            task_params=task_params,
+            campaign_slug=campaign_slug,
+            reward_rule=reward_rule,
+            allocation_token=allocation_token,
         )
-        logger.info("Reward allocation request complete" + log_suffix)
         retry_task.update_task(db_session, response_audit=response_audit)
 
         logger.info(f"Decreasing balance by reward goal ({reward_rule.reward_goal})" + log_suffix)
