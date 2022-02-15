@@ -741,11 +741,17 @@ def test_activating_a_campaign(
     create_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
+    now = datetime.now(tz=timezone.utc)
     db_session, retailer, _ = setup
+
+    activable_campaign.start_date = None
+    db_session.commit()
 
     import app.api.endpoints.campaign as endpoints_campaign
 
     spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
+    mock_datetime = mocker.patch("app.api.endpoints.campaign.datetime")
+    mock_datetime.now.return_value = now
 
     create_mock_reward_rule(reward_slug="activable-reward-type", campaign_id=activable_campaign.id)
     payload = {
@@ -771,9 +777,11 @@ def test_activating_a_campaign(
     )
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(activable_campaign)
+    spy.assert_called_once()
+    mock_datetime.now.assert_called_once()
     assert activable_campaign.status == CampaignStatuses.ACTIVE
     assert activable_campaign.end_date is None
-    spy.assert_called_once()
+    assert activable_campaign.start_date == now.replace(tzinfo=None)
     assert activation_task.status == RetryTaskStatuses.PENDING
 
 

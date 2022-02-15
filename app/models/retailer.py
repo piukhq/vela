@@ -33,7 +33,7 @@ class Campaign(Base, TimestampMixin):
     slug = Column(String(32), index=True, unique=True, nullable=False)
     retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"), nullable=False)
     earn_inc_is_tx_value = Column(Boolean, default=False, nullable=False)
-    start_date = Column(DateTime, nullable=False)
+    start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
 
     retailer = relationship("RetailerRewards", back_populates="campaigns")
