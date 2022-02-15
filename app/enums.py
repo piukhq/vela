@@ -25,6 +25,11 @@ class CampaignStatuses(Enum):
             return False
 
 
+class LoyaltyTypes(Enum):
+    ACCUMULATOR = "accumulator"
+    STAMPS = "stamps"
+
+
 class HttpErrors(Enum):
     NO_ACTIVE_CAMPAIGNS = HTTPException(
         detail={"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"},

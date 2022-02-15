@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base, TimestampMixin
-from app.enums import CampaignStatuses
+from app.enums import CampaignStatuses, LoyaltyTypes
 
 if TYPE_CHECKING:  # pragma: no cover
     from .transaction import ProcessedTransaction, Transaction  # noqa 401
@@ -32,7 +32,7 @@ class Campaign(Base, TimestampMixin):
     name = Column(String(128), nullable=False)
     slug = Column(String(32), index=True, unique=True, nullable=False)
     retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"), nullable=False)
-    earn_inc_is_tx_value = Column(Boolean, default=False, nullable=False)
+    loyalty_type = Column(Enum(LoyaltyTypes), nullable=False, server_default="STAMPS")
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
 

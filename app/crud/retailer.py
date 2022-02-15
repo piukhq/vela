@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from app.db.base_class import async_run_query
-from app.enums import CampaignStatuses, HttpErrors
+from app.enums import CampaignStatuses, HttpErrors, LoyaltyTypes
 from app.models import Campaign, EarnRule, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -77,7 +77,7 @@ async def get_adjustment_amounts(
     adjustment_amounts: dict = {}
     for earn in earn_rules:
         if transaction.amount >= earn.threshold:
-            if earn.campaign.earn_inc_is_tx_value:
+            if earn.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR:
                 amount = int(transaction.amount * earn.increment_multiplier)
             else:
                 amount = int(earn.increment * earn.increment_multiplier)
