@@ -73,8 +73,11 @@ async def _campaign_status_change(
     async def _query(campaigns: list[Campaign]) -> None:
         for campaign in campaigns:
             campaign.status = requested_status
+            now = datetime.now(tz=timezone.utc).replace(tzinfo=None)
             if requested_status in (CampaignStatuses.CANCELLED, CampaignStatuses.ENDED):
-                campaign.end_date = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+                campaign.end_date = now
+            elif requested_status == CampaignStatuses.ACTIVE:
+                campaign.start_date = now
 
         await db_session.commit()
 
