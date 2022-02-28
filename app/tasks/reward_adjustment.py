@@ -32,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
 def _process_reward_allocation(
     *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str
 ) -> dict:
-    request_url = "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/allocation".format(
+    request_url = "{base_url}/bpl/rewards/{retailer_slug}/rewards/{reward_slug}/allocation".format(
         base_url=settings.CARINA_URL,
         retailer_slug=retailer_slug,
         reward_slug=reward_slug,
