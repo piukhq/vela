@@ -16,7 +16,7 @@ from retry_tasks_lib.utils.synchronous import (
 from rq.job import Job
 from sqlalchemy.future import select
 
-from app.core.config import redis, settings
+from app.core.config import redis_raw, settings
 from app.db.base_class import sync_run_query
 from app.db.session import SyncSessionMaker
 from app.enums import CampaignStatuses
@@ -218,7 +218,7 @@ def _enqueue_secondary_reward_only_task(db_session: "Session", retry_task: Retry
         )
         db_session.commit()
 
-    rq_job = enqueue_retry_task(connection=redis, retry_task=secondary_reward_task, at_front=True)
+    rq_job = enqueue_retry_task(connection=redis_raw, retry_task=secondary_reward_task, at_front=True)
     return secondary_reward_task, rq_job
 
 
@@ -261,7 +261,7 @@ def _process_reward_path(
             additional_statuses=[RetryTaskStatuses.FAILED],
         )
     ],
-    redis_connection=redis,
+    redis_connection=redis_raw,
 )
 def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
     tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_ADJUSTMENT_TASK_NAME).inc()
