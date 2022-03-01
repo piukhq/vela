@@ -15,7 +15,7 @@ from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import IncorrectRetryTaskStatusError, sync_create_task
 from sqlalchemy.orm import Session
 
-from app.core.config import redis, settings
+from app.core.config import redis_raw, settings
 from app.enums import CampaignStatuses
 from app.models import Campaign, RewardRule
 from app.tasks.campaign_balances import update_campaign_balances
@@ -290,7 +290,7 @@ def test_adjust_balance_multiple_rewards(
             "reward_only": True,
         },
     )
-    mock_enqueue_retry_task.assert_called_once_with(connection=redis, retry_task=mock_secondary_task, at_front=True)
+    mock_enqueue_retry_task.assert_called_once_with(connection=redis_raw, retry_task=mock_secondary_task, at_front=True)
 
 
 @mock.patch("app.tasks.requests")
