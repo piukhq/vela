@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy.future import select
@@ -64,9 +65,11 @@ async def get_adjustment_amounts(
             (
                 await db_session.execute(
                     select(EarnRule)
-                    .options(joinedload(EarnRule.campaign))
                     .join(Campaign)
-                    .filter(Campaign.slug.in_(campaign_slugs))
+                    .options(
+                        joinedload(EarnRule.campaign, innerjoin=True).joinedload(Campaign.reward_rule, innerjoin=True)
+                    )
+                    .where(Campaign.slug.in_(campaign_slugs))
                 )
             )
             .scalars()
@@ -74,17 +77,21 @@ async def get_adjustment_amounts(
         )
 
     earn_rules = await async_run_query(_query, db_session, rollback_on_exc=False)
-    adjustment_amounts: dict = {}
-    for earn in earn_rules:
-        if transaction.amount >= earn.threshold:
-            if earn.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR:
-                amount = int(transaction.amount * earn.increment_multiplier)
-            else:
-                amount = int(earn.increment * earn.increment_multiplier)
+    adjustment_amounts: defaultdict = defaultdict(int)
 
-            if earn.campaign.slug in adjustment_amounts:
-                adjustment_amounts[earn.campaign.slug] += amount
+    for earn_rule in earn_rules:
+        if (
+            transaction.amount < 0
+            and earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR
+            and earn_rule.campaign.reward_rule.allocation_window
+        ):  # i.e. a refund
+            adjustment_amounts[earn_rule.campaign.slug] += int(transaction.amount)
+        elif transaction.amount >= earn_rule.threshold:
+            if earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR:
+                amount = int(transaction.amount * earn_rule.increment_multiplier)
             else:
-                adjustment_amounts[earn.campaign.slug] = amount
+                amount = int(earn_rule.increment * earn_rule.increment_multiplier)
 
-    return adjustment_amounts
+            adjustment_amounts[earn_rule.campaign.slug] += amount
+
+    return dict(adjustment_amounts)

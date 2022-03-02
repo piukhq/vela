@@ -12,8 +12,8 @@ from httpx import Request, Response
 from pytest_mock import MockerFixture
 
 from app.core.config import settings
-from app.enums import CampaignStatuses
-from app.models import Campaign, EarnRule, ProcessedTransaction, Transaction
+from app.enums import CampaignStatuses, LoyaltyTypes
+from app.models import EarnRule, ProcessedTransaction, RetailerRewards, Transaction
 from asgi import app
 from tests.conftest import SetupType
 
@@ -27,14 +27,6 @@ auth_headers = {"Authorization": f"Token {settings.VELA_API_AUTH_TOKEN}"}
 account_holder_uuid = uuid4()
 datetime_now = datetime.now(tz=timezone.utc)
 timestamp_now = int(datetime_now.timestamp())
-
-
-@pytest.fixture(scope="function")
-def earn_rule(db_session: "Session", campaign: Campaign) -> EarnRule:
-    earn_rule = EarnRule(campaign_id=campaign.id, threshold=300, increment_multiplier=1, increment=1)
-    db_session.add(earn_rule)
-    db_session.commit()
-    return earn_rule
 
 
 @pytest.fixture(scope="function")
@@ -57,10 +49,11 @@ def test_post_transaction_happy_path(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-    db_session, retailer, _ = setup
+    db_session, retailer, campaign = setup
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
 
     resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -272,3 +265,181 @@ def test_post_transaction_account_holder_empty_val_validation_errors(
 
     bad_payload["loyalty_id"] = ""
     _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+
+
+def test_post_transaction_negative_amount(
+    db_session: "Session",
+    retailer: RetailerRewards,
+    payload: dict,
+    mocker: MockerFixture,
+    reward_adjustment_task_type: "TaskType",
+    create_mock_campaign: Callable,
+    create_mock_earn_rule: Callable,
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: "TaskType",
+) -> None:
+    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+    mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    mock_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "negativetestcampaign",
+            "slug": "negative-test-campaign",
+            "loyalty_type": LoyaltyTypes.ACCUMULATOR,
+        }
+    )
+    create_mock_reward_rule(
+        reward_slug="negative-test-reward", campaign_id=mock_campaign.id, reward_goal=10, allocation_window=5
+    )
+    create_mock_earn_rule(
+        campaign_id=mock_campaign.id, **{"threshold": 300, "increment_multiplier": 10, "increment": 1}
+    )
+    payload["transaction_total"] = -payload["transaction_total"]  # i.e. a negative transaction
+
+    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json() == "Awarded"
+
+    processed_transaction = (
+        db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
+    )
+
+    assert processed_transaction is not None
+    assert processed_transaction.mid == payload["MID"]
+    assert processed_transaction.amount == payload["transaction_total"]  # no increment multiplier s/be applied
+    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
+    assert processed_transaction.account_holder_uuid == account_holder_uuid
+
+
+def test_post_transaction_zero_amount(
+    db_session: "Session",
+    retailer: RetailerRewards,
+    payload: dict,
+    mocker: MockerFixture,
+    reward_adjustment_task_type: "TaskType",
+    create_mock_campaign: Callable,
+    create_mock_earn_rule: Callable,
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: "TaskType",
+) -> None:
+    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+    mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    mock_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "zerotestcampaign",
+            "slug": "zero-test-campaign",
+            "loyalty_type": LoyaltyTypes.ACCUMULATOR,
+        }
+    )
+    create_mock_reward_rule(
+        reward_slug="zero-test-reward", campaign_id=mock_campaign.id, reward_goal=10, allocation_window=5
+    )
+    create_mock_earn_rule(campaign_id=mock_campaign.id, **{"threshold": 300, "increment_multiplier": 1, "increment": 1})
+    payload["transaction_total"] = 0
+
+    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json() == "Threshold not met"
+
+    processed_transaction = (
+        db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
+    )
+
+    assert processed_transaction is not None
+    assert processed_transaction.mid == payload["MID"]
+    assert processed_transaction.amount == payload["transaction_total"]
+    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
+    assert processed_transaction.account_holder_uuid == account_holder_uuid
+
+
+def test_post_transaction_negative_amount_but_no_allocation_window(
+    db_session: "Session",
+    retailer: RetailerRewards,
+    payload: dict,
+    mocker: MockerFixture,
+    reward_adjustment_task_type: "TaskType",
+    create_mock_campaign: Callable,
+    create_mock_earn_rule: Callable,
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: "TaskType",
+) -> None:
+    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+    mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    mock_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "negativetestcampaign",
+            "slug": "negative-test-campaign",
+            "loyalty_type": LoyaltyTypes.ACCUMULATOR,
+        }
+    )
+    create_mock_reward_rule(
+        reward_slug="negative-test-reward", campaign_id=mock_campaign.id, reward_goal=10, allocation_window=0
+    )
+    create_mock_earn_rule(campaign_id=mock_campaign.id, **{"threshold": 300, "increment_multiplier": 1, "increment": 1})
+    payload["transaction_total"] = -payload["transaction_total"]  # i.e. a negative transaction
+
+    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json() == "Threshold not met"
+
+    processed_transaction = (
+        db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
+    )
+
+    assert processed_transaction is not None
+    assert processed_transaction.mid == payload["MID"]
+    assert processed_transaction.amount == payload["transaction_total"]
+    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
+    assert processed_transaction.account_holder_uuid == account_holder_uuid
+
+
+def test_post_transaction_negative_amount_but_not_accumulator(
+    db_session: "Session",
+    retailer: RetailerRewards,
+    payload: dict,
+    mocker: MockerFixture,
+    reward_adjustment_task_type: "TaskType",
+    create_mock_campaign: Callable,
+    create_mock_earn_rule: Callable,
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: "TaskType",
+) -> None:
+    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
+    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+    mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    mock_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "negativetestcampaign",
+            "slug": "negative-test-campaign",
+            "loyalty_type": LoyaltyTypes.STAMPS,
+        }
+    )
+    create_mock_reward_rule(
+        reward_slug="negative-test-reward", campaign_id=mock_campaign.id, reward_goal=10, allocation_window=5
+    )
+    create_mock_earn_rule(campaign_id=mock_campaign.id, **{"threshold": 300, "increment_multiplier": 1, "increment": 1})
+    payload["transaction_total"] = -payload["transaction_total"]  # i.e. a negative transaction
+
+    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json() == "Threshold not met"
+
+    processed_transaction = (
+        db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
+    )
+
+    assert processed_transaction is not None
+    assert processed_transaction.mid == payload["MID"]
+    assert processed_transaction.amount == payload["transaction_total"]
+    assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
+    assert processed_transaction.account_holder_uuid == account_holder_uuid
