@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import SyncSessionMaker, sync_engine
 from app.enums import CampaignStatuses
-from app.models import Campaign, RetailerRewards
+from app.models import Campaign, EarnRule, RetailerRewards
 from app.models.retailer import RewardRule
 
 if TYPE_CHECKING:
@@ -121,6 +121,14 @@ def reward_rule(db_session: "Session", campaign: Campaign, reward_slug: str) -> 
 
 
 @pytest.fixture(scope="function")
+def earn_rule(db_session: "Session", campaign: Campaign) -> EarnRule:
+    earn_rule = EarnRule(campaign_id=campaign.id, threshold=300, increment_multiplier=1, increment=1)
+    db_session.add(earn_rule)
+    db_session.commit()
+    return earn_rule
+
+
+@pytest.fixture(scope="function")
 def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
     def _create_mock_campaign(**campaign_params: Dict) -> Campaign:
         """
@@ -143,17 +151,40 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
 
 @pytest.fixture(scope="function")
 def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
-    def _create_mock_reward_rule(reward_slug: str, campaign_id: int, reward_goal: int = 5) -> RewardRule:
+    def _create_mock_reward_rule(
+        reward_slug: str, campaign_id: int, reward_goal: int = 5, allocation_window: int = 0
+    ) -> RewardRule:
         """
         Create a reward rule in the test DB
         :return: Callable function
         """
-        reward_rule = RewardRule(reward_goal=reward_goal, reward_slug=reward_slug, campaign_id=campaign_id)
+        reward_rule = RewardRule(
+            reward_goal=reward_goal,
+            reward_slug=reward_slug,
+            campaign_id=campaign_id,
+            allocation_window=allocation_window,
+        )
         db_session.add(reward_rule)
         db_session.commit()
         return reward_rule
 
     return _create_mock_reward_rule
+
+
+@pytest.fixture(scope="function")
+def create_mock_earn_rule(db_session: "Session") -> Callable:
+    def _create_mock_earn_rule(campaign_id: int, **earn_rule_params: dict) -> EarnRule:
+        """
+        Create an earn rule in the test DB
+        earn_rule_params eg. threshold=300, increment_multiplier=1, increment=1
+        :return: Callable function
+        """
+        earn_rule = EarnRule(campaign_id=campaign_id, **earn_rule_params)
+        db_session.add(earn_rule)
+        db_session.commit()
+        return earn_rule
+
+    return _create_mock_earn_rule
 
 
 @pytest.fixture(scope="function")

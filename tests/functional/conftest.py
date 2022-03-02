@@ -57,8 +57,8 @@ def reward_adjustment_task(
 def adjustment_url(reward_adjustment_task: RetryTask) -> str:
     task_params = reward_adjustment_task.get_params()
 
-    return "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
-        base_url=settings.POLARIS_URL,
+    return "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
+        base_url=settings.POLARIS_BASE_URL,
         retailer_slug=task_params["retailer_slug"],
         account_holder_uuid=task_params["account_holder_uuid"],
     )
@@ -67,8 +67,8 @@ def adjustment_url(reward_adjustment_task: RetryTask) -> str:
 @pytest.fixture(scope="function")
 def allocation_url(reward_adjustment_task: RetryTask, reward_slug: str) -> str:
 
-    return "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/allocation".format(
-        base_url=settings.CARINA_URL,
+    return "{base_url}/{retailer_slug}/rewards/{reward_slug}/allocation".format(
+        base_url=settings.CARINA_BASE_URL,
         retailer_slug=reward_adjustment_task.get_params()["retailer_slug"],
         reward_slug=reward_slug,
     )
@@ -116,8 +116,8 @@ def reward_status_adjustment_expected_payload(reward_status_adjustment_retry_tas
 
 @pytest.fixture(scope="function")
 def reward_status_adjustment_url(reward_status_adjustment_task_params: dict) -> str:
-    return "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/status".format(
-        base_url=settings.CARINA_URL,
+    return "{base_url}/{retailer_slug}/rewards/{reward_slug}/status".format(
+        base_url=settings.CARINA_BASE_URL,
         retailer_slug=reward_status_adjustment_task_params["retailer_slug"],
         reward_slug=reward_status_adjustment_task_params["reward_slug"],
     )

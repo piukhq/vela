@@ -40,7 +40,7 @@ class LogLevel(str):  # pragma: no cover
 
 
 class Settings(BaseSettings):  # pragma: no cover
-    API_PREFIX: str = "/bpl/rewards"
+    API_PREFIX: str = "/bpl/retailers"
     TESTING: bool = False
     SQL_DEBUG: bool = False
     METRICS_DEBUG: bool = False
@@ -180,7 +180,8 @@ class Settings(BaseSettings):  # pragma: no cover
         else:
             raise KeyError("required var KEY_VAULT_URI is not set.")
 
-    POLARIS_URL: str = "http://polaris-api"
+    POLARIS_HOST: str = "http://polaris-api"
+    POLARIS_BASE_URL: str = f"{POLARIS_HOST}/bpl/loyalty"
     REDIS_URL: str
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
     REWARD_STATUS_ADJUSTMENT_TASK_NAME = "reward-status-adjustment"
@@ -214,7 +215,8 @@ class Settings(BaseSettings):  # pragma: no cover
         else:
             raise KeyError("required var KEY_VAULT_URI is not set.")
 
-    CARINA_URL: str = "http://carina-api"
+    CARINA_HOST: str = "http://carina-api"
+    CARINA_BASE_URL: str = f"{CARINA_HOST}/bpl/rewards"
 
     class Config:
         case_sensitive = True

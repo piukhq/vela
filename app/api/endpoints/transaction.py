@@ -34,7 +34,7 @@ async def record_transaction(
 
     transaction = await crud.create_transaction(db_session, retailer, transaction_data)
     active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction.datetime)
-    adjustment_amounts = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
+    adjustment_amounts: dict = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
 
     processed_transaction = await crud.create_processed_transaction(
         db_session, retailer, active_campaign_slugs, transaction_data
