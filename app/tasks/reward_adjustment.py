@@ -32,14 +32,14 @@ if TYPE_CHECKING:  # pragma: no cover
 def _process_reward_allocation(
     *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str
 ) -> dict:
-    request_url = "{base_url}/bpl/vouchers/{retailer_slug}/rewards/{reward_slug}/allocation".format(
-        base_url=settings.CARINA_URL,
+    request_url = "{base_url}/{retailer_slug}/rewards/{reward_slug}/allocation".format(
+        base_url=settings.CARINA_BASE_URL,
         retailer_slug=retailer_slug,
         reward_slug=reward_slug,
     )
     payload = {
-        "account_url": "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/rewards".format(
-            base_url=settings.POLARIS_URL,
+        "account_url": "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/rewards".format(
+            base_url=settings.POLARIS_BASE_URL,
             retailer_slug=retailer_slug,
             account_holder_uuid=account_holder_uuid,
         )
@@ -75,12 +75,10 @@ def _process_pending_reward_allocation(
 ) -> dict:
     # we are storing the date as a DateTime in Polaris so we want to send a midnight utc datetime
     today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    request_url = (
-        "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
-            base_url=settings.POLARIS_URL,
-            retailer_slug=retailer_slug,
-            account_holder_uuid=account_holder_uuid,
-        )
+    request_url = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
+        base_url=settings.POLARIS_BASE_URL,
+        retailer_slug=retailer_slug,
+        account_holder_uuid=account_holder_uuid,
     )
     payload = {
         "created_date": today.timestamp(),
@@ -131,8 +129,8 @@ def _process_balance_adjustment(
     campaign_slug: str,
     idempotency_token: str,
 ) -> tuple[int, dict]:
-    request_url = "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
-        base_url=settings.POLARIS_URL,
+    request_url = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
+        base_url=settings.POLARIS_BASE_URL,
         retailer_slug=retailer_slug,
         account_holder_uuid=account_holder_uuid,
     )

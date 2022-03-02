@@ -67,8 +67,8 @@ def test__process_adjustment_ok(
     assert response_audit == {
         "request": {
             "body": json.dumps({"balance_change": 100, "campaign_slug": "test-campaign"}),
-            "url": "{0}/bpl/loyalty/{1}/accounts/{2}/adjustments".format(
-                settings.POLARIS_URL, task_params["retailer_slug"], task_params["account_holder_uuid"]
+            "url": "{0}/{1}/accounts/{2}/adjustments".format(
+                settings.POLARIS_BASE_URL, task_params["retailer_slug"], task_params["account_holder_uuid"]
             ),
         },
         "timestamp": fake_now.isoformat(),
@@ -210,8 +210,8 @@ def test_adjust_balance_pending_reward(
     )
     httpretty.register_uri(
         "POST",
-        "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
-            base_url=settings.POLARIS_URL,
+        "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
+            base_url=settings.POLARIS_BASE_URL,
             retailer_slug=task_params["retailer_slug"],
             account_holder_uuid=task_params["account_holder_uuid"],
         ),
@@ -424,7 +424,7 @@ def test__process_reward_allocation(
     assert "idempotency-token" in last_request.headers
     assert last_request.url == allocation_url
 
-    account_url = f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/rewards"
+    account_url = f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/rewards"
     assert json.loads(last_request.body) == {
         "account_url": account_url,
     }
@@ -468,9 +468,7 @@ def test__process_reward_allocation_http_errors(
         last_request = httpretty.last_request()
         assert last_request.method == "POST"
         assert json.loads(last_request.body) == {
-            "account_url": (
-                f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{account_holder_uuid}/rewards"
-            ),
+            "account_url": (f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/rewards"),
         }
 
 
@@ -593,8 +591,8 @@ def test_update_campaign_balances(
     db_session: "Session", create_campaign_balances_task_type: TaskType, delete_campaign_balances_task_type: TaskType
 ) -> None:
     params = {"retailer_slug": "sample-retailer", "campaign_slug": "sample-campaign"}
-    url = "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{campaign_slug}/balances".format(
-        base_url=settings.POLARIS_URL, **params
+    url = "{base_url}/{retailer_slug}/accounts/{campaign_slug}/balances".format(
+        base_url=settings.POLARIS_BASE_URL, **params
     )
 
     httpretty.register_uri("POST", url, body={}, status=202)

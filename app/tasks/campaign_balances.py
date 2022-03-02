@@ -30,8 +30,8 @@ def _process_campaign_balances_update(task_type_name: str, task_params: dict) ->
 
     resp = send_request_with_metrics(
         method,
-        "{base_url}/bpl/loyalty/{retailer_slug}/accounts/{campaign_slug}/balances".format(
-            base_url=settings.POLARIS_URL,
+        "{base_url}/{retailer_slug}/accounts/{campaign_slug}/balances".format(
+            base_url=settings.POLARIS_BASE_URL,
             retailer_slug=task_params["retailer_slug"],
             campaign_slug=task_params["campaign_slug"],
         ),
