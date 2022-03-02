@@ -55,7 +55,7 @@ def test_post_transaction_happy_path(
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
 
-    resp = client.post(f"/bpl/campaigns/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json() == "Awarded"
@@ -79,7 +79,7 @@ def test_post_transaction_not_awarded(
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
     payload["transaction_total"] = 250
-    resp = client.post(f"/bpl/campaigns/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json() == "Threshold not met"
@@ -106,7 +106,7 @@ def test_post_transaction_no_active_campaigns(
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
-    resp = client.post(f"/bpl/campaigns/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
@@ -130,7 +130,7 @@ def test_post_transaction_no_active_campaigns_pre_start_date(
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
-    resp = client.post(f"/bpl/campaigns/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
@@ -154,7 +154,7 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
-    resp = client.post(f"/bpl/campaigns/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
@@ -173,18 +173,18 @@ def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, 
     response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
     mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
 
-    resp = client.post(f"/bpl/campaigns/{retailer_slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
 
-    resp = client.post(f"/bpl/campaigns/{retailer_slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
     assert resp.json() == {"display_message": "Duplicate Transaction.", "code": "DUPLICATE_TRANSACTION"}
 
 
 def test_post_transaction_wrong_retailer(payload: dict) -> None:
-    resp = client.post("/bpl/campaigns/NOT_A_RETIALER/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/NOT_A_RETIALER/transaction", json=payload, headers=auth_headers)
     assert resp.status_code == status.HTTP_403_FORBIDDEN
     assert resp.json() == {"display_message": "Requested retailer is invalid.", "code": "INVALID_RETAILER"}
 
@@ -195,7 +195,7 @@ def test_post_transaction_account_holder_validation_errors(
     retailer_slug = setup.retailer.slug
     request = Request(
         method="GET",
-        url=f"{settings.POLARIS_URL}/bpl/loyalty/{retailer_slug}/accounts/{payload['loyalty_id']}/status",
+        url=f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{payload['loyalty_id']}/status",
     )
 
     mocked_session = mocker.patch("app.internal_requests.send_async_request_with_retry")
@@ -203,21 +203,21 @@ def test_post_transaction_account_holder_validation_errors(
         spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK
     )
 
-    resp = client.post(f"/bpl/campaigns/{retailer_slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
     assert resp.json() == {"display_message": "User Account not Active", "code": "USER_NOT_ACTIVE"}
 
     mocked_session.return_value = Response(status.HTTP_404_NOT_FOUND, request=request)
 
-    resp = client.post(f"/bpl/campaigns/{retailer_slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "Unknown User.", "code": "USER_NOT_FOUND"}
 
     mocked_session.return_value = Response(status.HTTP_500_INTERNAL_SERVER_ERROR, request=request)
 
-    resp = client.post(f"/bpl/campaigns/{retailer_slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
     assert resp.json() == {
@@ -227,7 +227,7 @@ def test_post_transaction_account_holder_validation_errors(
 
 
 def _check_transaction_endpoint_422_response(retailer_slug: str, bad_payload: dict) -> None:
-    resp = client.post(f"/bpl/campaigns/{retailer_slug}/transaction", json=bad_payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=bad_payload, headers=auth_headers)
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert resp.json() == {"display_message": "BPL Schema not matched.", "code": "INVALID_CONTENT"}
 
@@ -297,7 +297,7 @@ def test_post_transaction_negative_amount(
     )
     payload["transaction_total"] = -payload["transaction_total"]  # i.e. a negative transaction
 
-    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json() == "Awarded"
@@ -341,7 +341,7 @@ def test_post_transaction_zero_amount(
     create_mock_earn_rule(campaign_id=mock_campaign.id, **{"threshold": 300, "increment_multiplier": 1, "increment": 1})
     payload["transaction_total"] = 0
 
-    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json() == "Threshold not met"
@@ -385,7 +385,7 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
     create_mock_earn_rule(campaign_id=mock_campaign.id, **{"threshold": 300, "increment_multiplier": 1, "increment": 1})
     payload["transaction_total"] = -payload["transaction_total"]  # i.e. a negative transaction
 
-    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json() == "Threshold not met"
@@ -429,7 +429,7 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     create_mock_earn_rule(campaign_id=mock_campaign.id, **{"threshold": 300, "increment_multiplier": 1, "increment": 1})
     payload["transaction_total"] = -payload["transaction_total"]  # i.e. a negative transaction
 
-    resp = client.post(f"/bpl/rewards/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json() == "Threshold not met"
