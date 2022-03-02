@@ -40,7 +40,7 @@ class LogLevel(str):  # pragma: no cover
 
 
 class Settings(BaseSettings):  # pragma: no cover
-    API_PREFIX: str = "/bpl/campaigns"
+    API_PREFIX: str = "/bpl/retailers"
     TESTING: bool = False
     SQL_DEBUG: bool = False
     METRICS_DEBUG: bool = False
