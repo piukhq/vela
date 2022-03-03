@@ -181,7 +181,14 @@ class Settings(BaseSettings):  # pragma: no cover
             raise KeyError("required var KEY_VAULT_URI is not set.")
 
     POLARIS_HOST: str = "http://polaris-api"
-    POLARIS_BASE_URL: str = f"{POLARIS_HOST}/bpl/loyalty"
+    POLARIS_BASE_URL: str = ""
+
+    @validator("POLARIS_BASE_URL")
+    def polaris_base_url(cls, v: str, values: dict[str, Any]) -> str:
+        if v != "":
+            return v
+        return f"{values['POLARIS_HOST']}/bpl/loyalty"
+
     REDIS_URL: str
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
     REWARD_STATUS_ADJUSTMENT_TASK_NAME = "reward-status-adjustment"
@@ -216,7 +223,13 @@ class Settings(BaseSettings):  # pragma: no cover
             raise KeyError("required var KEY_VAULT_URI is not set.")
 
     CARINA_HOST: str = "http://carina-api"
-    CARINA_BASE_URL: str = f"{CARINA_HOST}/bpl/rewards"
+    CARINA_BASE_URL: str = ""
+
+    @validator("CARINA_BASE_URL")
+    def carina_base_url(cls, v: str, values: dict[str, Any]) -> str:
+        if v != "":
+            return v
+        return f"{values['CARINA_HOST']}/bpl/rewards"
 
     class Config:
         case_sensitive = True
