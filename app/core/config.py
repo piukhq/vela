@@ -43,7 +43,6 @@ class Settings(BaseSettings):  # pragma: no cover
     API_PREFIX: str = "/bpl/retailers"
     TESTING: bool = False
     SQL_DEBUG: bool = False
-    METRICS_DEBUG: bool = False
 
     @validator("TESTING")
     def is_test(cls, v: bool) -> bool:
