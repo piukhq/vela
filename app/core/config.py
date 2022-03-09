@@ -189,6 +189,16 @@ class Settings(BaseSettings):  # pragma: no cover
         return f"{values['POLARIS_HOST']}/bpl/loyalty"
 
     REDIS_URL: str
+
+    @validator("REDIS_URL")
+    def assemble_redis_url(cls, v: str, values: dict[str, Any]) -> str:
+
+        if values["TESTING"]:
+            base_url, db_n = v.rsplit("/", 1)
+            return f"{base_url}/{int(db_n) + 1}"
+
+        return v
+
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
     REWARD_STATUS_ADJUSTMENT_TASK_NAME = "reward-status-adjustment"
     CREATE_CAMPAIGN_BALANCES_TASK_NAME = "create-campaign-balances"
