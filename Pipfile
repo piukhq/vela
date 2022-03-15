@@ -12,7 +12,7 @@ verify_ssl = true
 fastapi = "*"
 uvicorn = { extras = ["standard"], version = "*" }
 ujson = "*"
-sqlalchemy = "*"
+sqlalchemy = {extras = ["asyncio"], version = "*"}
 psycopg2-binary = "*"
 alembic = "*"
 gunicorn = "*"
@@ -35,7 +35,7 @@ typing-extensions = "*"
 pytest = "*"
 pytest-cov = "*"
 flake8 = "*"
-black = "==21.9b0"
+black = "*"
 isort = "*"
 mypy = "==0.910"
 ipython = "*"
