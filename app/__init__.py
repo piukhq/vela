@@ -19,7 +19,6 @@ def create_app() -> FastAPI:
     )
     app.include_router(api_router)
     app.include_router(metrics_router)
-
     app.add_exception_handler(RequestValidationError, request_validation_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(status.HTTP_500_INTERNAL_SERVER_ERROR, unexpected_exception_handler)
@@ -27,7 +26,7 @@ def create_app() -> FastAPI:
     app.add_middleware(MetricsSecurityMiddleware)
     app.add_middleware(PrometheusMiddleware)
 
-    PrometheusManager(settings.PROJECT_NAME)  # initialise signals
+    PrometheusManager(settings.PROJECT_NAME, metric_name_prefix="bpl")  # initialise signals
 
     if settings.SENTRY_DSN:  # pragma: no cover
         app.add_middleware(SentryAsgiMiddleware)
