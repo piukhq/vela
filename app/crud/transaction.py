@@ -25,7 +25,7 @@ async def create_transaction(
             await db_session.commit()
         except IntegrityError:
             await db_session.rollback()
-            raise HttpErrors.DUPLICATE_TRANSACTION.value
+            raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return transaction
 
@@ -51,7 +51,7 @@ async def create_processed_transaction(
             db_session.add(processed_transaction)
             await db_session.commit()
         except IntegrityError:
-            raise HttpErrors.DUPLICATE_TRANSACTION.value
+            raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return processed_transaction
 

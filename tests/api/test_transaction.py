@@ -1,3 +1,5 @@
+# pylint: disable=too-many-arguments
+
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Callable

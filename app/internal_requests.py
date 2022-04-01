@@ -47,9 +47,9 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
     except httpx.HTTPStatusError as ex:
         if resp.status_code == status.HTTP_404_NOT_FOUND:
             raise HttpErrors.USER_NOT_FOUND.value
-        else:
-            logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
-            raise
+
+        logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
+        raise
 
     else:
         if resp.json()["status"] != "active":

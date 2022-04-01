@@ -27,9 +27,9 @@ async def _check_remaining_active_campaigns(
 ) -> None:
     try:
         active_campaign_slugs: list[str] = await crud.get_active_campaign_slugs(db_session, retailer)
-    except HTTPException as e:
+    except HTTPException as ex:
         # This would actually be an invalid status request
-        if e.detail["code"] == "NO_ACTIVE_CAMPAIGNS":  # type: ignore
+        if ex.detail["code"] == "NO_ACTIVE_CAMPAIGNS":  # type: ignore [index]
             raise HttpErrors.INVALID_STATUS_REQUESTED.value
 
     # If you've requested to end or cancel all of your active campaigns..

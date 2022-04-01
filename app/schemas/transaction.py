@@ -19,6 +19,6 @@ class CreateTransactionSchema(BaseModel):  # pragma: no cover
         try:
             processed_datetime = dt.fromtimestamp(v, tz=timezone.utc)
         except Exception:
-            raise ValueError("invalid datetime")
+            raise ValueError("invalid datetime")  # pylint: disable=raise-missing-from
 
         return processed_datetime
