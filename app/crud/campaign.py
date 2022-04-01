@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.utils.asynchronous import async_create_task
@@ -42,12 +42,12 @@ async def create_reward_status_adjustment_and_campaign_balances_tasks(
     retailer: RetailerRewards,
     status: CampaignStatuses,
     balance_task_type: str,
-) -> List[int]:
+) -> list[int]:
     campaigns: list[Campaign] = await get_campaigns_by_slug(
         db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer, load_rules=True
     )
 
-    async def _query() -> List[RetryTask]:
+    async def _query() -> list[RetryTask]:
         tasks = []
         for campaign in campaigns:
             tasks.append(

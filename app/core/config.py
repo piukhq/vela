@@ -3,7 +3,7 @@ import os
 import sys
 
 from logging.config import dictConfig
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Literal
 
 import sentry_sdk
 
@@ -64,22 +64,16 @@ class Settings(BaseSettings):  # pragma: no cover
         return v
 
     PROJECT_NAME: str = "vela"
-    ROOT_LOG_LEVEL: Optional[LogLevel] = None
-    QUERY_LOG_LEVEL: Optional[LogLevel] = None
-    LOG_FORMATTER: str = "json"
+    ROOT_LOG_LEVEL: LogLevel | None = None
+    QUERY_LOG_LEVEL: LogLevel | None = None
+    LOG_FORMATTER: Literal["json", "brief"] = "json"
 
-    @validator("LOG_FORMATTER")
-    def validate_formatter(cls, v: str) -> Optional[str]:
-        if v not in ["json", "brief"]:
-            raise ValueError(f'"{v}" is not a valid LOG_FORMATTER value, choices are [json, brief]')
-        return v
-
-    SENTRY_DSN: Optional[HttpUrl] = None
-    SENTRY_ENV: Optional[str] = None
+    SENTRY_DSN: HttpUrl | None = None
+    SENTRY_ENV: str | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = 0.0
 
     @validator("SENTRY_DSN", pre=True)
-    def sentry_dsn_can_be_blank(cls, v: str) -> Optional[str]:
+    def sentry_dsn_can_be_blank(cls, v: str) -> str | None:
         if v is not None and len(v) == 0:
             return None
         return v
@@ -135,10 +129,10 @@ class Settings(BaseSettings):  # pragma: no cover
 
     KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
 
-    VELA_API_AUTH_TOKEN: Optional[str] = None
+    VELA_API_AUTH_TOKEN: str | None = None
 
     @validator("VELA_API_AUTH_TOKEN")
-    def fetch_vela_api_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
+    def fetch_vela_api_auth_token(cls, v: str | None, values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -150,10 +144,10 @@ class Settings(BaseSettings):  # pragma: no cover
         else:
             raise KeyError("required var KEY_VAULT_URI is not set.")
 
-    POLARIS_API_AUTH_TOKEN: Optional[str] = None
+    POLARIS_API_AUTH_TOKEN: str | None = None
 
     @validator("POLARIS_API_AUTH_TOKEN")
-    def fetch_polaris_api_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
+    def fetch_polaris_api_auth_token(cls, v: str | None, values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -193,19 +187,19 @@ class Settings(BaseSettings):  # pragma: no cover
     TASK_MAX_RETRIES: int = 6
     TASK_RETRY_BACKOFF_BASE: float = 3.0
     TASK_QUEUE_PREFIX: str = "vela:"
-    TASK_QUEUES: Optional[list[str]] = None
+    TASK_QUEUES: list[str] | None = None
     PROMETHEUS_HTTP_SERVER_PORT: int = 9100
 
     @validator("TASK_QUEUES")
-    def task_queues(cls, v: Optional[list[str]], values: dict[str, Any]) -> Any:
+    def task_queues(cls, v: list[str] | None, values: dict[str, Any]) -> Any:
         if v and isinstance(v, list):
             return v
         return (values["TASK_QUEUE_PREFIX"] + name for name in ("high", "default", "low"))
 
-    CARINA_API_AUTH_TOKEN: Optional[str] = None
+    CARINA_API_AUTH_TOKEN: str | None = None
 
     @validator("CARINA_API_AUTH_TOKEN")
-    def fetch_carina_api_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
+    def fetch_carina_api_auth_token(cls, v: str | None, values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 

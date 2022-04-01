@@ -2,7 +2,7 @@
 import logging
 
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, Union
+from typing import Any, Callable, Generator
 
 import sentry_sdk
 
@@ -39,7 +39,7 @@ class TimestampMixin:
 
 @contextmanager
 def retry_query(
-    session: Union[Session, AsyncSession], attempts: int = settings.DB_CONNECTION_RETRY_TIMES
+    session: Session | AsyncSession, attempts: int = settings.DB_CONNECTION_RETRY_TIMES
 ) -> Generator:  # pragma: no cover
     """Retry any queries (transactions) that are interrupted by a connection error"""
 

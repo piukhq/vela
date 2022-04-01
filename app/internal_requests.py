@@ -1,6 +1,6 @@
 import logging
 
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
 
 import httpx
@@ -28,8 +28,8 @@ async def send_async_request_with_retry(
     method: str,
     url: str,
     *,
-    headers: Optional[Dict[str, Any]] = None,
-    json: Optional[Dict[str, Any]] = None,
+    headers: dict[str, Any] | None = None,
+    json: dict[str, Any] | None = None,
 ) -> httpx.Response:  # pragma: no cover
 
     async with httpx.AsyncClient() as client:  # pragma: no cover

@@ -1,7 +1,7 @@
 from collections import namedtuple
 from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Callable, Dict, Generator
+from typing import TYPE_CHECKING, Callable, Generator
 
 import pytest
 
@@ -82,14 +82,14 @@ def db_session(main_db_session: "Session") -> Generator["Session", None, None]:
 
 
 @pytest.fixture(scope="function")
-def mock_retailer() -> Dict:
+def mock_retailer() -> dict:
     return {
         "slug": "test-retailer",
     }
 
 
 @pytest.fixture(scope="function")
-def retailer(db_session: "Session", mock_retailer: Dict) -> RetailerRewards:
+def retailer(db_session: "Session", mock_retailer: dict) -> RetailerRewards:
     retailer = RetailerRewards(**mock_retailer)
     db_session.add(retailer)
     db_session.commit()
@@ -98,7 +98,7 @@ def retailer(db_session: "Session", mock_retailer: Dict) -> RetailerRewards:
 
 
 @pytest.fixture(scope="function")
-def mock_campaign() -> Dict:
+def mock_campaign() -> dict:
     return {
         "status": CampaignStatuses.ACTIVE,
         "name": "testcampaign",
@@ -108,7 +108,7 @@ def mock_campaign() -> Dict:
 
 
 @pytest.fixture(scope="function")
-def campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Campaign:
+def campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: dict) -> Campaign:
     campaign = Campaign(**mock_campaign, retailer_id=retailer.id)
     db_session.add(campaign)
     db_session.commit()
@@ -138,8 +138,8 @@ def earn_rule(db_session: "Session", campaign: Campaign) -> EarnRule:
 
 
 @pytest.fixture(scope="function")
-def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
-    def _create_mock_campaign(**campaign_params: Dict) -> Campaign:
+def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: dict) -> Callable:
+    def _create_mock_campaign(**campaign_params: dict) -> Campaign:
         """
         Create a campaign in the test DB
         :param campaign_params: override any values for the campaign, from what the mock_campaign fixture provides
@@ -159,7 +159,7 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
 
 
 @pytest.fixture(scope="function")
-def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
+def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: dict) -> Callable:
     def _create_mock_reward_rule(
         reward_slug: str, campaign_id: int, reward_goal: int = 5, allocation_window: int = 0
     ) -> RewardRule:
@@ -197,8 +197,8 @@ def create_mock_earn_rule(db_session: "Session") -> Callable:
 
 
 @pytest.fixture(scope="function")
-def create_mock_retailer(db_session: "Session", mock_retailer: Dict) -> Callable:
-    def _create_mock_retailer(**retailer_params: Dict) -> RetailerRewards:
+def create_mock_retailer(db_session: "Session", mock_retailer: dict) -> Callable:
+    def _create_mock_retailer(**retailer_params: dict) -> RetailerRewards:
         """
         Create a retailer in the test DB
         :param retailer_params: override any values for the retailer, from what the mock_retailer fixture provides
