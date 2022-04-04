@@ -301,12 +301,12 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
         reward_achieved = _reward_achieved(reward_rule, new_balance)
 
     if reward_achieved or reward_only:
-        if reward_achieved:
-            msg = f"Reward goal ({reward_rule.reward_goal}) met"
-        else:
-            msg = "Reward only"
 
-        logger.info("%s %s", msg, log_suffix)
+        logger.info(
+            "%s %s",
+            f"Reward goal ({reward_rule.reward_goal}) met" if reward_achieved else "Reward only",
+            log_suffix,
+        )
 
         token_param_name = "allocation_token"
         allocation_token = retry_task.get_params().get(token_param_name) or _set_param_value(

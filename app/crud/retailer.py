@@ -80,18 +80,15 @@ async def get_adjustment_amounts(
     adjustment_amounts: defaultdict = defaultdict(int)
 
     for earn_rule in earn_rules:
-        if (
-            transaction.amount < 0
-            and earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR
-            and earn_rule.campaign.reward_rule.allocation_window
-        ):  # i.e. a refund
-            adjustment_amounts[earn_rule.campaign.slug] += int(transaction.amount)
-        elif transaction.amount >= earn_rule.threshold:
-            if earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR:
-                amount = int(transaction.amount * earn_rule.increment_multiplier)
-            else:
-                amount = int(earn_rule.increment * earn_rule.increment_multiplier)
 
-            adjustment_amounts[earn_rule.campaign.slug] += amount
+        # pylint: disable=chained-comparison
+        if earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR and (
+            (transaction.amount < 0 and earn_rule.campaign.reward_rule.allocation_window > 0)
+            or transaction.amount >= earn_rule.threshold
+        ):
+            adjustment_amounts[earn_rule.campaign.slug] += int(transaction.amount * earn_rule.increment_multiplier)
+
+        elif earn_rule.campaign.loyalty_type == LoyaltyTypes.STAMPS and transaction.amount >= earn_rule.threshold:
+            adjustment_amounts[earn_rule.campaign.slug] += int(earn_rule.increment * earn_rule.increment_multiplier)
 
     return dict(adjustment_amounts)
