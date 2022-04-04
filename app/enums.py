@@ -19,10 +19,7 @@ class CampaignStatuses(Enum):
         }
 
     def is_valid_status_transition(self, current_status: Enum) -> bool:
-        if self in self.status_transitions()[current_status]:
-            return True
-        else:
-            return False
+        return self in self.status_transitions()[current_status]
 
 
 class LoyaltyTypes(Enum):

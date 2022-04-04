@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,7 @@ router = APIRouter()
 
 @router.get(
     path="/{retailer_slug}/active-campaign-slugs",
-    response_model=List[str],
+    response_model=list[str],
     dependencies=[Depends(user_is_authorised)],
 )
 async def get_active_campaign_slugs(

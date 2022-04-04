@@ -1,6 +1,6 @@
 import logging
 
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
 
 import httpx
@@ -28,8 +28,8 @@ async def send_async_request_with_retry(
     method: str,
     url: str,
     *,
-    headers: Optional[Dict[str, Any]] = None,
-    json: Optional[Dict[str, Any]] = None,
+    headers: dict[str, Any] | None = None,
+    json: dict[str, Any] | None = None,
 ) -> httpx.Response:  # pragma: no cover
 
     async with httpx.AsyncClient() as client:  # pragma: no cover
@@ -47,9 +47,9 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
     except httpx.HTTPStatusError as ex:
         if resp.status_code == status.HTTP_404_NOT_FOUND:
             raise HttpErrors.USER_NOT_FOUND.value
-        else:
-            logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
-            raise
+
+        logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
+        raise
 
     else:
         if resp.json()["status"] != "active":

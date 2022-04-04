@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
@@ -15,7 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -> RetailerRewards:
-    async def _query() -> Optional[RetailerRewards]:
+    async def _query() -> RetailerRewards | None:
         return (
             await db_session.execute(select(RetailerRewards).where(RetailerRewards.slug == retailer_slug))
         ).scalar_one_or_none()
@@ -29,7 +29,7 @@ async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -
 
 async def get_active_campaign_slugs(
     db_session: "AsyncSession", retailer: RetailerRewards, transaction_time: "datetime" = None
-) -> List[str]:
+) -> list[str]:
     async def _query() -> list:
         return (
             await db_session.execute(
@@ -58,9 +58,9 @@ async def get_active_campaign_slugs(
 
 
 async def get_adjustment_amounts(
-    db_session: "AsyncSession", transaction: Transaction, campaign_slugs: List[str]
+    db_session: "AsyncSession", transaction: Transaction, campaign_slugs: list[str]
 ) -> dict:
-    async def _query() -> List[EarnRule]:
+    async def _query() -> list[EarnRule]:
         return (
             (
                 await db_session.execute(
@@ -80,18 +80,15 @@ async def get_adjustment_amounts(
     adjustment_amounts: defaultdict = defaultdict(int)
 
     for earn_rule in earn_rules:
-        if (
-            transaction.amount < 0
-            and earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR
-            and earn_rule.campaign.reward_rule.allocation_window
-        ):  # i.e. a refund
-            adjustment_amounts[earn_rule.campaign.slug] += int(transaction.amount)
-        elif transaction.amount >= earn_rule.threshold:
-            if earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR:
-                amount = int(transaction.amount * earn_rule.increment_multiplier)
-            else:
-                amount = int(earn_rule.increment * earn_rule.increment_multiplier)
 
-            adjustment_amounts[earn_rule.campaign.slug] += amount
+        # pylint: disable=chained-comparison
+        if earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR and (
+            (transaction.amount < 0 and earn_rule.campaign.reward_rule.allocation_window > 0)
+            or transaction.amount >= earn_rule.threshold
+        ):
+            adjustment_amounts[earn_rule.campaign.slug] += int(transaction.amount * earn_rule.increment_multiplier)
+
+        elif earn_rule.campaign.loyalty_type == LoyaltyTypes.STAMPS and transaction.amount >= earn_rule.threshold:
+            adjustment_amounts[earn_rule.campaign.slug] += int(earn_rule.increment * earn_rule.increment_multiplier)
 
     return dict(adjustment_amounts)

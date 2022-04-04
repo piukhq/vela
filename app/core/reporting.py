@@ -4,7 +4,7 @@ import logging
 
 class JSONFormatter(logging.Formatter):
     # noinspection PyMissingConstructor
-    def __init__(self) -> None:
+    def __init__(self) -> None:  # pylint: disable=super-init-not-called
         pass
 
     def format(self, record: logging.LogRecord) -> str:
@@ -20,6 +20,6 @@ class JSONFormatter(logging.Formatter):
                 "module": record.module,
                 "function": record.funcName,
                 "name": record.name,
-                "message": record.msg % record.args,
+                "message": record.getMessage(),
             }
         )

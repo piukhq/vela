@@ -51,7 +51,7 @@ def test_active_campaign_slugs(setup: SetupType) -> None:
 
 def test_active_campaign_slugs_invalid_token(setup: SetupType) -> None:
     # GIVEN
-    _, retailer, campaign = setup
+    retailer = setup.retailer
 
     # WHEN
     resp = client.get(
@@ -69,7 +69,6 @@ def test_active_campaign_slugs_invalid_token(setup: SetupType) -> None:
 
 def test_active_campaign_slugs_invalid_retailer(setup: SetupType) -> None:
     # GIVEN
-    _, retailer, campaign = setup
     bad_retailer_slug = "wrong-merchant"
 
     # WHEN

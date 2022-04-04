@@ -19,7 +19,7 @@ class KeyVault:
         else:
             self.client = SecretClient(vault_url=vault_url, credential=DefaultAzureCredential())
 
-    def get_secret(self, secret_name: str) -> str:
+    def get_secret(self, secret_name: str) -> str | None:
         if not self.client:
             return "testing-token"
 

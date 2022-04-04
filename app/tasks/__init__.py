@@ -1,6 +1,6 @@
 import logging
 
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -28,8 +28,8 @@ def send_request_with_metrics(
     method: str,
     url: str,
     *,
-    headers: Optional[dict[str, Any]] = None,
-    json: Optional[dict[str, Any]] = None,
+    headers: dict[str, Any] | None = None,
+    json: dict[str, Any] | None = None,
     timeout: tuple[float, int],
 ) -> requests.Response:
 

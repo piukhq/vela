@@ -28,6 +28,7 @@ def log_internal_exception(func: Callable) -> Any:
 
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
 # it is relevantly reflected in the TaskType table
+# pylint: disable=unused-argument
 @log_internal_exception
 def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exception, traceback: "Traceback") -> None:
     with SyncSessionMaker() as db_session:
@@ -44,6 +45,7 @@ def handle_adjust_balance_error(job: rq.job.Job, exc_type: type, exc_value: Exce
 
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
 # it is relevantly reflected in the TaskType table
+# pylint: disable=unused-argument
 @log_internal_exception
 def handle_retry_task_request_error(
     job: rq.job.Job, exc_type: type, exc_value: Exception, traceback: "Traceback"

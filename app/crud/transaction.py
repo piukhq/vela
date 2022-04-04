@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from retry_tasks_lib.db.models import RetryTask
@@ -25,7 +25,7 @@ async def create_transaction(
             await db_session.commit()
         except IntegrityError:
             await db_session.rollback()
-            raise HttpErrors.DUPLICATE_TRANSACTION.value
+            raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return transaction
 
@@ -41,7 +41,7 @@ async def delete_transaction(db_session: "AsyncSession", transaction: Transactio
 
 
 async def create_processed_transaction(
-    db_session: "AsyncSession", retailer: RetailerRewards, campaign_slugs: List[str], transaction_data: dict
+    db_session: "AsyncSession", retailer: RetailerRewards, campaign_slugs: list[str], transaction_data: dict
 ) -> ProcessedTransaction:
     async def _query() -> ProcessedTransaction:
         processed_transaction = ProcessedTransaction(
@@ -51,7 +51,7 @@ async def create_processed_transaction(
             db_session.add(processed_transaction)
             await db_session.commit()
         except IntegrityError:
-            raise HttpErrors.DUPLICATE_TRANSACTION.value
+            raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return processed_transaction
 
@@ -60,8 +60,8 @@ async def create_processed_transaction(
 
 async def create_reward_adjustment_tasks(
     db_session: "AsyncSession", processed_transaction: ProcessedTransaction, adj_amounts: dict
-) -> List[int]:
-    async def _query() -> List[RetryTask]:
+) -> list[int]:
+    async def _query() -> list[RetryTask]:
         adjustments = []
         for campaign_slug, amount in adj_amounts.items():
             adjustment_task = await async_create_task(  # pragma: no cover
