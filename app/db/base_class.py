@@ -1,8 +1,7 @@
 # mypy checks for sqlalchemy core 2.0 require sqlalchemy2-stubs
 import logging
 
-from contextlib import contextmanager
-from typing import Any, Callable, Generator, Union
+from typing import Any, Callable
 
 import sentry_sdk
 
@@ -35,25 +34,6 @@ class TimestampMixin:
         onupdate=utc_timestamp_sql,
         nullable=False,
     )
-
-
-@contextmanager
-def retry_query(
-    session: Union[Session, AsyncSession], attempts: int = settings.DB_CONNECTION_RETRY_TIMES
-) -> Generator:  # pragma: no cover
-    """Retry any queries (transactions) that are interrupted by a connection error"""
-
-    while attempts > 0:
-        attempts -= 1
-        try:
-            yield
-            break
-        except exc.DBAPIError as e:
-            if attempts > 0 and e.connection_invalidated:
-                logger.warning(f"Interrupted transaction: {repr(e)}, attempts remaining:{attempts}")
-            else:
-                sentry_sdk.capture_message(f"Max db connection attempts reached: {repr(e)}")
-                raise
 
 
 # based on the following stackoverflow answer:

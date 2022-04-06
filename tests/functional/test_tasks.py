@@ -1,6 +1,9 @@
+# pylint: disable=too-many-arguments,no-value-for-parameter
+
 import json
 
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from unittest import mock
 from uuid import uuid4
 
@@ -13,7 +16,6 @@ from pytest_mock import MockerFixture
 from retry_tasks_lib.db.models import RetryTask, TaskType
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import IncorrectRetryTaskStatusError, sync_create_task
-from sqlalchemy.orm import Session
 
 from app.core.config import redis_raw, settings
 from app.enums import CampaignStatuses
@@ -27,6 +29,10 @@ from app.tasks.reward_adjustment import (
     adjust_balance,
 )
 from app.tasks.reward_status_adjustment import _process_reward_status_adjustment, reward_status_adjustment
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
 
 fake_now = datetime.now(tz=timezone.utc)
 
@@ -549,9 +555,9 @@ def test__process_reward_status_adjustment_connection_error(
 
 
 def test__set_param_value(db_session: "Session", reward_adjustment_task: RetryTask) -> None:
-    u = str(uuid4())
+    value = str(uuid4())
     assert 999 == _set_param_value(db_session, reward_adjustment_task, "secondary_reward_retry_task_id", 999)
-    assert u == _set_param_value(db_session, reward_adjustment_task, "post_allocation_token", u)
+    assert value == _set_param_value(db_session, reward_adjustment_task, "post_allocation_token", value)
 
 
 @httpretty.activate

@@ -3,13 +3,14 @@ import os
 import sys
 
 from logging.config import dictConfig
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Literal
 
 import sentry_sdk
 
 from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
 from redis import Redis
+from sentry_sdk.integrations.redis import RedisIntegration
 
 from app.core.key_vault import KeyVault
 from app.version import __version__
@@ -45,6 +46,7 @@ class Settings(BaseSettings):  # pragma: no cover
     SQL_DEBUG: bool = False
 
     @validator("TESTING")
+    @classmethod
     def is_test(cls, v: bool) -> bool:
         command = sys.argv[0]
         args = sys.argv[1:] if len(sys.argv) > 1 else []
@@ -56,6 +58,7 @@ class Settings(BaseSettings):  # pragma: no cover
     MIGRATING: bool = False
 
     @validator("MIGRATING")
+    @classmethod
     def is_migration(cls, v: bool) -> bool:
         command = sys.argv[0]
 
@@ -64,29 +67,25 @@ class Settings(BaseSettings):  # pragma: no cover
         return v
 
     PROJECT_NAME: str = "vela"
-    ROOT_LOG_LEVEL: Optional[LogLevel] = None
-    QUERY_LOG_LEVEL: Optional[LogLevel] = None
-    LOG_FORMATTER: str = "json"
+    ROOT_LOG_LEVEL: LogLevel | None = None
+    QUERY_LOG_LEVEL: LogLevel | None = None
+    LOG_FORMATTER: Literal["json", "brief"] = "json"
 
-    @validator("LOG_FORMATTER")
-    def validate_formatter(cls, v: str) -> Optional[str]:
-        if v not in ["json", "brief"]:
-            raise ValueError(f'"{v}" is not a valid LOG_FORMATTER value, choices are [json, brief]')
-        return v
-
-    SENTRY_DSN: Optional[HttpUrl] = None
-    SENTRY_ENV: Optional[str] = None
+    SENTRY_DSN: HttpUrl | None = None
+    SENTRY_ENV: str | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = 0.0
 
     @validator("SENTRY_DSN", pre=True)
-    def sentry_dsn_can_be_blank(cls, v: str) -> Optional[str]:
+    @classmethod
+    def sentry_dsn_can_be_blank(cls, v: str) -> str | None:
         if v is not None and len(v) == 0:
             return None
         return v
 
     @validator("SENTRY_TRACES_SAMPLE_RATE")
+    @classmethod
     def validate_sentry_traces_sample_rate(cls, v: float) -> float:
-        if not (0 <= v <= 1):
+        if not 0 <= v <= 1:
             raise ValueError("SENTRY_TRACES_SAMPLE_RATE must be between 0.0 and 1.0")
         return v
 
@@ -101,6 +100,7 @@ class Settings(BaseSettings):  # pragma: no cover
     DB_CONNECTION_RETRY_TIMES: int = 3
 
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
+    @classmethod
     def assemble_db_connection(cls, v: str, values: dict[str, Any]) -> Any:
         if v != "":
             db_uri = v
@@ -121,6 +121,7 @@ class Settings(BaseSettings):  # pragma: no cover
         return db_uri
 
     @validator("SQLALCHEMY_DATABASE_URI_ASYNC", pre=True)
+    @classmethod
     def adapt_db_connection_to_async(cls, v: str, values: dict[str, Any]) -> Any:
         if v != "":
             db_uri = v
@@ -135,10 +136,11 @@ class Settings(BaseSettings):  # pragma: no cover
 
     KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
 
-    VELA_API_AUTH_TOKEN: Optional[str] = None
+    VELA_API_AUTH_TOKEN: str | None = None
 
     @validator("VELA_API_AUTH_TOKEN")
-    def fetch_vela_api_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
+    @classmethod
+    def fetch_vela_api_auth_token(cls, v: str | None, values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -147,13 +149,14 @@ class Settings(BaseSettings):  # pragma: no cover
                 values["KEY_VAULT_URI"],
                 values["TESTING"] or values["MIGRATING"],
             ).get_secret("bpl-vela-api-auth-token")
-        else:
-            raise KeyError("required var KEY_VAULT_URI is not set.")
 
-    POLARIS_API_AUTH_TOKEN: Optional[str] = None
+        raise KeyError("required var KEY_VAULT_URI is not set.")
+
+    POLARIS_API_AUTH_TOKEN: str | None = None
 
     @validator("POLARIS_API_AUTH_TOKEN")
-    def fetch_polaris_api_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
+    @classmethod
+    def fetch_polaris_api_auth_token(cls, v: str | None, values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -162,13 +165,14 @@ class Settings(BaseSettings):  # pragma: no cover
                 values["KEY_VAULT_URI"],
                 values["TESTING"] or values["MIGRATING"],
             ).get_secret("bpl-polaris-api-auth-token")
-        else:
-            raise KeyError("required var KEY_VAULT_URI is not set.")
+
+        raise KeyError("required var KEY_VAULT_URI is not set.")
 
     POLARIS_HOST: str = "http://polaris-api"
     POLARIS_BASE_URL: str = ""
 
     @validator("POLARIS_BASE_URL")
+    @classmethod
     def polaris_base_url(cls, v: str, values: dict[str, Any]) -> str:
         if v != "":
             return v
@@ -177,6 +181,7 @@ class Settings(BaseSettings):  # pragma: no cover
     REDIS_URL: str
 
     @validator("REDIS_URL")
+    @classmethod
     def assemble_redis_url(cls, v: str, values: dict[str, Any]) -> str:
 
         if values["TESTING"]:
@@ -193,19 +198,21 @@ class Settings(BaseSettings):  # pragma: no cover
     TASK_MAX_RETRIES: int = 6
     TASK_RETRY_BACKOFF_BASE: float = 3.0
     TASK_QUEUE_PREFIX: str = "vela:"
-    TASK_QUEUES: Optional[list[str]] = None
+    TASK_QUEUES: list[str] | None = None
     PROMETHEUS_HTTP_SERVER_PORT: int = 9100
 
     @validator("TASK_QUEUES")
-    def task_queues(cls, v: Optional[list[str]], values: dict[str, Any]) -> Any:
+    @classmethod
+    def task_queues(cls, v: list[str] | None, values: dict[str, Any]) -> Any:
         if v and isinstance(v, list):
             return v
         return (values["TASK_QUEUE_PREFIX"] + name for name in ("high", "default", "low"))
 
-    CARINA_API_AUTH_TOKEN: Optional[str] = None
+    CARINA_API_AUTH_TOKEN: str | None = None
 
     @validator("CARINA_API_AUTH_TOKEN")
-    def fetch_carina_api_auth_token(cls, v: Optional[str], values: dict[str, Any]) -> Any:
+    @classmethod
+    def fetch_carina_api_auth_token(cls, v: str | None, values: dict[str, Any]) -> Any:
         if isinstance(v, str) and not values["TESTING"]:
             return v
 
@@ -214,13 +221,14 @@ class Settings(BaseSettings):  # pragma: no cover
                 values["KEY_VAULT_URI"],
                 values["TESTING"] or values["MIGRATING"],
             ).get_secret("bpl-carina-api-auth-token")
-        else:
-            raise KeyError("required var KEY_VAULT_URI is not set.")
+
+        raise KeyError("required var KEY_VAULT_URI is not set.")
 
     CARINA_HOST: str = "http://carina-api"
     CARINA_BASE_URL: str = ""
 
     @validator("CARINA_BASE_URL")
+    @classmethod
     def carina_base_url(cls, v: str, values: dict[str, Any]) -> str:
         if v != "":
             return v
@@ -269,15 +277,13 @@ dictConfig(
                 "propagate": False,
                 "handlers": ["stdout"],
             },
-            "sqlalchemy": {
+            "sqlalchemy.engine": {
                 "level": settings.QUERY_LOG_LEVEL or logging.WARN,
-                "qualname": "sqlalchemy.engine",
             },
             "alembic": {
                 "level": "INFO",
                 "handlers": ["stderr"],
                 "propagate": False,
-                "qualname": "alembic",
             },
         },
     }
@@ -311,9 +317,12 @@ redis_raw = Redis.from_url(
 
 
 if settings.SENTRY_DSN:  # pragma: no cover
-    sentry_sdk.init(
+    sentry_sdk.init(  # pylint: disable=abstract-class-instantiated
         dsn=settings.SENTRY_DSN,
         environment=settings.SENTRY_ENV,
+        integrations=[
+            RedisIntegration(),
+        ],
         release=__version__,
         traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
     )

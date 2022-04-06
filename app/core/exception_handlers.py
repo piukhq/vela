@@ -1,6 +1,6 @@
 import logging
 
-from typing import Union, cast
+from typing import cast
 
 import sentry_sdk
 
@@ -13,7 +13,7 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY
 logger = logging.getLogger(__name__)
 
 
-def _format_validation_errors(payload: list[dict]) -> tuple[int, Union[list[dict], dict]]:  # pragma: no cover
+def _format_validation_errors(payload: list[dict]) -> tuple[int, list[dict] | dict]:  # pragma: no cover
     for error in payload:
         if error["type"] == "value_error.jsondecode":
             return (
@@ -28,13 +28,17 @@ def _format_validation_errors(payload: list[dict]) -> tuple[int, Union[list[dict
 
 
 # customise Api RequestValidationError
-async def request_validation_handler(request: Request, exc: RequestValidationError) -> Response:
+async def request_validation_handler(
+    request: Request, exc: RequestValidationError  # pylint: disable=unused-argument
+) -> Response:
     status_code, content = _format_validation_errors(cast(list[dict], exc.errors()))
     return UJSONResponse(status_code=status_code, content=content)
 
 
 # customise Api HTTPException to remove "details" and handle manually raised ValidationErrors
-async def http_exception_handler(request: Request, exc: HTTPException) -> UJSONResponse:
+async def http_exception_handler(
+    request: Request, exc: HTTPException  # pylint: disable=unused-argument
+) -> UJSONResponse:
 
     if exc.status_code == HTTP_422_UNPROCESSABLE_ENTITY and isinstance(exc.detail, list):
         status_code, content = _format_validation_errors(exc.detail)
@@ -44,7 +48,9 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> UJSONR
     return UJSONResponse(content, status_code=status_code, headers=getattr(exc, "headers", None))
 
 
-async def unexpected_exception_handler(request: Request, exc: Exception) -> UJSONResponse:
+async def unexpected_exception_handler(
+    request: Request, exc: Exception  # pylint: disable=unused-argument
+) -> UJSONResponse:
     try:
         return UJSONResponse(
             {

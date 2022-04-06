@@ -1,3 +1,5 @@
+# pylint: disable=too-many-arguments,too-many-locals,import-outside-toplevel
+
 from datetime import datetime, timedelta, timezone
 from typing import Callable, cast
 from unittest import mock
@@ -200,7 +202,7 @@ def test_update_multiple_campaigns_ok(
 
 
 def test_status_change_mangled_json(setup: SetupType) -> None:
-    _, retailer, _ = setup
+    retailer = setup.retailer
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
@@ -232,7 +234,7 @@ def test_status_change_invalid_token(setup: SetupType) -> None:
 
 
 def test_status_change_invalid_retailer(setup: SetupType) -> None:
-    _, _, campaign = setup
+    campaign = setup.campaign
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug],
@@ -249,7 +251,7 @@ def test_status_change_invalid_retailer(setup: SetupType) -> None:
 
 
 def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None:
-    _, retailer, _ = setup
+    retailer = setup.retailer
     payload = {
         "requested_status": "ended",
         "campaign_slugs": ["WRONG_CAMPAIGN_SLUG_1", "WRONG_CAMPAIGN_SLUG_2"],
@@ -275,7 +277,7 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
 
 
 def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, create_mock_retailer: Callable) -> None:
-    db_session, retailer, campaign = setup
+    db_session, _, campaign = setup
     campaign.status = CampaignStatuses.DRAFT  # Set to DRAFT just so the status transition requested won't trigger 409
     db_session.commit()
     payload = {
@@ -310,7 +312,7 @@ def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, cr
 
 @pytest.mark.parametrize("campaign_slugs", [["    ", " "], ["\t\t\t\r"], ["\t\t\t\n"], ["\t\n", "  "], [""]])
 def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, setup: SetupType) -> None:
-    _, retailer, _ = setup
+    retailer = setup.retailer
     payload = {
         "requested_status": "ended",
         "campaign_slugs": campaign_slugs,

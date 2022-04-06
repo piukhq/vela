@@ -1,7 +1,7 @@
 from collections import namedtuple
 from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Callable, Dict, Generator
+from typing import TYPE_CHECKING, Callable, Generator
 
 import pytest
 
@@ -70,8 +70,8 @@ def setup(db_session: "Session", retailer: RetailerRewards, campaign: Campaign) 
 
 @pytest.fixture(scope="module")
 def main_db_session() -> Generator["Session", None, None]:
-    with SyncSessionMaker() as db_session:
-        yield db_session
+    with SyncSessionMaker() as session:
+        yield session
 
 
 @pytest.fixture(scope="function")
@@ -82,23 +82,23 @@ def db_session(main_db_session: "Session") -> Generator["Session", None, None]:
 
 
 @pytest.fixture(scope="function")
-def mock_retailer() -> Dict:
+def mock_retailer() -> dict:
     return {
         "slug": "test-retailer",
     }
 
 
 @pytest.fixture(scope="function")
-def retailer(db_session: "Session", mock_retailer: Dict) -> RetailerRewards:
-    retailer = RetailerRewards(**mock_retailer)
-    db_session.add(retailer)
+def retailer(db_session: "Session", mock_retailer: dict) -> RetailerRewards:
+    rtl = RetailerRewards(**mock_retailer)
+    db_session.add(rtl)
     db_session.commit()
 
-    return retailer
+    return rtl
 
 
 @pytest.fixture(scope="function")
-def mock_campaign() -> Dict:
+def mock_campaign() -> dict:
     return {
         "status": CampaignStatuses.ACTIVE,
         "name": "testcampaign",
@@ -108,12 +108,12 @@ def mock_campaign() -> Dict:
 
 
 @pytest.fixture(scope="function")
-def campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Campaign:
-    campaign = Campaign(**mock_campaign, retailer_id=retailer.id)
-    db_session.add(campaign)
+def campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: dict) -> Campaign:
+    cpn = Campaign(**mock_campaign, retailer_id=retailer.id)
+    db_session.add(cpn)
     db_session.commit()
 
-    return campaign
+    return cpn
 
 
 @pytest.fixture
@@ -123,23 +123,23 @@ def reward_slug() -> str:
 
 @pytest.fixture(scope="function")
 def reward_rule(db_session: "Session", campaign: Campaign, reward_slug: str) -> RewardRule:
-    reward_rule = RewardRule(reward_goal=5, reward_slug=reward_slug, campaign_id=campaign.id)
-    db_session.add(reward_rule)
+    rrl = RewardRule(reward_goal=5, reward_slug=reward_slug, campaign_id=campaign.id)
+    db_session.add(rrl)
     db_session.commit()
-    return reward_rule
+    return rrl
 
 
 @pytest.fixture(scope="function")
 def earn_rule(db_session: "Session", campaign: Campaign) -> EarnRule:
-    earn_rule = EarnRule(campaign_id=campaign.id, threshold=300, increment_multiplier=1, increment=1)
-    db_session.add(earn_rule)
+    erl = EarnRule(campaign_id=campaign.id, threshold=300, increment_multiplier=1, increment=1)
+    db_session.add(erl)
     db_session.commit()
-    return earn_rule
+    return erl
 
 
 @pytest.fixture(scope="function")
-def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
-    def _create_mock_campaign(**campaign_params: Dict) -> Campaign:
+def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_campaign: dict) -> Callable:
+    def _create_mock_campaign(**campaign_params: dict) -> Campaign:
         """
         Create a campaign in the test DB
         :param campaign_params: override any values for the campaign, from what the mock_campaign fixture provides
@@ -149,33 +149,36 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
         mock_campaign_params["retailer_id"] = retailer.id
 
         mock_campaign_params.update(campaign_params)
-        campaign = Campaign(**mock_campaign_params)
-        db_session.add(campaign)
+        cpn = Campaign(**mock_campaign_params)
+        db_session.add(cpn)
         db_session.commit()
 
-        return campaign
+        return cpn
 
     return _create_mock_campaign
 
 
 @pytest.fixture(scope="function")
-def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: Dict) -> Callable:
+def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: dict) -> Callable:
     def _create_mock_reward_rule(
-        reward_slug: str, campaign_id: int, reward_goal: int = 5, allocation_window: int = 0
+        reward_slug: str,  # pylint: disable=redefined-outer-name
+        campaign_id: int,
+        reward_goal: int = 5,
+        allocation_window: int = 0,
     ) -> RewardRule:
         """
         Create a reward rule in the test DB
         :return: Callable function
         """
-        reward_rule = RewardRule(
+        rrl = RewardRule(
             reward_goal=reward_goal,
             reward_slug=reward_slug,
             campaign_id=campaign_id,
             allocation_window=allocation_window,
         )
-        db_session.add(reward_rule)
+        db_session.add(rrl)
         db_session.commit()
-        return reward_rule
+        return rrl
 
     return _create_mock_reward_rule
 
@@ -188,17 +191,17 @@ def create_mock_earn_rule(db_session: "Session") -> Callable:
         earn_rule_params eg. threshold=300, increment_multiplier=1, increment=1
         :return: Callable function
         """
-        earn_rule = EarnRule(campaign_id=campaign_id, **earn_rule_params)
-        db_session.add(earn_rule)
+        erl = EarnRule(campaign_id=campaign_id, **earn_rule_params)
+        db_session.add(erl)
         db_session.commit()
-        return earn_rule
+        return erl
 
     return _create_mock_earn_rule
 
 
 @pytest.fixture(scope="function")
-def create_mock_retailer(db_session: "Session", mock_retailer: Dict) -> Callable:
-    def _create_mock_retailer(**retailer_params: Dict) -> RetailerRewards:
+def create_mock_retailer(db_session: "Session", mock_retailer: dict) -> Callable:
+    def _create_mock_retailer(**retailer_params: dict) -> RetailerRewards:
         """
         Create a retailer in the test DB
         :param retailer_params: override any values for the retailer, from what the mock_retailer fixture provides
@@ -207,11 +210,11 @@ def create_mock_retailer(db_session: "Session", mock_retailer: Dict) -> Callable
         mock_retailer_params = deepcopy(mock_retailer)
 
         mock_retailer_params.update(retailer_params)
-        retailer = RetailerRewards(**mock_retailer_params)
-        db_session.add(retailer)
+        rtl = RetailerRewards(**mock_retailer_params)
+        db_session.add(rtl)
         db_session.commit()
 
-        return retailer
+        return rtl
 
     return _create_mock_retailer
 
