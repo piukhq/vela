@@ -12,7 +12,7 @@ verify_ssl = true
 fastapi = "*"
 uvicorn = { extras = ["standard"], version = "*" }
 ujson = "*"
-sqlalchemy = {extras = ["asyncio"], version = "*"}
+sqlalchemy = {extras = ["asyncio"], version = ">=1.4.33"}
 psycopg2-binary = "*"
 alembic = "*"
 gunicorn = "*"
@@ -26,7 +26,7 @@ asyncpg = "*"
 tenacity = "*"
 httpx = "*"
 requests = "*"
-retry-tasks-lib = {version=">=1.11.0", index="pypi-cloud"}
+retry-tasks-lib = {version=">=1.12.1", index="pypi-cloud"}
 fastapi-prometheus-metrics = {version=">=0.2.0", index="pypi-cloud"}
 typer = "*"
 

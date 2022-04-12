@@ -10,6 +10,7 @@ import sentry_sdk
 from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
 from redis import Redis
+from retry_tasks_lib.settings import load_settings
 from sentry_sdk.integrations.redis import RedisIntegration
 
 from app.core.key_vault import KeyVault
@@ -245,6 +246,7 @@ class Settings(BaseSettings):  # pragma: no cover
 
 
 settings = Settings()
+load_settings(settings)
 
 dictConfig(
     {
