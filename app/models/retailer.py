@@ -53,6 +53,7 @@ class EarnRule(Base, TimestampMixin):
     threshold = Column(Integer, nullable=False)
     increment = Column(Integer, nullable=True)
     increment_multiplier = Column(Numeric(scale=2), default=1, nullable=False)
+    max_amount = Column(Integer, nullable=False, server_default="0")
 
     campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
     campaign = relationship("Campaign", back_populates="earn_rules")
