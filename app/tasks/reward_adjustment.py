@@ -7,7 +7,7 @@ from uuid import uuid4
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import (
-    RetryTaskAdditionalSubqueryData,
+    RetryTaskAdditionalQueryData,
     enqueue_retry_task,
     get_retry_task,
     retryable_task,
@@ -255,7 +255,7 @@ def _process_reward_path(
 @retryable_task(
     db_session_factory=SyncSessionMaker,
     exclusive_constraints=[
-        RetryTaskAdditionalSubqueryData(
+        RetryTaskAdditionalQueryData(
             matching_val_keys=["account_holder_uuid", "campaign_slug"],
             additional_statuses=[RetryTaskStatuses.FAILED],
         )
