@@ -235,6 +235,9 @@ class Settings(BaseSettings):  # pragma: no cover
             return v
         return f"{values['CARINA_HOST']}/bpl/rewards"
 
+    REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "/10 * * * *"
+    REDIS_KEY_PREFIX: str = "vela:"
+
     class Config:
         case_sensitive = True
         # env var settings priority ie priority 1 will override priority 2:
