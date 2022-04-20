@@ -14,8 +14,10 @@ from httpx import Request, Response
 from pytest_mock import MockerFixture
 
 from app.core.config import settings
+from app.crud.retailer import _calculate_transaction_amounts_from_earn_rules
 from app.enums import CampaignStatuses, LoyaltyTypes
 from app.models import EarnRule, ProcessedTransaction, RetailerRewards, Transaction
+from app.schemas.transaction import CreateTransactionSchema
 from asgi import app
 from tests.conftest import SetupType
 
@@ -445,3 +447,103 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     assert processed_transaction.amount == payload["transaction_total"]
     assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
+
+
+def test__calculate_transaction_amounts_from_earn_rules_for_stamps(
+    setup: SetupType,
+    earn_rule: EarnRule,
+    payload: dict,
+    create_mock_reward_rule: Callable,
+    create_mock_transaction: Callable,
+) -> None:
+    db_session, retailer, campaign = setup
+    earn_rule.increment_multiplier = 2
+    earn_rule.increment = 2
+    db_session.commit()
+    create_mock_reward_rule(reward_slug="test-reward", campaign_id=campaign.id, reward_goal=10)
+    mock_transaction_params = CreateTransactionSchema(**payload)
+    mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
+
+    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
+        earn_rules=[earn_rule], transaction=mock_transaction
+    )
+
+    assert adjustment_amounts[campaign.slug] == 4
+
+
+def test__calculate_transaction_amounts_from_earn_rules_for_accumulator(
+    setup: SetupType,
+    earn_rule: EarnRule,
+    payload: dict,
+    create_mock_reward_rule: Callable,
+    create_mock_transaction: Callable,
+) -> None:
+    """
+    When the transaction is greater than the retailer’s campaign’s earn rule max earn limit
+    then the balance is only updated by the maximum earn amount
+    """
+    db_session, retailer, campaign = setup
+    earn_rule.max_amount = 1000
+    campaign.loyalty_type = LoyaltyTypes.ACCUMULATOR
+    db_session.commit()
+    create_mock_reward_rule(reward_slug="test-reward", campaign_id=campaign.id, reward_goal=10)
+    mock_transaction_params = CreateTransactionSchema(**payload)
+    mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
+
+    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
+        earn_rules=[earn_rule], transaction=mock_transaction
+    )
+
+    assert adjustment_amounts["test-campaign"] == earn_rule.max_amount
+
+
+def test__calculate_transaction_amounts_from_earn_rules_for_accumulator_transaction_less_than_zero(
+    setup: SetupType,
+    earn_rule: EarnRule,
+    payload: dict,
+    create_mock_reward_rule: Callable,
+    create_mock_transaction: Callable,
+) -> None:
+    """
+    When the transaction is less than zero and teh retailer’s campaign’s reward rule's allocation window is greater
+    than zero, then the normal adjustment rules are applied
+    """
+    db_session, retailer, campaign = setup
+    campaign.loyalty_type = LoyaltyTypes.ACCUMULATOR
+    db_session.commit()
+    create_mock_reward_rule(reward_slug="test-reward", campaign_id=campaign.id, reward_goal=10, allocation_window=2)
+    payload["transaction_total"] = -1000
+    mock_transaction_params = CreateTransactionSchema(**payload)
+    mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
+
+    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
+        earn_rules=[earn_rule], transaction=mock_transaction
+    )
+
+    assert adjustment_amounts["test-campaign"] == int(mock_transaction.amount * earn_rule.increment_multiplier)
+
+
+def test__calculate_transaction_amounts_from_earn_rules_for_accumulator_transaction_greater_than_threshold(
+    setup: SetupType,
+    earn_rule: EarnRule,
+    payload: dict,
+    create_mock_reward_rule: Callable,
+    create_mock_transaction: Callable,
+) -> None:
+    """
+    When the transaction amount is greater than or equal to the earn threshold
+    then the normal adjustment rules are applied
+    """
+    db_session, retailer, campaign = setup
+    campaign.loyalty_type = LoyaltyTypes.ACCUMULATOR
+    db_session.commit()
+    create_mock_reward_rule(reward_slug="test-reward", campaign_id=campaign.id, reward_goal=10)
+    payload["transaction_total"] = 301
+    mock_transaction_params = CreateTransactionSchema(**payload)
+    mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
+
+    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
+        earn_rules=[earn_rule], transaction=mock_transaction
+    )
+
+    assert adjustment_amounts["test-campaign"] == int(mock_transaction.amount * earn_rule.increment_multiplier)

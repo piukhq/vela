@@ -13,7 +13,7 @@ from app.core.config import redis, settings
 from app.db.base import Base
 from app.db.session import SyncSessionMaker, sync_engine
 from app.enums import CampaignStatuses
-from app.models import Campaign, EarnRule, RetailerRewards
+from app.models import Campaign, EarnRule, RetailerRewards, Transaction
 from app.models.retailer import RewardRule
 
 if TYPE_CHECKING:
@@ -135,6 +135,24 @@ def earn_rule(db_session: "Session", campaign: Campaign) -> EarnRule:
     db_session.add(erl)
     db_session.commit()
     return erl
+
+
+@pytest.fixture(scope="function")
+def create_mock_transaction(db_session: "Session") -> Callable:
+    def _create_mock_transaction(retailer_id: int, **transaction_data: dict) -> Transaction:
+        """
+        Create a transaction in the test DB
+        :param transaction_data: field and valus required for a Transaction
+        :return: Callable function
+        """
+
+        transaction = Transaction(retailer_id=retailer_id, **transaction_data)
+        db_session.add(transaction)
+        db_session.commit()
+
+        return transaction
+
+    return _create_mock_transaction
 
 
 @pytest.fixture(scope="function")
