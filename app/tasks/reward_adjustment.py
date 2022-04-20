@@ -32,11 +32,12 @@ if TYPE_CHECKING:  # pragma: no cover
 def _process_reward_allocation(
     *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str
 ) -> dict:
-    request_url = "{base_url}/{retailer_slug}/rewards/{reward_slug}/allocation".format(
-        base_url=settings.CARINA_BASE_URL,
-        retailer_slug=retailer_slug,
-        reward_slug=reward_slug,
-    )
+    url_template = "{base_url}/{retailer_slug}/rewards/{reward_slug}/allocation"
+    url_kwargs = {
+        "base_url": settings.CARINA_BASE_URL,
+        "retailer_slug": retailer_slug,
+        "reward_slug": reward_slug,
+    }
     payload = {
         "account_url": "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/rewards".format(
             base_url=settings.POLARIS_BASE_URL,
@@ -46,11 +47,13 @@ def _process_reward_allocation(
     }
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-        "request": {"url": request_url, "body": json.dumps(payload)},
+        "request": {"url": url_template.format(**url_kwargs), "body": json.dumps(payload)},
     }
     resp = send_request_with_metrics(
         "POST",
-        request_url,
+        url_template,
+        url_kwargs,
+        exclude_from_label_url=["retailer_slug", "reward_slug"],
         json=payload,
         headers={
             "Authorization": f"Token {settings.CARINA_API_AUTH_TOKEN}",
@@ -75,11 +78,12 @@ def _process_pending_reward_allocation(
 ) -> dict:
     # we are storing the date as a DateTime in Polaris so we want to send a midnight utc datetime
     today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    request_url = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
-        base_url=settings.POLARIS_BASE_URL,
-        retailer_slug=retailer_slug,
-        account_holder_uuid=account_holder_uuid,
-    )
+    url_template = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation"
+    url_kwargs = {
+        "base_url": settings.POLARIS_BASE_URL,
+        "retailer_slug": retailer_slug,
+        "account_holder_uuid": account_holder_uuid,
+    }
     payload = {
         "created_date": today.timestamp(),
         "conversion_date": (today + timedelta(days=allocation_window)).timestamp(),
@@ -89,11 +93,13 @@ def _process_pending_reward_allocation(
     }
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-        "request": {"url": request_url, "body": json.dumps(payload)},
+        "request": {"url": url_template.format(**url_kwargs), "body": json.dumps(payload)},
     }
     resp = send_request_with_metrics(
         "POST",
-        request_url,
+        url_template,
+        url_kwargs,
+        exclude_from_label_url=["retailer_slug", "account_holder_uuid"],
         json=payload,
         headers={
             "Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}",
@@ -129,11 +135,12 @@ def _process_balance_adjustment(
     campaign_slug: str,
     idempotency_token: str,
 ) -> tuple[int, dict]:
-    request_url = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments".format(
-        base_url=settings.POLARIS_BASE_URL,
-        retailer_slug=retailer_slug,
-        account_holder_uuid=account_holder_uuid,
-    )
+    url_template = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments"
+    url_kwargs = {
+        "base_url": settings.POLARIS_BASE_URL,
+        "retailer_slug": retailer_slug,
+        "account_holder_uuid": account_holder_uuid,
+    }
     payload = {
         "balance_change": adjustment_amount,
         "campaign_slug": campaign_slug,
@@ -141,12 +148,14 @@ def _process_balance_adjustment(
 
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-        "request": {"url": request_url, "body": json.dumps(payload)},
+        "request": {"url": url_template.format(**url_kwargs), "body": json.dumps(payload)},
     }
 
     resp = send_request_with_metrics(
         "POST",
-        request_url,
+        url_template,
+        url_kwargs,
+        exclude_from_label_url=["retailer_slug", "account_holder_uuid"],
         json=payload,
         headers={
             "Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}",
