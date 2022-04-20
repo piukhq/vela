@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from prometheus_client import Counter, Gauge
 
@@ -27,15 +27,19 @@ task_statuses = Gauge(
     labelnames=("app", "task_name", "status"),
 )
 
-# pylint: disable=unused-argument
-def update_metrics_hook(resp: "Response", *args: Any, **kwargs: Any) -> None:  # pragma: no cover
-    outgoing_http_requests_total.labels(
-        app=settings.PROJECT_NAME,
-        method=resp.request.method,
-        response=f"HTTP_{resp.status_code}",
-        exception=None,
-        url=resp.request.url,
-    ).inc()
+
+def update_metrics_hook(url_label: str) -> Callable:  # pragma: no cover
+    # pylint: disable=unused-argument
+    def update_metrics(resp: "Response", *args: Any, **kwargs: Any) -> None:
+        outgoing_http_requests_total.labels(
+            app=settings.PROJECT_NAME,
+            method=resp.request.method,
+            response=f"HTTP_{resp.status_code}",
+            exception=None,
+            url=url_label,
+        ).inc()
+
+    return update_metrics
 
 
 def update_metrics_exception_handler(ex: "RequestException", method: str, url: str) -> None:  # pragma: no cover

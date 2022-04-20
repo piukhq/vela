@@ -21,11 +21,13 @@ def _process_reward_status_adjustment(task_params: dict) -> dict:
 
     resp = send_request_with_metrics(
         "PATCH",
-        "{base_url}/{retailer_slug}/rewards/{reward_slug}/status".format(
-            base_url=settings.CARINA_BASE_URL,
-            retailer_slug=task_params["retailer_slug"],
-            reward_slug=task_params["reward_slug"],
-        ),
+        url_template="{base_url}/{retailer_slug}/rewards/{reward_slug}/status",
+        url_kwargs={
+            "base_url": settings.CARINA_BASE_URL,
+            "retailer_slug": task_params["retailer_slug"],
+            "reward_slug": task_params["reward_slug"],
+        },
+        exclude_from_label_url=["retailer_slug", "reward_slug"],
         json={
             "status": task_params["status"],
         },
