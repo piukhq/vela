@@ -31,7 +31,7 @@ def send_request_with_metrics(
     exclude_from_label_url: list[str],
     headers: dict | None = None,
     json: dict | None = None,
-    timeout: tuple[float, int],
+    timeout: tuple[float, int] = (3.03, 15),
 ) -> requests.Response:
     """
     url_template: the url before any dymanic value is formatted into it.

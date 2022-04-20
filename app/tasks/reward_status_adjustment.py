@@ -32,7 +32,6 @@ def _process_reward_status_adjustment(task_params: dict) -> dict:
             "status": task_params["status"],
         },
         headers={"Authorization": f"Token {settings.CARINA_API_AUTH_TOKEN}"},
-        timeout=(3.03, 10),
     )
     resp.raise_for_status()
     response_audit["response"] = {"status": resp.status_code, "body": resp.text}

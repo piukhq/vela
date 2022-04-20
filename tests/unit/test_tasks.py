@@ -23,7 +23,6 @@ def test_send_request_with_metrics_exclude_val(mocker: MockerFixture, run_task_w
             "uuid_val": uuid_val,
         },
         exclude_from_label_url=["uuid_val"],
-        timeout=(3.03, 10),
     )
     assert resp.status_code == 200
     mocked_metric.labels.assert_called_once_with(
@@ -47,7 +46,6 @@ def test_send_request_with_metrics_no_excluded_val(mocker: MockerFixture, run_ta
             "uuid_val": uuid_val,
         },
         exclude_from_label_url=[],
-        timeout=(3.03, 10),
     )
     assert resp.status_code == 200
     mocked_metric.labels.assert_called_once_with(
