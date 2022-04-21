@@ -21,16 +21,17 @@ def _process_reward_status_adjustment(task_params: dict) -> dict:
 
     resp = send_request_with_metrics(
         "PATCH",
-        "{base_url}/{retailer_slug}/rewards/{reward_slug}/status".format(
-            base_url=settings.CARINA_BASE_URL,
-            retailer_slug=task_params["retailer_slug"],
-            reward_slug=task_params["reward_slug"],
-        ),
+        url_template="{base_url}/{retailer_slug}/rewards/{reward_slug}/status",
+        url_kwargs={
+            "base_url": settings.CARINA_BASE_URL,
+            "retailer_slug": task_params["retailer_slug"],
+            "reward_slug": task_params["reward_slug"],
+        },
+        exclude_from_label_url=["retailer_slug", "reward_slug"],
         json={
             "status": task_params["status"],
         },
         headers={"Authorization": f"Token {settings.CARINA_API_AUTH_TOKEN}"},
-        timeout=(3.03, 10),
     )
     resp.raise_for_status()
     response_audit["response"] = {"status": resp.status_code, "body": resp.text}
@@ -43,7 +44,9 @@ def _process_reward_status_adjustment(task_params: dict) -> dict:
 # it is relevantly reflected in the TaskType table
 @retryable_task(db_session_factory=SyncSessionMaker)
 def reward_status_adjustment(retry_task: RetryTask, db_session: "Session") -> None:
-    tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME).inc()
+    if settings.ACTIVATE_TASKS_METRICS:
+        tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME).inc()
+
     response_audit = _process_reward_status_adjustment(retry_task.get_params())
     retry_task.update_task(
         db_session, response_audit=response_audit, status=RetryTaskStatuses.SUCCESS, clear_next_attempt_time=True

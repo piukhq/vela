@@ -767,16 +767,6 @@ def test_activating_a_campaign(
         headers=auth_headers,
     )
 
-    activation_task = (
-        db_session.execute(
-            select(RetryTask).where(
-                TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
-            )
-        )
-        .unique()
-        .scalar_one()
-    )
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(activable_campaign)
     spy.assert_called_once()
@@ -784,7 +774,6 @@ def test_activating_a_campaign(
     assert activable_campaign.status == CampaignStatuses.ACTIVE
     assert activable_campaign.end_date is None
     assert activable_campaign.start_date == now.replace(tzinfo=None)
-    assert activation_task.status == RetryTaskStatuses.PENDING
 
 
 def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_campaign: Campaign) -> None:

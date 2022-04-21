@@ -10,6 +10,7 @@ import sentry_sdk
 from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
 from redis import Redis
+from retry_tasks_lib.settings import load_settings
 from sentry_sdk.integrations.redis import RedisIntegration
 
 from app.core.key_vault import KeyVault
@@ -234,6 +235,10 @@ class Settings(BaseSettings):  # pragma: no cover
             return v
         return f"{values['CARINA_HOST']}/bpl/rewards"
 
+    REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "*/10 * * * *"
+    REDIS_KEY_PREFIX: str = "vela:"
+    ACTIVATE_TASKS_METRICS: bool = False
+
     class Config:
         case_sensitive = True
         # env var settings priority ie priority 1 will override priority 2:
@@ -245,6 +250,7 @@ class Settings(BaseSettings):  # pragma: no cover
 
 
 settings = Settings()
+load_settings(settings)
 
 dictConfig(
     {

@@ -50,17 +50,19 @@ async def create_reward_status_adjustment_and_campaign_balances_tasks(
     async def _query() -> list[RetryTask]:
         tasks = []
         for campaign in campaigns:
-            tasks.append(
-                await async_create_task(
-                    db_session=db_session,
-                    task_type_name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
-                    params={
-                        "retailer_slug": retailer.slug,
-                        "reward_slug": campaign.reward_rule.reward_slug,
-                        "status": status.value,
-                    },
+            if status in (CampaignStatuses.CANCELLED, CampaignStatuses.ENDED):
+                tasks.append(
+                    await async_create_task(
+                        db_session=db_session,
+                        task_type_name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                        params={
+                            "retailer_slug": retailer.slug,
+                            "reward_slug": campaign.reward_rule.reward_slug,
+                            "status": status.value,
+                        },
+                    )
                 )
-            )
+
             tasks.append(
                 await async_create_task(
                     db_session=db_session,
