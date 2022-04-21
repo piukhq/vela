@@ -258,6 +258,11 @@ def _process_reward_path(
     return response_audit
 
 
+def update_metrics() -> None:
+    if settings.ACTIVATE_TASKS_METRICS:
+        tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_ADJUSTMENT_TASK_NAME).inc()
+
+
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
 # it is relevantly reflected in the TaskType table
 # pylint: disable=too-many-locals
@@ -272,8 +277,7 @@ def _process_reward_path(
     redis_connection=redis_raw,
 )
 def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
-    tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_ADJUSTMENT_TASK_NAME).inc()
-
+    update_metrics()
     task_params: dict = retry_task.get_params()
     processed_tx_id = task_params["processed_transaction_id"]
     log_suffix = f"(tx_id: {processed_tx_id}, retry_task_id: {retry_task.retry_task_id})"

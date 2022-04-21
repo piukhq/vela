@@ -8,7 +8,7 @@ from app.tasks import send_request_with_metrics
 
 
 @httpretty.activate
-def test_send_request_with_metrics_exclude_val(mocker: MockerFixture) -> None:
+def test_send_request_with_metrics_exclude_val(mocker: MockerFixture, run_task_with_metrics: None) -> None:
     uuid_val = str(uuid4())
     base_url = "http://sample-domain"
 
@@ -32,7 +32,7 @@ def test_send_request_with_metrics_exclude_val(mocker: MockerFixture) -> None:
 
 
 @httpretty.activate
-def test_send_request_with_metrics_no_excluded_val(mocker: MockerFixture) -> None:
+def test_send_request_with_metrics_no_excluded_val(mocker: MockerFixture, run_task_with_metrics: None) -> None:
     uuid_val = str(uuid4())
     base_url = "http://sample-domain"
 

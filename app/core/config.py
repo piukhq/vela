@@ -237,6 +237,7 @@ class Settings(BaseSettings):  # pragma: no cover
 
     REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "*/10 * * * *"
     REDIS_KEY_PREFIX: str = "vela:"
+    ACTIVATE_TASKS_METRICS: bool = False
 
     class Config:
         case_sensitive = True
