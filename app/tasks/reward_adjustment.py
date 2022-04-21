@@ -59,7 +59,6 @@ def _process_reward_allocation(
             "Authorization": f"Token {settings.CARINA_API_AUTH_TOKEN}",
             "idempotency-token": idempotency_token,
         },
-        timeout=(3.03, 10),
     )
     resp.raise_for_status()
     response_audit["response"] = {"status": resp.status_code, "body": resp.text}
@@ -105,7 +104,6 @@ def _process_pending_reward_allocation(
             "Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}",
             "idempotency-token": idempotency_token,
         },
-        timeout=(3.03, 10),
     )
     resp.raise_for_status()
     response_audit["response"] = {"status": resp.status_code, "body": resp.text}
@@ -161,7 +159,6 @@ def _process_balance_adjustment(
             "Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}",
             "idempotency-token": idempotency_token,
         },
-        timeout=(3.03, 10),
     )
     resp.raise_for_status()
     response_audit["response"] = {"status": resp.status_code, "body": resp.text}
