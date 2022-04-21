@@ -42,7 +42,7 @@ class LogLevel(str):  # pragma: no cover
 
 
 class Settings(BaseSettings):  # pragma: no cover
-    API_PREFIX: str = "/bpl/retailers"
+    API_PREFIX: str = "/retailers"
     TESTING: bool = False
     SQL_DEBUG: bool = False
 
@@ -177,7 +177,7 @@ class Settings(BaseSettings):  # pragma: no cover
     def polaris_base_url(cls, v: str, values: dict[str, Any]) -> str:
         if v != "":
             return v
-        return f"{values['POLARIS_HOST']}/bpl/loyalty"
+        return f"{values['POLARIS_HOST']}/loyalty"
 
     REDIS_URL: str
 
@@ -233,7 +233,7 @@ class Settings(BaseSettings):  # pragma: no cover
     def carina_base_url(cls, v: str, values: dict[str, Any]) -> str:
         if v != "":
             return v
-        return f"{values['CARINA_HOST']}/bpl/rewards"
+        return f"{values['CARINA_HOST']}/rewards"
 
     REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "/10 * * * *"
     REDIS_KEY_PREFIX: str = "vela:"
