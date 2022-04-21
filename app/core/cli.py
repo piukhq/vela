@@ -1,7 +1,5 @@
 import logging
 
-from functools import partial
-
 import typer
 
 from prometheus_client import CollectorRegistry
@@ -45,7 +43,8 @@ def cron_scheduler(report_tasks: bool = True) -> None:  # pragma: no cover
     logger.info("Initialising scheduler...")
     if report_tasks:
         vela_cron_scheduler.add_job(
-            partial(report_anomalous_tasks, SyncSessionMaker, settings.PROJECT_NAME, task_statuses),
+            report_anomalous_tasks,
+            kwargs={"session_maker": SyncSessionMaker, "project_name": settings.PROJECT_NAME, "gauge": task_statuses},
             schedule_fn=lambda: settings.REPORT_ANOMALOUS_TASKS_SCHEDULE,
             coalesce_jobs=True,
         )

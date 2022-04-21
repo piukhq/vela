@@ -235,7 +235,7 @@ class Settings(BaseSettings):  # pragma: no cover
             return v
         return f"{values['CARINA_HOST']}/bpl/rewards"
 
-    REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "/10 * * * *"
+    REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "*/10 * * * *"
     REDIS_KEY_PREFIX: str = "vela:"
 
     class Config:
