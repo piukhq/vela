@@ -51,7 +51,9 @@ def _process_campaign_balances_update(task_type_name: str, task_params: dict) ->
 # it is relevantly reflected in the TaskType table
 @retryable_task(db_session_factory=SyncSessionMaker)
 def update_campaign_balances(retry_task: RetryTask, db_session: "Session") -> None:
-    tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=retry_task.task_type.name).inc()
+    if settings.ACTIVATE_TASKS_METRICS:
+        tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=retry_task.task_type.name).inc()
+
     response_audit = _process_campaign_balances_update(retry_task.task_type.name, retry_task.get_params())
     retry_task.update_task(
         db_session, response_audit=response_audit, status=RetryTaskStatuses.SUCCESS, clear_next_attempt_time=True

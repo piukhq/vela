@@ -342,3 +342,11 @@ def delete_campaign_balances_task_type(db_session: "Session") -> TaskType:
 
     db_session.commit()
     return task
+
+
+@pytest.fixture
+def run_task_with_metrics() -> Generator:
+    val = settings.ACTIVATE_TASKS_METRICS
+    settings.ACTIVATE_TASKS_METRICS = True
+    yield
+    settings.ACTIVATE_TASKS_METRICS = val
