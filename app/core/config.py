@@ -11,6 +11,7 @@ from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
 from redis import Redis
 from retry_tasks_lib.settings import load_settings
+from sentry_sdk.integrations.httpx import HttpxIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 
 from app.core.key_vault import KeyVault
@@ -328,6 +329,7 @@ if settings.SENTRY_DSN:  # pragma: no cover
         environment=settings.SENTRY_ENV,
         integrations=[
             RedisIntegration(),
+            HttpxIntegration(),
         ],
         release=__version__,
         traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
