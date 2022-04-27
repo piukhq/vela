@@ -1,9 +1,10 @@
+import asyncio
 import logging
 
 from typing import Any
 from uuid import UUID
 
-import httpx
+import requests
 
 from fastapi import status
 from tenacity import retry
@@ -22,7 +23,8 @@ logger = logging.getLogger(__name__)
     wait=wait_fixed(0.1),
     reraise=True,
     retry_error_callback=lambda retry_state: retry_state.outcome.result(),
-    retry=retry_if_result(lambda resp: 501 <= resp.status_code <= 504) | retry_if_exception_type(httpx.RequestError),
+    retry=retry_if_result(lambda resp: 501 <= resp.status_code <= 504)
+    | retry_if_exception_type(requests.RequestException),
 )  # pragma: no cover
 async def send_async_request_with_retry(
     method: str,
@@ -30,10 +32,11 @@ async def send_async_request_with_retry(
     *,
     headers: dict[str, Any] | None = None,
     json: dict[str, Any] | None = None,
-) -> httpx.Response:  # pragma: no cover
+) -> requests.Response:  # pragma: no cover
+    def blocking_io() -> requests.Response:
+        return requests.request(method, url, headers=headers, json=json, timeout=(3.03, 10))
 
-    async with httpx.AsyncClient() as client:  # pragma: no cover
-        return await client.request(method, url, headers=headers, json=json)
+    return await asyncio.to_thread(blocking_io)
 
 
 async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) -> None:
@@ -44,7 +47,7 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
     )
     try:
         resp.raise_for_status()
-    except httpx.HTTPStatusError as ex:
+    except requests.RequestException as ex:
         if resp.status_code == status.HTTP_404_NOT_FOUND:
             raise HttpErrors.USER_NOT_FOUND.value
 

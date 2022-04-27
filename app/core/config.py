@@ -13,6 +13,7 @@ from redis import Redis
 from retry_tasks_lib.settings import load_settings
 from sentry_sdk.integrations.httpx import HttpxIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from app.core.key_vault import KeyVault
 from app.version import __version__
@@ -330,6 +331,7 @@ if settings.SENTRY_DSN:  # pragma: no cover
         integrations=[
             RedisIntegration(),
             HttpxIntegration(),
+            SqlalchemyIntegration(),
         ],
         release=__version__,
         traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,

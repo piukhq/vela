@@ -10,8 +10,8 @@ import pytest
 
 from fastapi import status
 from fastapi.testclient import TestClient
-from httpx import Request, Response
 from pytest_mock import MockerFixture
+from requests import Response
 
 from app.core.config import settings
 from app.crud.retailer import _calculate_transaction_amounts_from_earn_rules
@@ -197,29 +197,30 @@ def test_post_transaction_account_holder_validation_errors(
     setup: SetupType, payload: dict, mocker: MockerFixture
 ) -> None:
     retailer_slug = setup.retailer.slug
-    request = Request(
-        method="GET",
-        url=f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{payload['loyalty_id']}/status",
-    )
 
     mocked_session = mocker.patch("app.internal_requests.send_async_request_with_retry")
     mocked_session.return_value = MagicMock(
         spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK
     )
+    mocked_resp = Response()
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
     assert resp.json() == {"display_message": "User Account not Active", "code": "USER_NOT_ACTIVE"}
 
-    mocked_session.return_value = Response(status.HTTP_404_NOT_FOUND, request=request)
+    mocked_resp.request = mocker.MagicMock()
+    mocked_resp.status_code = status.HTTP_404_NOT_FOUND
+    mocked_session.return_value = mocked_resp
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "Unknown User.", "code": "USER_NOT_FOUND"}
 
-    mocked_session.return_value = Response(status.HTTP_500_INTERNAL_SERVER_ERROR, request=request)
+    mocked_resp.request = mocker.MagicMock()
+    mocked_resp.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    mocked_session.return_value = mocked_resp
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
