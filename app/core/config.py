@@ -11,7 +11,7 @@ from pydantic import BaseSettings, HttpUrl, PostgresDsn, validator
 from pydantic.validators import str_validator
 from redis import Redis
 from retry_tasks_lib.settings import load_settings
-from sentry_sdk.integrations.httpx import HttpxIntegration
+from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
@@ -325,13 +325,13 @@ redis_raw = Redis.from_url(
 
 
 if settings.SENTRY_DSN:  # pragma: no cover
-    sentry_sdk.init(  # pylint: disable=abstract-class-instantiated
+    sentry_sdk.init(  # type: ignore [abstract] # pylint: disable=abstract-class-instantiated
         dsn=settings.SENTRY_DSN,
         environment=settings.SENTRY_ENV,
         integrations=[
             RedisIntegration(),
-            HttpxIntegration(),
             SqlalchemyIntegration(),
+            AioHttpIntegration(),
         ],
         release=__version__,
         traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,

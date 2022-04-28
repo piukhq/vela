@@ -54,8 +54,10 @@ def test_post_transaction_happy_path(
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
     db_session, retailer, campaign = setup
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
 
@@ -79,8 +81,10 @@ def test_post_transaction_not_awarded(
     setup: SetupType, payload: dict, earn_rule: EarnRule, mocker: MockerFixture
 ) -> None:
     db_session, retailer, _ = setup
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
 
     payload["transaction_total"] = 250
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
@@ -107,8 +111,9 @@ def test_post_transaction_no_active_campaigns(
     campaign.status = CampaignStatuses.DRAFT
     db_session.commit()
 
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -131,8 +136,9 @@ def test_post_transaction_no_active_campaigns_pre_start_date(
     transaction_timestamp = int((campaign.start_date.replace(tzinfo=timezone.utc) - timedelta(minutes=5)).timestamp())
     payload["datetime"] = transaction_timestamp
 
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -155,8 +161,9 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     campaign.end_date = datetime_now - timedelta(minutes=1)
     db_session.commit()
 
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -174,8 +181,10 @@ def test_post_transaction_no_active_campaigns_post_end_date(
 
 def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, mocker: MockerFixture) -> None:
     retailer_slug = setup.retailer.slug
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
@@ -199,28 +208,21 @@ def test_post_transaction_account_holder_validation_errors(
     retailer_slug = setup.retailer.slug
 
     mocked_session = mocker.patch("app.internal_requests.send_async_request_with_retry")
-    mocked_session.return_value = MagicMock(
-        spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK
-    )
-    mocked_resp = Response()
+    mocked_session.return_value = (status.HTTP_200_OK, {"status": "pending"})
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
     assert resp.json() == {"display_message": "User Account not Active", "code": "USER_NOT_ACTIVE"}
 
-    mocked_resp.request = mocker.MagicMock()
-    mocked_resp.status_code = status.HTTP_404_NOT_FOUND
-    mocked_session.return_value = mocked_resp
+    mocked_session.return_value = (status.HTTP_404_NOT_FOUND, {})
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "Unknown User.", "code": "USER_NOT_FOUND"}
 
-    mocked_resp.request = mocker.MagicMock()
-    mocked_resp.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    mocked_session.return_value = mocked_resp
+    mocked_session.return_value = (status.HTTP_500_INTERNAL_SERVER_ERROR, {})
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
@@ -283,8 +285,10 @@ def test_post_transaction_negative_amount(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_campaign = create_mock_campaign(
         **{
@@ -329,8 +333,10 @@ def test_post_transaction_zero_amount(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_campaign = create_mock_campaign(
         **{
@@ -373,8 +379,10 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_campaign = create_mock_campaign(
         **{
@@ -417,8 +425,10 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-    response = MagicMock(spec=Response, json=lambda: {"status": "active"}, status_code=status.HTTP_200_OK)
-    mocker.patch("app.internal_requests.send_async_request_with_retry", return_value=response)
+
+    mocker.patch(
+        "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+    )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_campaign = create_mock_campaign(
         **{

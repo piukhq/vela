@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments,no-value-for-parameter
 
+import asyncio
 import json
 
 from datetime import datetime, timezone
@@ -8,7 +9,6 @@ from unittest import mock
 from uuid import uuid4
 
 import httpretty
-import httpx
 import pytest
 import requests
 
@@ -130,10 +130,10 @@ def test__process_adjustment_connection_error(
     reward_adjustment_task: RetryTask,
 ) -> None:
 
-    mock_send_request_with_metrics.side_effect = httpx.TimeoutException("Request timed out")
+    mock_send_request_with_metrics.side_effect = asyncio.TimeoutError("Request timed out")
     task_params = reward_adjustment_task.get_params()
 
-    with pytest.raises(httpx.RequestError) as excinfo:
+    with pytest.raises(asyncio.TimeoutError) as excinfo:
         _process_balance_adjustment(
             retailer_slug=task_params["retailer_slug"],
             account_holder_uuid=task_params["account_holder_uuid"],
@@ -142,7 +142,7 @@ def test__process_adjustment_connection_error(
             idempotency_token=task_params["pre_allocation_token"],
         )
 
-    assert isinstance(excinfo.value, httpx.TimeoutException)
+    assert isinstance(excinfo.value, asyncio.TimeoutError)
     assert not hasattr(excinfo.value, "response")
 
 
@@ -152,9 +152,9 @@ def test__process_reward_allocation_connection_error(
     reward_adjustment_task: RetryTask,
 ) -> None:
 
-    mock_send_request_with_metrics.side_effect = httpx.TimeoutException("Request timed out")
+    mock_send_request_with_metrics.side_effect = asyncio.TimeoutError("Request timed out")
 
-    with pytest.raises(httpx.RequestError) as excinfo:
+    with pytest.raises(asyncio.TimeoutError) as excinfo:
         _process_reward_allocation(
             retailer_slug="retailer_slug",
             reward_slug="slug",
@@ -162,7 +162,7 @@ def test__process_reward_allocation_connection_error(
             idempotency_token="token",
         )
 
-    assert isinstance(excinfo.value, httpx.TimeoutException)
+    assert isinstance(excinfo.value, asyncio.TimeoutError)
     assert not hasattr(excinfo.value, "response")
 
 
