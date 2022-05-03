@@ -12,6 +12,7 @@ from pydantic.validators import str_validator
 from redis import Redis
 from retry_tasks_lib.settings import load_settings
 from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from app.core.key_vault import KeyVault
 from app.version import __version__
@@ -42,7 +43,7 @@ class LogLevel(str):  # pragma: no cover
 
 
 class Settings(BaseSettings):  # pragma: no cover
-    API_PREFIX: str = "/bpl/retailers"
+    API_PREFIX: str = "/retailers"
     TESTING: bool = False
     SQL_DEBUG: bool = False
 
@@ -177,7 +178,7 @@ class Settings(BaseSettings):  # pragma: no cover
     def polaris_base_url(cls, v: str, values: dict[str, Any]) -> str:
         if v != "":
             return v
-        return f"{values['POLARIS_HOST']}/bpl/loyalty"
+        return f"{values['POLARIS_HOST']}/loyalty"
 
     REDIS_URL: str
 
@@ -233,11 +234,11 @@ class Settings(BaseSettings):  # pragma: no cover
     def carina_base_url(cls, v: str, values: dict[str, Any]) -> str:
         if v != "":
             return v
-        return f"{values['CARINA_HOST']}/bpl/rewards"
+        return f"{values['CARINA_HOST']}/rewards"
 
     REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "*/10 * * * *"
     REDIS_KEY_PREFIX: str = "vela:"
-    ACTIVATE_TASKS_METRICS: bool = False
+    ACTIVATE_TASKS_METRICS: bool = True
 
     class Config:
         case_sensitive = True
@@ -323,11 +324,12 @@ redis_raw = Redis.from_url(
 
 
 if settings.SENTRY_DSN:  # pragma: no cover
-    sentry_sdk.init(  # pylint: disable=abstract-class-instantiated
+    sentry_sdk.init(  # type: ignore [abstract] # pylint: disable=abstract-class-instantiated
         dsn=settings.SENTRY_DSN,
         environment=settings.SENTRY_ENV,
         integrations=[
             RedisIntegration(),
+            SqlalchemyIntegration(),
         ],
         release=__version__,
         traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,

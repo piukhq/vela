@@ -92,7 +92,7 @@ def send_request_with_metrics(
         return requests.request(
             method,
             url_template.format(**url_kwargs),
-            hooks=hooks,
+            hooks=hooks,  # type: ignore [arg-type]
             headers=headers,
             json=json,
             timeout=timeout,
