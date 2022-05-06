@@ -40,14 +40,24 @@ async def record_transaction(
         db_session, retailer, active_campaign_slugs, transaction_data
     )
     await crud.delete_transaction(db_session, transaction)
+    is_refund: bool = processed_transaction.amount < 0
 
     if adjustment_amounts:
         adjustment_tasks_ids = await crud.create_reward_adjustment_tasks(
             db_session, processed_transaction, adjustment_amounts
         )
         asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=adjustment_tasks_ids))
-        response = "Awarded"
+
+        if is_refund:
+            response = "Refund accepted"
+        else:
+            response = "Awarded"
+
     else:
-        response = "Threshold not met"
+
+        if is_refund:
+            response = "Refunds not accepted"
+        else:
+            response = "Threshold not met"
 
     return response
