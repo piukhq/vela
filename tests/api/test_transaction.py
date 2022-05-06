@@ -309,7 +309,7 @@ def test_post_transaction_negative_amount(
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
-    assert resp.json() == "Awarded"
+    assert resp.json() == "Refund accepted"
 
     processed_transaction = (
         db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
@@ -401,7 +401,7 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
-    assert resp.json() == "Threshold not met"
+    assert resp.json() == "Refund not accepted"
 
     processed_transaction = (
         db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
@@ -447,7 +447,7 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
-    assert resp.json() == "Threshold not met"
+    assert resp.json() == "Refund not accepted"
 
     processed_transaction = (
         db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
