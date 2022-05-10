@@ -36,7 +36,8 @@ timestamp_now = int(datetime_now.timestamp())
 @pytest.fixture(scope="function")
 def payload() -> dict:
     return {
-        "id": "BPL123456789",
+        "id": "69364ce3-21a4-4442-8608-e878eeb8b6e6",
+        "transaction_id": "BPL123456789",
         "transaction_total": 1125,
         "datetime": str(timestamp_now),
         "MID": "12345678",
@@ -73,6 +74,8 @@ def test_post_transaction_happy_path(
     assert processed_transaction is not None
     assert processed_transaction.mid == payload["MID"]
     assert processed_transaction.amount == payload["transaction_total"]
+    assert processed_transaction.transaction_id == payload["id"]
+    assert processed_transaction.payment_transaction_id == payload["transaction_id"]
     assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
 
@@ -99,6 +102,8 @@ def test_post_transaction_not_awarded(
     assert processed_transaction is not None
     assert processed_transaction.mid == payload["MID"]
     assert processed_transaction.amount == payload["transaction_total"]
+    assert processed_transaction.transaction_id == payload["id"]
+    assert processed_transaction.payment_transaction_id == payload["transaction_id"]
     assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
 
@@ -255,6 +260,10 @@ def test_post_transaction_account_holder_empty_val_validation_errors(
     bad_payload = deepcopy(payload)
 
     bad_payload["id"] = "  "
+    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+    bad_payload = deepcopy(payload)
+
+    bad_payload["transaction_id"] = ""
     _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
     bad_payload = deepcopy(payload)
 

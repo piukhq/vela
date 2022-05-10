@@ -18,6 +18,7 @@ class Transaction(Base, TimestampMixin):
     mid = Column(String(128), nullable=False)
     datetime = Column(DateTime, nullable=False)
     account_holder_uuid = Column(UUID(as_uuid=True), nullable=False)
+    payment_transaction_id = Column(String(128), nullable=True, index=True)
     retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"))
 
     retailer = relationship("RetailerRewards", back_populates="transactions")
@@ -34,6 +35,7 @@ class ProcessedTransaction(Base, TimestampMixin):
     mid = Column(String(128), nullable=False)
     datetime = Column(DateTime, nullable=False)
     account_holder_uuid = Column(UUID(as_uuid=True), nullable=False)
+    payment_transaction_id = Column(String(128), nullable=True, index=True)
     retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"))
     campaign_slugs = Column(ARRAY(String(128)), nullable=False)
 
