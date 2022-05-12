@@ -21,6 +21,7 @@ from app.core.config import redis_raw, settings
 from app.enums import CampaignStatuses
 from app.models import Campaign, RewardRule
 from app.tasks.campaign_balances import update_campaign_balances
+from app.tasks.pending_rewards import convert_or_delete_pending_rewards
 from app.tasks.reward_adjustment import (
     _process_balance_adjustment,
     _process_reward_allocation,
@@ -632,3 +633,59 @@ def test_update_campaign_balances(
     assert delete_campaign_balances_task.status == RetryTaskStatuses.SUCCESS
     assert delete_campaign_balances_task.attempts == 1
     assert delete_campaign_balances_task.next_attempt_time is None
+
+
+@httpretty.activate
+def test_convert_pending_rewards_task(
+    db_session: "Session", convert_or_delete_pending_rewards_task_type: TaskType
+) -> None:
+    params = {"retailer_slug": "sample-retailer", "campaign_slug": "sample-campaign", "issue_pending_rewards": True}
+    url = "{base_url}/{retailer_slug}/accounts/{campaign_slug}/pendingrewards/issue".format(
+        base_url=settings.POLARIS_BASE_URL, **params
+    )
+
+    httpretty.register_uri("POST", url, body={}, status=202)
+
+    create_convert_pending_rewards_task = sync_create_task(
+        db_session, task_type_name=convert_or_delete_pending_rewards_task_type.name, params=params
+    )
+    db_session.commit()
+
+    convert_or_delete_pending_rewards(create_convert_pending_rewards_task.retry_task_id)
+    create_request = httpretty.last_request()
+
+    db_session.refresh(create_convert_pending_rewards_task)
+
+    assert create_request.url == url
+    assert create_request.method == "POST"
+    assert create_convert_pending_rewards_task.status == RetryTaskStatuses.SUCCESS
+    assert create_convert_pending_rewards_task.attempts == 1
+    assert create_convert_pending_rewards_task.next_attempt_time is None
+
+
+@httpretty.activate
+def test_delete_pending_rewards_task(
+    db_session: "Session", convert_or_delete_pending_rewards_task_type: TaskType
+) -> None:
+    task_params = {"retailer_slug": "test-retailer", "campaign_slug": "test-campaign", "issue_pending_rewards": False}
+    url = "{base_url}/{retailer_slug}/accounts/{campaign_slug}/pendingrewards".format(
+        base_url=settings.POLARIS_BASE_URL, **task_params
+    )
+
+    httpretty.register_uri("DELETE", url, body={}, status=202)
+
+    create_convert_pending_rewards_task = sync_create_task(
+        db_session, task_type_name=convert_or_delete_pending_rewards_task_type.name, params=task_params
+    )
+    db_session.commit()
+
+    convert_or_delete_pending_rewards(create_convert_pending_rewards_task.retry_task_id)
+    create_request = httpretty.last_request()
+
+    db_session.refresh(create_convert_pending_rewards_task)
+
+    assert create_request.url == url
+    assert create_request.method == "DELETE"
+    assert create_convert_pending_rewards_task.status == RetryTaskStatuses.SUCCESS
+    assert create_convert_pending_rewards_task.attempts == 1
+    assert create_convert_pending_rewards_task.next_attempt_time is None
