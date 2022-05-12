@@ -15,6 +15,7 @@ from requests import Response
 
 from app.core.config import settings
 from app.crud.retailer import _calculate_transaction_amounts_from_earn_rules
+from app.crud.transaction import sentry_sdk
 from app.enums import CampaignStatuses, LoyaltyTypes
 from app.models import EarnRule, ProcessedTransaction, RetailerRewards, Transaction
 from app.schemas.transaction import CreateTransactionSchema
@@ -191,6 +192,7 @@ def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, 
         "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
     )
 
+    mock_capture_exception = mocker.spy(sentry_sdk, "capture_exception")
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
@@ -198,6 +200,9 @@ def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
+    mock_capture_exception.assert_called_once()
+    exc = mock_capture_exception.call_args[0][0]
+    assert 'duplicate key value violates unique constraint "process_transaction_retailer_unq"' in exc.args[0]
     assert resp.json() == {"display_message": "Duplicate Transaction.", "code": "DUPLICATE_TRANSACTION"}
 
 
