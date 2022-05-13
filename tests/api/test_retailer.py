@@ -1,5 +1,5 @@
 from collections import namedtuple
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, Generator
 
 import pytest
 
@@ -26,8 +26,9 @@ def setup(db_session: "Session", retailer: RetailerRewards, campaign: Campaign) 
 
 def test_healthz_routes_no_channel_header() -> None:
     paths = ("/readyz", "/livez")
+    headers: dict[str, Any] = {}
     for path in paths:
-        resp = client.get(path, headers={})
+        resp = client.get(path, headers=headers)
         assert resp.status_code == 200
 
 
