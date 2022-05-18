@@ -7,14 +7,14 @@ from prometheus_client import CollectorRegistry
 from prometheus_client import start_http_server as start_prometheus_server
 from prometheus_client import values
 from prometheus_client.multiprocess import MultiProcessCollector
-from retry_tasks_lib.reporting import report_anomalous_tasks
+from retry_tasks_lib.reporting import report_anomalous_tasks, report_tasks_summary
 from retry_tasks_lib.utils.error_handler import job_meta_handler
 from rq import Worker
 
 from app.core.config import redis_raw, settings
 from app.db.session import SyncSessionMaker
 from app.scheduled_tasks.scheduler import cron_scheduler as vela_cron_scheduler
-from app.tasks.prometheus import task_statuses
+from app.tasks.prometheus import task_statuses, tasks_summary
 
 cli = typer.Typer()
 logger = logging.getLogger(__name__)
@@ -56,6 +56,17 @@ def cron_scheduler(report_tasks: bool = True) -> None:  # pragma: no cover
             report_anomalous_tasks,
             kwargs={"session_maker": SyncSessionMaker, "project_name": settings.PROJECT_NAME, "gauge": task_statuses},
             schedule_fn=lambda: settings.REPORT_ANOMALOUS_TASKS_SCHEDULE,
+            coalesce_jobs=True,
+        )
+
+        vela_cron_scheduler.add_job(
+            report_tasks_summary,
+            kwargs={
+                "session_maker": SyncSessionMaker,
+                "project_name": settings.PROJECT_NAME,
+                "gauge": tasks_summary,
+            },
+            schedule_fn=lambda: settings.REPORT_TASKS_SUMMARY_SCHEDULE,
             coalesce_jobs=True,
         )
 
