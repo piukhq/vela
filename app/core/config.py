@@ -237,6 +237,7 @@ class Settings(BaseSettings):  # pragma: no cover
         return f"{values['CARINA_HOST']}/rewards"
 
     REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "*/10 * * * *"
+    REPORT_TASKS_SUMMARY_SCHEDULE: str = "5,20,35,50 */1 * * *"
     REDIS_KEY_PREFIX: str = "vela:"
     ACTIVATE_TASKS_METRICS: bool = True
 
@@ -324,7 +325,7 @@ redis_raw = Redis.from_url(
 
 
 if settings.SENTRY_DSN:  # pragma: no cover
-    sentry_sdk.init(  # type: ignore [abstract] # pylint: disable=abstract-class-instantiated
+    sentry_sdk.init(  # pylint: disable=abstract-class-instantiated
         dsn=settings.SENTRY_DSN,
         environment=settings.SENTRY_ENV,
         integrations=[

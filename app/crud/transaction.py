@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+import sentry_sdk
+
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.asynchronous import async_create_task
@@ -12,7 +14,7 @@ from app.enums import HttpErrors
 from app.models import ProcessedTransaction, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sqlalchemy.exc.asyncio import AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def create_transaction(
@@ -50,7 +52,8 @@ async def create_processed_transaction(
         try:
             db_session.add(processed_transaction)
             await db_session.commit()
-        except IntegrityError:
+        except IntegrityError as ex:
+            sentry_sdk.capture_exception(ex)
             raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return processed_transaction
