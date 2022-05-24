@@ -1,8 +1,6 @@
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import sentry_sdk
-
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.asynchronous import async_create_task
@@ -10,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.db.base_class import async_run_query
-from app.enums import HttpErrors
+from app.enums import HttpErrors, TransactionProcessingStatuses
 from app.models import ProcessedTransaction, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -43,17 +41,28 @@ async def delete_transaction(db_session: "AsyncSession", transaction: Transactio
 
 
 async def create_processed_transaction(
-    db_session: "AsyncSession", retailer: RetailerRewards, campaign_slugs: list[str], transaction_data: dict
+    db_session: "AsyncSession", retailer: RetailerRewards, campaign_slugs: list[str], transaction: Transaction
 ) -> ProcessedTransaction:
     async def _query() -> ProcessedTransaction:
         processed_transaction = ProcessedTransaction(
-            retailer_id=retailer.id, campaign_slugs=campaign_slugs, **transaction_data
+            retailer_id=retailer.id,
+            campaign_slugs=campaign_slugs,
+            transaction_id=transaction.transaction_id,
+            amount=transaction.amount,
+            mid=transaction.mid,
+            datetime=transaction.datetime,
+            account_holder_uuid=transaction.account_holder_uuid,
+            payment_transaction_id=transaction.payment_transaction_id,
         )
+        nested_trans = await db_session.begin_nested()
+        db_session.add(processed_transaction)
+        transaction.status = TransactionProcessingStatuses.PROCESSED
         try:
-            db_session.add(processed_transaction)
+            await nested_trans.commit()
+        except IntegrityError:
+            await nested_trans.rollback()
+            transaction.status = TransactionProcessingStatuses.DUPLICATE
             await db_session.commit()
-        except IntegrityError as ex:
-            sentry_sdk.capture_exception(ex)
             raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return processed_transaction

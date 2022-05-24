@@ -12,11 +12,11 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from pytest_mock import MockerFixture
 from requests import Response
+from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.crud.retailer import _calculate_transaction_amounts_from_earn_rules
-from app.crud.transaction import sentry_sdk
-from app.enums import CampaignStatuses, LoyaltyTypes
+from app.enums import CampaignStatuses, LoyaltyTypes, TransactionProcessingStatuses
 from app.models import EarnRule, ProcessedTransaction, RetailerRewards, Transaction
 from app.schemas.transaction import CreateTransactionSchema
 from asgi import app
@@ -183,26 +183,30 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     assert transaction.amount == payload["transaction_total"]
     assert transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert transaction.account_holder_uuid == account_holder_uuid
+    assert transaction.status == TransactionProcessingStatuses.NO_ACTIVE_CAMPAIGNS
 
 
 def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, mocker: MockerFixture) -> None:
     retailer_slug = setup.retailer.slug
+    db_session = setup.db_session
 
     mocker.patch(
         "app.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
     )
 
-    mock_capture_exception = mocker.spy(sentry_sdk, "capture_exception")
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_200_OK
+    assert db_session.execute(select(func.count()).select_from(Transaction)).scalar() == 0
+    assert db_session.execute(select(func.count()).select_from(ProcessedTransaction)).scalar() == 1
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
     assert resp.status_code == status.HTTP_409_CONFLICT
-    mock_capture_exception.assert_called_once()
-    exc = mock_capture_exception.call_args[0][0]
-    assert 'duplicate key value violates unique constraint "process_transaction_retailer_unq"' in exc.args[0]
+    assert db_session.execute(select(func.count()).select_from(Transaction)).scalar() == 1
+    transaction = db_session.execute(select(Transaction)).scalar_one()
+    assert transaction.status == TransactionProcessingStatuses.DUPLICATE
+    assert db_session.execute(select(func.count()).select_from(ProcessedTransaction)).scalar() == 1
     assert resp.json() == {"display_message": "Duplicate Transaction.", "code": "DUPLICATE_TRANSACTION"}
 
 
