@@ -68,7 +68,8 @@ def run_migrations_online() -> None:
         raise ValueError("empty configuration.")
 
     # alembic will run the migrations synchronously with psycopg2
-    configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI
+    if not configuration.get("sqlalchemy.url"):  # allows sqla url to be set in another config context
+        configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI
 
     connectable = engine_from_config(
         configuration,
