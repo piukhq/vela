@@ -5,11 +5,10 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from app.db.base_class import async_run_query
-from app.enums import CampaignStatuses, HttpErrors, LoyaltyTypes
+from app.enums import CampaignStatuses, HttpErrors, LoyaltyTypes, TransactionProcessingStatuses
 from app.models import Campaign, EarnRule, RetailerRewards, Transaction
 
 if TYPE_CHECKING:  # pragma: no cover
-    from datetime import datetime
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +27,7 @@ async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -
 
 
 async def get_active_campaign_slugs(
-    db_session: "AsyncSession", retailer: RetailerRewards, transaction_time: "datetime" = None
+    db_session: "AsyncSession", retailer: RetailerRewards, transaction: Transaction = None
 ) -> list[str]:
     async def _query() -> list:
         return (
@@ -41,17 +40,23 @@ async def get_active_campaign_slugs(
 
     campaign_rows = await async_run_query(_query, db_session, rollback_on_exc=False)
 
-    if transaction_time is not None:
+    if transaction is not None:
         valid_campaigns = [
             slug
             for slug, start, end in campaign_rows
-            if start <= transaction_time and (end is None or end > transaction_time)
+            if start <= transaction.datetime and (end is None or end > transaction.datetime)
         ]
 
     else:
         valid_campaigns = [row[0] for row in campaign_rows]
 
+    async def _update_tx_status(*, tx: Transaction) -> None:
+        tx.status = TransactionProcessingStatuses.NO_ACTIVE_CAMPAIGNS
+        await db_session.commit()
+
     if not valid_campaigns:
+        if transaction is not None:
+            await async_run_query(_update_tx_status, db_session, tx=transaction)
         raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
 
     return valid_campaigns
