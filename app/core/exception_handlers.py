@@ -2,8 +2,6 @@ import logging
 
 from typing import cast
 
-import sentry_sdk
-
 from fastapi import Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import UJSONResponse
@@ -60,5 +58,4 @@ async def unexpected_exception_handler(
             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
         )
     finally:
-        logger.exception(exc)
-        sentry_sdk.capture_exception(exc)
+        logger.exception("Unexpected System Error", exc_info=exc)
