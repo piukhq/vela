@@ -27,6 +27,12 @@ class LoyaltyTypes(Enum):
     STAMPS = "stamps"
 
 
+class TransactionProcessingStatuses(Enum):
+    PROCESSED = "processed"
+    DUPLICATE = "duplicate"
+    NO_ACTIVE_CAMPAIGNS = "no-active-campaigns"
+
+
 class HttpErrors(Enum):
     NO_ACTIVE_CAMPAIGNS = HTTPException(
         detail={"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"},

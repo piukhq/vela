@@ -8,10 +8,9 @@ from app.tasks.error_handlers import handle_adjust_balance_error, handle_retry_t
 
 
 @mock.patch("app.tasks.error_handlers.logger")
-@mock.patch("app.tasks.error_handlers.sentry_sdk")
 @mock.patch("app.tasks.error_handlers.handle_request_exception")
 def test_handle_adjust_balance_error(
-    mock_handle_request_exception: mock.MagicMock, mock_sentry_sdk: mock.MagicMock, mock_logger: mock.MagicMock
+    mock_handle_request_exception: mock.MagicMock, mock_logger: mock.MagicMock
 ) -> None:
     error = ValueError("test error logged")
     mock_handle_request_exception.side_effect = error
@@ -24,15 +23,15 @@ def test_handle_adjust_balance_error(
             traceback=mock.MagicMock(spec=Traceback),
         )
 
-    mock_logger.exception.assert_called_once_with(error)
-    mock_sentry_sdk.capture_exception.assert_called_once_with(error)
+    mock_logger.exception.assert_called_once_with(
+        "Unexpected error occurred while running '%s'", "handle_adjust_balance_error", exc_info=error
+    )
 
 
 @mock.patch("app.tasks.error_handlers.logger")
-@mock.patch("app.tasks.error_handlers.sentry_sdk")
 @mock.patch("app.tasks.error_handlers.handle_request_exception")
 def test_handle_retry_task_request_error(
-    mock_handle_request_exception: mock.MagicMock, mock_sentry_sdk: mock.MagicMock, mock_logger: mock.MagicMock
+    mock_handle_request_exception: mock.MagicMock, mock_logger: mock.MagicMock
 ) -> None:
     error = ValueError("test error logged")
     mock_handle_request_exception.side_effect = error
@@ -45,5 +44,6 @@ def test_handle_retry_task_request_error(
             traceback=mock.MagicMock(spec=Traceback),
         )
 
-    mock_logger.exception.assert_called_once_with(error)
-    mock_sentry_sdk.capture_exception.assert_called_once_with(error)
+    mock_logger.exception.assert_called_once_with(
+        "Unexpected error occurred while running '%s'", "handle_retry_task_request_error", exc_info=error
+    )

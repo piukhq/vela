@@ -33,11 +33,11 @@ async def record_transaction(
     # ---------------------------------------------------------------------------------------- #
 
     transaction = await crud.create_transaction(db_session, retailer, transaction_data)
-    active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction.datetime)
+    active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction)
     adjustment_amounts: dict = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
 
     processed_transaction = await crud.create_processed_transaction(
-        db_session, retailer, active_campaign_slugs, transaction_data
+        db_session, retailer, active_campaign_slugs, transaction
     )
     await crud.delete_transaction(db_session, transaction)
     is_refund: bool = processed_transaction.amount < 0
