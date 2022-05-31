@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments,too-many-locals,import-outside-toplevel
+# pylint: disable=too-many-arguments,too-many-locals,import-outside-toplevel,too-many-lines
 
 from datetime import datetime, timedelta, timezone
 from typing import Callable, cast
@@ -427,7 +427,9 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
     assert campaign.status == CampaignStatuses.DRAFT
 
 
-def test_mixed_status_changes_to_legal_and_illegal_states(setup: SetupType, create_mock_campaign: Callable) -> None:
+def test_mixed_status_changes_to_legal_and_illegal_states(
+    setup: SetupType, create_mock_campaign: Callable, reward_rule: RewardRule
+) -> None:
     """
     Test that, where there are multiple campaigns and some will change to an illegal state,
     Vela returns a 409 and an error message is displayed to advise of any illegal state changes.
@@ -492,7 +494,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(setup: SetupType, crea
 
 
 def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belonging_to_retailer(
-    setup: SetupType, create_mock_campaign: Callable, create_mock_retailer: Callable
+    setup: SetupType, create_mock_campaign: Callable, create_mock_retailer: Callable, reward_rule: RewardRule
 ) -> None:
     """
     Test that, where there are multiple campaigns and some will change to an illegal state,
@@ -584,7 +586,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
 
 
 def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
-    setup: SetupType, create_mock_campaign: Callable
+    setup: SetupType, create_mock_campaign: Callable, reward_rule: RewardRule
 ) -> None:
     """
     Test that, where there are multiple campaigns and some will change to an illegal state,
@@ -881,3 +883,214 @@ def test_activating_a_campaign_with_no_reward_rule_multiple_errors(
 
     db_session.refresh(activable_campaign)
     assert activable_campaign.status == CampaignStatuses.DRAFT
+
+
+@mock.patch("app.api.endpoints.campaign.datetime")
+def test_ending_campaign_convert_pending_rewards(
+    mock_datetime: mock.MagicMock,
+    setup: SetupType,
+    create_mock_campaign: Callable,
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: TaskType,
+    delete_campaign_balances_task_type: TaskType,
+    convert_or_delete_pending_rewards_task_type: TaskType,
+    mocker: MockerFixture,
+) -> None:
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+
+    # Set up a second ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
+    second_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
+    db_session.commit()
+
+    import app.api.endpoints.campaign as endpoints_campaign
+
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
+
+    payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug], "issue_pending_rewards": True}
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    deletion_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    pending_reward_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.PENDING_REWARDS_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    db_session.refresh(second_campaign)
+    assert second_campaign.status == CampaignStatuses.ENDED
+    assert second_campaign.end_date == fake_now.replace(tzinfo=None)
+    spy.assert_called_with(retry_tasks_ids=[deletion_task.task_type_id, pending_reward_task.task_type_id])
+    assert deletion_task.status == RetryTaskStatuses.PENDING
+    assert pending_reward_task.status == RetryTaskStatuses.PENDING
+
+
+@mock.patch("app.api.endpoints.campaign.datetime")
+def test_ending_campaign_delete_pending_rewards(
+    mock_datetime: mock.MagicMock,
+    setup: SetupType,
+    create_mock_campaign: Callable,
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: TaskType,
+    delete_campaign_balances_task_type: TaskType,
+    convert_or_delete_pending_rewards_task_type: TaskType,
+    mocker: MockerFixture,
+) -> None:
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+
+    # Set up a second ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
+    second_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
+    db_session.commit()
+
+    import app.api.endpoints.campaign as endpoints_campaign
+
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
+
+    payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug]}
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    deletion_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    pending_reward_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.PENDING_REWARDS_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    db_session.refresh(second_campaign)
+    assert second_campaign.status == CampaignStatuses.ENDED
+    assert second_campaign.end_date == fake_now.replace(tzinfo=None)
+    spy.assert_called_with(retry_tasks_ids=[deletion_task.task_type_id, pending_reward_task.task_type_id])
+    assert deletion_task.status == RetryTaskStatuses.PENDING
+    assert pending_reward_task.status == RetryTaskStatuses.PENDING
+
+
+@mock.patch("app.api.endpoints.campaign.datetime")
+def test_ending_campaign_convert_pending_rewards_without_refund_window(
+    mock_datetime: mock.MagicMock,
+    setup: SetupType,
+    create_mock_campaign: Callable,
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: TaskType,
+    delete_campaign_balances_task_type: TaskType,
+    convert_or_delete_pending_rewards_task_type: TaskType,
+    mocker: MockerFixture,
+) -> None:
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+
+    # Set up a second ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
+    second_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id)
+    db_session.commit()
+
+    import app.api.endpoints.campaign as endpoints_campaign
+
+    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
+
+    payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug], "issue_pending_rewards": True}
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    reward_status_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    deletion_task = (
+        db_session.execute(
+            select(RetryTask).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    all_tasks = db_session.execute(select(RetryTask)).unique().scalars().all()
+    task_names = [task.task_type.name for task in all_tasks]
+
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    db_session.refresh(second_campaign)
+    assert second_campaign.status == CampaignStatuses.ENDED
+    assert second_campaign.end_date == fake_now.replace(tzinfo=None)
+    assert settings.PENDING_REWARDS_TASK_NAME not in task_names
+    spy.assert_called_with(retry_tasks_ids=[reward_status_task.task_type_id, deletion_task.task_type_id])
+    assert deletion_task.status == RetryTaskStatuses.PENDING
+    assert reward_status_task.status == RetryTaskStatuses.PENDING

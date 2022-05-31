@@ -57,6 +57,7 @@ async def get_active_campaign_slugs(
     if not valid_campaigns:
         if transaction is not None:
             await async_run_query(_update_tx_status, db_session, tx=transaction)
+
         raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
 
     return valid_campaigns

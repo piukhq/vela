@@ -37,9 +37,9 @@ async def _check_remaining_active_campaigns(
         raise HttpErrors.INVALID_STATUS_REQUESTED.value
 
 
-async def _campaign_status_change(
-    db_session: "AsyncSession", campaign_slugs: list[str], requested_status: CampaignStatuses, retailer: RetailerRewards
-) -> tuple[list[dict], int]:
+async def _check_valid_campaigns(
+    campaign_slugs: list[str], campaigns: list[Campaign], requested_status: CampaignStatuses
+) -> tuple[list[dict], int, list[Campaign]]:
     status_code = status.HTTP_200_OK
     is_activation = requested_status == CampaignStatuses.ACTIVE
 
@@ -49,9 +49,6 @@ async def _campaign_status_change(
         HttpsErrorTemplates.MISSING_CAMPAIGN_COMPONENTS: [],
     }
 
-    campaigns: list[Campaign] = await crud.get_campaigns_by_slug(
-        db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer, load_rules=is_activation
-    )
     # Add in any campaigns that were not found
     missing_campaigns = list(set(campaign_slugs) - {campaign.slug for campaign in campaigns})
     if missing_campaigns:
@@ -70,6 +67,15 @@ async def _campaign_status_change(
             status_code = status.HTTP_409_CONFLICT
             errors[HttpsErrorTemplates.INVALID_STATUS_REQUESTED].append(campaign.slug)
 
+    formatted_errors = [
+        error_type.value_with_slugs(campaign_slugs) for error_type, campaign_slugs in errors.items() if campaign_slugs
+    ]
+    return formatted_errors, status_code, valid_campaigns
+
+
+async def _campaign_status_change(
+    db_session: "AsyncSession", campaigns: list[Campaign], requested_status: CampaignStatuses
+) -> None:
     async def _query(campaigns: list[Campaign]) -> None:
         for campaign in campaigns:
             campaign.status = requested_status
@@ -81,12 +87,7 @@ async def _campaign_status_change(
 
         await db_session.commit()
 
-    await async_run_query(_query, db_session, campaigns=valid_campaigns)
-
-    formatted_errors = [
-        error_type.value_with_slugs(campaign_slugs) for error_type, campaign_slugs in errors.items() if campaign_slugs
-    ]
-    return formatted_errors, status_code
+    await async_run_query(_query, db_session, campaigns=campaigns)
 
 
 @router.post(
@@ -100,19 +101,38 @@ async def campaigns_status_change(
     db_session: AsyncSession = Depends(get_session),
 ) -> Any:
     balance_task_type: str = settings.CREATE_CAMPAIGN_BALANCES_TASK_NAME
+    requested_status = payload.requested_status
+    campaigns: list[Campaign] = await crud.get_campaigns_by_slug(
+        db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer, load_rules=True
+    )
+
+    errors, status_code, valid_campaigns = await _check_valid_campaigns(
+        payload.campaign_slugs, campaigns, requested_status
+    )
 
     # Check that this retailer will not be left with no active campaigns
-    if payload.requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
+    if requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
         await _check_remaining_active_campaigns(
             db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer
         )
         balance_task_type = settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME
 
-    errors, status_code = await _campaign_status_change(
+        campaigns_with_refund_window = [
+            campaign for campaign in valid_campaigns if campaign.reward_rule.allocation_window > 0
+        ]
+        if campaigns_with_refund_window and requested_status == CampaignStatuses.ENDED:
+            pending_reward_retry_task_ids = await crud.create_pending_rewards_tasks(
+                db_session=db_session,
+                campaigns=campaigns_with_refund_window,
+                retailer=retailer,
+                issue_pending_rewards=payload.issue_pending_rewards,
+            )
+            asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=pending_reward_retry_task_ids))
+
+    await _campaign_status_change(
         db_session=db_session,
-        campaign_slugs=payload.campaign_slugs,
-        requested_status=payload.requested_status,
-        retailer=retailer,
+        campaigns=valid_campaigns,
+        requested_status=requested_status,
     )
 
     if errors:  # pragma: no cover
@@ -120,7 +140,7 @@ async def campaigns_status_change(
 
     retry_tasks_ids = await crud.create_reward_status_adjustment_and_campaign_balances_tasks(
         db_session=db_session,
-        campaign_slugs=payload.campaign_slugs,
+        campaigns=valid_campaigns,
         retailer=retailer,
         status=payload.requested_status,
         balance_task_type=balance_task_type,

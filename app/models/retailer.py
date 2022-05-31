@@ -18,6 +18,7 @@ class RetailerRewards(Base):
     campaigns = relationship("Campaign", back_populates="retailer")
     transactions = relationship("Transaction", back_populates="retailer")
     processed_transactions = relationship("ProcessedTransaction", back_populates="retailer")
+    stores = relationship("RetailerStore", back_populates="retailer")
 
     __mapper_args__ = {"eager_defaults": True}
 
@@ -68,3 +69,13 @@ class RewardRule(Base, TimestampMixin):
 
     campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
     campaign = relationship("Campaign", back_populates="reward_rule")
+
+
+class RetailerStore(Base, TimestampMixin):
+    __tablename__ = "retailer_store"
+
+    store_name = Column(String, nullable=False)
+    mid = Column(String, nullable=False, unique=True)
+    retailer_id = Column(Integer, ForeignKey("retailer_rewards.id", ondelete="CASCADE"), nullable=False)
+
+    retailer = relationship("RetailerRewards", back_populates="stores")

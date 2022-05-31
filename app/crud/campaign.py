@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.utils.asynchronous import async_create_task
@@ -38,15 +38,11 @@ async def get_campaigns_by_slug(
 
 async def create_reward_status_adjustment_and_campaign_balances_tasks(
     db_session: "AsyncSession",
-    campaign_slugs: list[str],
     retailer: RetailerRewards,
+    campaigns: list[Campaign],
     status: CampaignStatuses,
     balance_task_type: str,
 ) -> list[int]:
-    campaigns: list[Campaign] = await get_campaigns_by_slug(
-        db_session=db_session, campaign_slugs=campaign_slugs, retailer=retailer, load_rules=True
-    )
-
     async def _query() -> list[RetryTask]:
         tasks = []
         for campaign in campaigns:
@@ -70,6 +66,33 @@ async def create_reward_status_adjustment_and_campaign_balances_tasks(
                     params={
                         "retailer_slug": retailer.slug,
                         "campaign_slug": campaign.slug,
+                    },
+                )
+            )
+
+        await db_session.commit()
+        return tasks
+
+    return [task.retry_task_id for task in await async_run_query(_query, db_session)]
+
+
+async def create_pending_rewards_tasks(
+    db_session: "AsyncSession",
+    campaigns: list[Campaign],
+    retailer: RetailerRewards,
+    issue_pending_rewards: Optional[bool] = False,
+) -> list[int]:
+    async def _query() -> list[RetryTask]:
+        tasks = []
+        for campaign in campaigns:
+            tasks.append(
+                await async_create_task(
+                    db_session=db_session,
+                    task_type_name=settings.PENDING_REWARDS_TASK_NAME,
+                    params={
+                        "retailer_slug": retailer.slug,
+                        "campaign_slug": campaign.slug,
+                        "issue_pending_rewards": issue_pending_rewards,
                     },
                 )
             )
