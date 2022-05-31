@@ -1,4 +1,3 @@
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from sqlalchemy.future import select
@@ -7,6 +6,7 @@ from sqlalchemy.orm import joinedload
 from app.db.base_class import async_run_query
 from app.enums import CampaignStatuses, HttpErrors, LoyaltyTypes, TransactionProcessingStatuses
 from app.models import Campaign, EarnRule, RetailerRewards, Transaction
+from app.models.retailer import RetailerStore
 
 if TYPE_CHECKING:  # pragma: no cover
 
@@ -63,23 +63,51 @@ async def get_active_campaign_slugs(
     return valid_campaigns
 
 
-def _calculate_transaction_amounts_from_earn_rules(earn_rules: list[EarnRule], transaction: Transaction) -> dict:
-    adjustment_amounts: defaultdict = defaultdict(int)
+def _calculate_amount_and_set_threshold(
+    adjustment_amounts: dict[str, dict], tx_amount: int, campaign: Campaign, earn_rule: EarnRule
+) -> None:
+
+    # NOTE: Business logic mandates that the earn rules of a campaign must have the same threshold.
+    # in case of discrepacies we set the threshold to the lowest af all thresholds.
+    if adjustment_amounts[campaign.slug]["threshold"]:
+        adjustment_amounts[campaign.slug]["threshold"] = min(
+            adjustment_amounts[campaign.slug]["threshold"], earn_rule.threshold
+        )
+    else:
+        adjustment_amounts[campaign.slug]["threshold"] = earn_rule.threshold
+
+    if campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR:
+
+        if earn_rule.max_amount and tx_amount > earn_rule.max_amount:
+            adjustment_amounts[campaign.slug]["amount"] += earn_rule.max_amount
+            adjustment_amounts[campaign.slug]["accepted"] = True
+
+        # pylint: disable=chained-comparison
+        elif (tx_amount < 0 and campaign.reward_rule.allocation_window > 0) or tx_amount >= earn_rule.threshold:
+            adjustment_amounts[campaign.slug]["amount"] += tx_amount * earn_rule.increment_multiplier
+            adjustment_amounts[campaign.slug]["accepted"] = True
+
+    elif campaign.loyalty_type == LoyaltyTypes.STAMPS and tx_amount >= earn_rule.threshold:
+        adjustment_amounts[campaign.slug]["amount"] += earn_rule.increment * earn_rule.increment_multiplier
+        adjustment_amounts[campaign.slug]["accepted"] = True
+
+
+def _calculate_transaction_amounts_for_each_earn_rule(campaigns: list[Campaign], transaction: Transaction) -> dict:
+    adjustment_amounts: dict[str, dict] = {}
 
     # pylint: disable=chained-comparison
-    for earn_rule in earn_rules:
-        if earn_rule.campaign.loyalty_type == LoyaltyTypes.ACCUMULATOR:
-            if earn_rule.max_amount and transaction.amount > earn_rule.max_amount:
-                adjustment_amounts[earn_rule.campaign.slug] += earn_rule.max_amount
-            elif (
-                transaction.amount < 0 and earn_rule.campaign.reward_rule.allocation_window > 0
-            ) or transaction.amount >= earn_rule.threshold:
-                adjustment_amounts[earn_rule.campaign.slug] += transaction.amount * earn_rule.increment_multiplier
+    for campaign in campaigns:
+        adjustment_amounts[campaign.slug] = {
+            "type": campaign.loyalty_type,
+            "amount": 0,
+            "threshold": None,
+            "accepted": False,
+        }
 
-        elif earn_rule.campaign.loyalty_type == LoyaltyTypes.STAMPS and transaction.amount >= earn_rule.threshold:
-            adjustment_amounts[earn_rule.campaign.slug] += earn_rule.increment * earn_rule.increment_multiplier
+        for earn_rule in campaign.earn_rules:
+            _calculate_amount_and_set_threshold(adjustment_amounts, transaction.amount, campaign, earn_rule)
 
-    return dict(adjustment_amounts)
+    return adjustment_amounts
 
 
 async def get_adjustment_amounts(
@@ -89,18 +117,29 @@ async def get_adjustment_amounts(
         return (
             (
                 await db_session.execute(
-                    select(EarnRule)
-                    .join(Campaign)
-                    .options(
-                        joinedload(EarnRule.campaign, innerjoin=True).joinedload(Campaign.reward_rule, innerjoin=True)
-                    )
+                    select(Campaign)
+                    .options(joinedload(Campaign.earn_rules), joinedload(Campaign.reward_rule))
                     .where(Campaign.slug.in_(campaign_slugs))
                 )
             )
+            .unique()
             .scalars()
             .all()
         )
 
-    earn_rules = await async_run_query(_query, db_session, rollback_on_exc=False)
+    campaigns = await async_run_query(_query, db_session, rollback_on_exc=False)
+    return _calculate_transaction_amounts_for_each_earn_rule(campaigns, transaction)
 
-    return _calculate_transaction_amounts_from_earn_rules(earn_rules, transaction)
+
+async def get_retailer_store_name_by_mid(db_session: "AsyncSession", retailer_id: int, mid: str) -> str | None:
+    async def _query() -> str | None:
+        return (
+            await db_session.execute(
+                select(RetailerStore.store_name).where(
+                    RetailerStore.mid == mid,
+                    RetailerStore.retailer_id == retailer_id,
+                )
+            )
+        ).scalar_one_or_none()
+
+    return await async_run_query(_query, db_session)

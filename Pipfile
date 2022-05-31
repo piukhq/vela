@@ -32,6 +32,8 @@ typer = "*"
 apscheduler = "*"
 aiohttp = "*"
 aiodns = "*"
+babel = "*"
+cosmos-message-lib = {version=">=0.3.0", index="pypi-cloud"}
 
 [dev-packages]
 typing-extensions = "*"
