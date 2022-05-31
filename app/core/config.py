@@ -196,6 +196,7 @@ class Settings(BaseSettings):  # pragma: no cover
     REWARD_STATUS_ADJUSTMENT_TASK_NAME = "reward-status-adjustment"
     CREATE_CAMPAIGN_BALANCES_TASK_NAME = "create-campaign-balances"
     DELETE_CAMPAIGN_BALANCES_TASK_NAME = "delete-campaign-balances"
+    PENDING_REWARDS_TASK_NAME = "convert-or-delete-pending-rewards"
 
     TASK_MAX_RETRIES: int = 6
     TASK_RETRY_BACKOFF_BASE: float = 3.0
