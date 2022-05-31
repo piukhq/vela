@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic.types import constr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
@@ -148,4 +149,33 @@ async def campaigns_status_change(
 
     asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=retry_tasks_ids))
 
+    return {}
+
+
+@router.delete(
+    path="/{retailer_slug}/campaigns/{campaign_slug}",
+    status_code=status.HTTP_200_OK,
+)
+async def delete_draft_campaigns(
+    campaign_slug: constr(min_length=1, strip_whitespace=True),  # type: ignore  # noqa
+    retailer: RetailerRewards = Depends(retailer_is_valid),
+    db_session: AsyncSession = Depends(get_session),
+) -> Any:
+    campaign = await crud.get_campaign(
+        db_session,
+        retailer=retailer,
+        campaign_slug=campaign_slug,
+    )
+
+    async def _query() -> None:
+        await db_session.delete(campaign)
+        await db_session.commit()
+
+    if campaign:
+        if campaign.status == CampaignStatuses.DRAFT:
+            await async_run_query(_query, db_session)
+        else:
+            raise HttpErrors.DELETE_FAILED.value
+    else:
+        raise HttpErrors.NO_CAMPAIGN_FOUND.value
     return {}

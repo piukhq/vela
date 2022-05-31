@@ -1094,3 +1094,111 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
     spy.assert_called_with(retry_tasks_ids=[reward_status_task.task_type_id, deletion_task.task_type_id])
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert reward_status_task.status == RetryTaskStatuses.PENDING
+
+
+def test_delete_draft_campaign(
+    setup: SetupType,
+    create_mock_campaign: Callable,
+) -> None:
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+
+    # Create second campaign
+    second_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.DRAFT,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    db_session.commit()
+
+    resp = client.delete(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/{second_campaign.slug}",
+        headers=auth_headers,
+    )
+
+    campaigns = (
+        db_session.execute(
+            select(Campaign).where(
+                Campaign.slug == second_campaign.slug,
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    assert len(campaigns) == 0
+
+
+def test_404_campaign_not_found_for_delete_draft_campaign(
+    setup: SetupType,
+    create_mock_campaign: Callable,
+) -> None:
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+
+    # Create second campaign
+    second_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.DRAFT,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    db_session.commit()
+
+    resp = client.delete(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/wrong-campaign-slug",
+        headers=auth_headers,
+    )
+
+    campaigns = (
+        db_session.execute(
+            select(Campaign).where(
+                Campaign.slug == second_campaign.slug,
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_404_NOT_FOUND
+    assert len(campaigns) == 1
+
+
+def test_409_delete_failed_for_delete_draft_campaign(
+    setup: SetupType,
+    create_mock_campaign: Callable,
+) -> None:
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+
+    # Create second campaign
+    second_campaign: Campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    db_session.commit()
+
+    resp = client.delete(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/{second_campaign.slug}",
+        headers=auth_headers,
+    )
+
+    campaigns = (
+        db_session.execute(
+            select(Campaign).where(
+                Campaign.slug == second_campaign.slug,
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
+    assert len(campaigns) == 1
