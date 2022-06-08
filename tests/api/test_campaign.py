@@ -87,10 +87,6 @@ def test_update_campaign_active_status_to_ended(
         }
     )
 
-    import app.api.endpoints.campaign as endpoints_campaign
-
-    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
-
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
@@ -112,7 +108,6 @@ def test_update_campaign_active_status_to_ended(
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
     assert campaign.end_date == fake_now.replace(tzinfo=None)
-    spy.assert_called_once()
     assert activation_task.status == RetryTaskStatuses.PENDING
 
 
@@ -164,9 +159,6 @@ def test_update_multiple_campaigns_ok(
             "slug": "fourth-test-campaign",
         }
     )
-    import app.api.endpoints.campaign as endpoints_campaign
-
-    spy = mocker.spy(endpoints_campaign, "enqueue_many_tasks")
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
@@ -195,7 +187,6 @@ def test_update_multiple_campaigns_ok(
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED
     assert third_campaign.end_date == fake_now.replace(tzinfo=None)
-    spy.assert_called_once()
     assert len(activation_tasks) == 3
     for activation_task in activation_tasks:
         assert activation_task.status == RetryTaskStatuses.PENDING

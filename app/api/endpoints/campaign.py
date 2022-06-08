@@ -120,7 +120,7 @@ async def campaigns_status_change(
         campaigns_with_refund_window = [
             campaign for campaign in valid_campaigns if campaign.reward_rule.allocation_window > 0
         ]
-        if campaigns_with_refund_window and requested_status == CampaignStatuses.ENDED:
+        if campaigns_with_refund_window and requested_status == CampaignStatuses.ENDED or CampaignStatuses.CANCELLED:
             pending_reward_retry_task_ids = await crud.create_pending_rewards_tasks(
                 db_session=db_session,
                 campaigns=campaigns_with_refund_window,
