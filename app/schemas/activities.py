@@ -1,5 +1,4 @@
-from datetime import datetime as dt
-
+from cosmos_message_lib.schemas import utc_datetime
 from pydantic import BaseModel, validator
 
 from app.enums import LoyaltyTypes
@@ -17,7 +16,7 @@ class EarnedSchema(BaseModel):
 
 class ProcessedTXEventSchema(BaseModel):
     transaction_id: str
-    datetime: dt
+    datetime: utc_datetime
     amount: str
     amount_currency: str
     store_name: str
