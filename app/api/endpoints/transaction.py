@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
+from app.activity_utils.tasks import send_processed_tx_activity
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
-from app.api.tasks import enqueue_many_tasks, send_processed_tx_event
+from app.api.tasks import enqueue_many_tasks
 from app.internal_requests import validate_account_holder_uuid
 from app.models import RetailerRewards
 from app.schemas import CreateTransactionSchema
@@ -44,7 +45,7 @@ async def record_transaction(
     is_refund: bool = processed_transaction.amount < 0
 
     asyncio.create_task(
-        send_processed_tx_event(
+        send_processed_tx_activity(
             processed_tx=processed_transaction,
             retailer=retailer,
             adjustment_amounts=adjustment_amounts,

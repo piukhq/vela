@@ -7,14 +7,16 @@ from cosmos_message_lib import ActivityType
 from deepdiff import DeepDiff
 from pytest_mock import MockerFixture
 
-from app.api.tasks import send_processed_tx_event
+from app.activity_utils.tasks import send_processed_tx_activity
 from app.enums import LoyaltyTypes
 from app.models import ProcessedTransaction, RetailerStore
 from tests.conftest import SetupType
 
 
 @pytest.mark.asyncio
-async def test_send_processed_tx_event(setup: SetupType, retailer_store: RetailerStore, mocker: MockerFixture) -> None:
+async def test_send_processed_tx_activity(
+    setup: SetupType, retailer_store: RetailerStore, mocker: MockerFixture
+) -> None:
     db_session, retailer, campaign = setup
     ptx = ProcessedTransaction(
         transaction_id="TSTTXID1234",
@@ -59,7 +61,7 @@ async def test_send_processed_tx_event(setup: SetupType, retailer_store: Retaile
             ],
         },
     }
-    await send_processed_tx_event(
+    await send_processed_tx_activity(
         processed_tx=ptx,
         retailer=retailer,
         adjustment_amounts={

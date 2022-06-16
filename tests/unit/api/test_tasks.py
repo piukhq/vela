@@ -1,9 +1,9 @@
-from app.api.tasks import _build_earns, _build_reasons
+from app.activity_utils.utils import build_tx_history_earns, build_tx_history_reasons
 from app.enums import LoyaltyTypes
 
 
-def test__build_reasons() -> None:
-    res_eur = _build_reasons(
+def test_build_tx_history_reasons() -> None:
+    res_eur = build_tx_history_reasons(
         1188,
         {
             1: {"accepted": True, "threshold": 1},
@@ -17,7 +17,7 @@ def test__build_reasons() -> None:
         "transaction amount €11.88 does no meet the required threshold €20.00",
     ]
 
-    refund_res_gbp = _build_reasons(
+    refund_res_gbp = build_tx_history_reasons(
         1188,
         {
             1: {"accepted": True, "threshold": 1},
@@ -29,8 +29,8 @@ def test__build_reasons() -> None:
     assert refund_res_gbp == ["refund of £11.88 accepted", "refund of £11.88 not accepted"]
 
 
-def test__build_earns() -> None:
-    res = _build_earns(
+def test_build_tx_history_earns() -> None:
+    res = build_tx_history_earns(
         {
             1: {"type": LoyaltyTypes.ACCUMULATOR, "amount": 1199},
             2: {"type": LoyaltyTypes.STAMPS, "amount": 5},
