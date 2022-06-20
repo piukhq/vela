@@ -242,6 +242,10 @@ class Settings(BaseSettings):  # pragma: no cover
     REDIS_KEY_PREFIX: str = "vela:"
     ACTIVATE_TASKS_METRICS: bool = True
 
+    RABBITMQ_URI: str = "amqp://guest:guest@localhost:5672//"
+    MESSAGE_EXCHANGE_NAME: str = "hubble-activities"
+    TX_PROCESSED_ROUTING_KEY: str = "activity.vela.tx-processed"
+
     class Config:
         case_sensitive = True
         # env var settings priority ie priority 1 will override priority 2:

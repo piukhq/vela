@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
+from app.activity_utils.tasks import send_processed_tx_activity
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
 from app.api.tasks import enqueue_many_tasks
 from app.internal_requests import validate_account_holder_uuid
@@ -34,17 +35,28 @@ async def record_transaction(
 
     transaction = await crud.create_transaction(db_session, retailer, transaction_data)
     active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction)
-    adjustment_amounts: dict = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
+    adjustment_amounts = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
 
     processed_transaction = await crud.create_processed_transaction(
         db_session, retailer, active_campaign_slugs, transaction
     )
     await crud.delete_transaction(db_session, transaction)
+
     is_refund: bool = processed_transaction.amount < 0
 
-    if adjustment_amounts:
+    asyncio.create_task(
+        send_processed_tx_activity(
+            processed_tx=processed_transaction,
+            retailer=retailer,
+            adjustment_amounts=adjustment_amounts,
+            is_refund=is_refund,
+        )
+    )
+
+    accepted_adjustments = {k: v["amount"] for k, v in adjustment_amounts.items() if v["accepted"]}
+    if accepted_adjustments:
         adjustment_tasks_ids = await crud.create_reward_adjustment_tasks(
-            db_session, processed_transaction, adjustment_amounts
+            db_session, processed_transaction, accepted_adjustments
         )
         asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=adjustment_tasks_ids))
 
@@ -54,7 +66,6 @@ async def record_transaction(
             response = "Awarded"
 
     else:
-
         if is_refund:
             response = "Refunds not accepted"
         else:

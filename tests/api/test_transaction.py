@@ -15,7 +15,7 @@ from requests import Response
 from sqlalchemy import func, select
 
 from app.core.config import settings
-from app.crud.retailer import _calculate_transaction_amounts_from_earn_rules
+from app.crud.retailer import _calculate_transaction_amounts_for_each_earn_rule
 from app.enums import CampaignStatuses, LoyaltyTypes, TransactionProcessingStatuses
 from app.models import EarnRule, ProcessedTransaction, RetailerRewards, Transaction
 from app.schemas.transaction import CreateTransactionSchema
@@ -478,7 +478,7 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     assert processed_transaction.account_holder_uuid == account_holder_uuid
 
 
-def test__calculate_transaction_amounts_from_earn_rules_for_stamps(
+def test__calculate_transaction_amounts_for_each_earn_rule_for_stamps(
     setup: SetupType,
     earn_rule: EarnRule,
     payload: dict,
@@ -493,14 +493,14 @@ def test__calculate_transaction_amounts_from_earn_rules_for_stamps(
     mock_transaction_params = CreateTransactionSchema(**payload)
     mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
 
-    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
-        earn_rules=[earn_rule], transaction=mock_transaction
+    adjustment_amounts = _calculate_transaction_amounts_for_each_earn_rule(
+        campaigns=[campaign], transaction=mock_transaction
     )
 
-    assert adjustment_amounts[campaign.slug] == 4
+    assert adjustment_amounts[campaign.slug]["amount"] == 4
 
 
-def test__calculate_transaction_amounts_from_earn_rules_for_accumulator(
+def test__calculate_transaction_amounts_for_each_earn_rule_for_accumulator(
     setup: SetupType,
     earn_rule: EarnRule,
     payload: dict,
@@ -519,14 +519,14 @@ def test__calculate_transaction_amounts_from_earn_rules_for_accumulator(
     mock_transaction_params = CreateTransactionSchema(**payload)
     mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
 
-    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
-        earn_rules=[earn_rule], transaction=mock_transaction
+    adjustment_amounts = _calculate_transaction_amounts_for_each_earn_rule(
+        campaigns=[campaign], transaction=mock_transaction
     )
 
-    assert adjustment_amounts["test-campaign"] == earn_rule.max_amount
+    assert adjustment_amounts["test-campaign"]["amount"] == earn_rule.max_amount
 
 
-def test__calculate_transaction_amounts_from_earn_rules_for_accumulator_transaction_less_than_zero(
+def test__calculate_transaction_amounts_for_each_earn_rule_for_accumulator_transaction_less_than_zero(
     setup: SetupType,
     earn_rule: EarnRule,
     payload: dict,
@@ -545,14 +545,16 @@ def test__calculate_transaction_amounts_from_earn_rules_for_accumulator_transact
     mock_transaction_params = CreateTransactionSchema(**payload)
     mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
 
-    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
-        earn_rules=[earn_rule], transaction=mock_transaction
+    adjustment_amounts = _calculate_transaction_amounts_for_each_earn_rule(
+        campaigns=[campaign], transaction=mock_transaction
     )
 
-    assert adjustment_amounts["test-campaign"] == int(mock_transaction.amount * earn_rule.increment_multiplier)
+    assert adjustment_amounts["test-campaign"]["amount"] == int(
+        mock_transaction.amount * earn_rule.increment_multiplier
+    )
 
 
-def test__calculate_transaction_amounts_from_earn_rules_for_accumulator_transaction_greater_than_threshold(
+def test__calculate_transaction_amounts_for_each_earn_rule_for_accumulator_transaction_greater_than_threshold(
     setup: SetupType,
     earn_rule: EarnRule,
     payload: dict,
@@ -571,8 +573,10 @@ def test__calculate_transaction_amounts_from_earn_rules_for_accumulator_transact
     mock_transaction_params = CreateTransactionSchema(**payload)
     mock_transaction = create_mock_transaction(retailer_id=retailer.id, **dict(mock_transaction_params))
 
-    adjustment_amounts = _calculate_transaction_amounts_from_earn_rules(
-        earn_rules=[earn_rule], transaction=mock_transaction
+    adjustment_amounts = _calculate_transaction_amounts_for_each_earn_rule(
+        campaigns=[campaign], transaction=mock_transaction
     )
 
-    assert adjustment_amounts["test-campaign"] == int(mock_transaction.amount * earn_rule.increment_multiplier)
+    assert adjustment_amounts["test-campaign"]["amount"] == int(
+        mock_transaction.amount * earn_rule.increment_multiplier
+    )
