@@ -1,16 +1,15 @@
-import asyncio
-
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic.types import constr
+from retry_tasks_lib.db.models import RetryTask
+from retry_tasks_lib.utils.asynchronous import enqueue_many_retry_tasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
-from app.api.tasks import enqueue_many_tasks
-from app.core.config import settings
+from app.core.config import redis_raw, settings
 from app.db.base_class import async_run_query
 from app.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates
 from app.models.retailer import Campaign, RetailerRewards
@@ -111,6 +110,8 @@ async def campaigns_status_change(
         payload.campaign_slugs, campaigns, requested_status
     )
 
+    pending_task_ids: list[int] = []
+
     # Check that this retailer will not be left with no active campaigns
     if requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
         await _check_remaining_active_campaigns(
@@ -121,33 +122,57 @@ async def campaigns_status_change(
         campaigns_with_refund_window = [
             campaign for campaign in valid_campaigns if campaign.reward_rule.allocation_window > 0
         ]
-        if campaigns_with_refund_window and requested_status == CampaignStatuses.ENDED:
+        if campaigns_with_refund_window:
             pending_reward_retry_task_ids = await crud.create_pending_rewards_tasks(
                 db_session=db_session,
                 campaigns=campaigns_with_refund_window,
                 retailer=retailer,
-                issue_pending_rewards=payload.issue_pending_rewards,
+                issue_pending_rewards=payload.issue_pending_rewards and requested_status == CampaignStatuses.ENDED,
             )
-            asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=pending_reward_retry_task_ids))
+            pending_task_ids.extend(pending_reward_retry_task_ids)
 
-    await _campaign_status_change(
-        db_session=db_session,
-        campaigns=valid_campaigns,
-        requested_status=requested_status,
-    )
+    if valid_campaigns:
+        await _campaign_status_change(
+            db_session=db_session,
+            campaigns=valid_campaigns,
+            requested_status=requested_status,
+        )
+
+        retry_tasks_ids = await crud.create_reward_status_adjustment_and_campaign_balances_tasks(
+            db_session=db_session,
+            campaigns=valid_campaigns,
+            retailer=retailer,
+            status=payload.requested_status,
+            balance_task_type=balance_task_type,
+        )
+        pending_task_ids.extend(retry_tasks_ids)
+
+        try:
+            await enqueue_many_retry_tasks(
+                db_session=db_session,
+                retry_tasks_ids=pending_task_ids,
+                connection=redis_raw,
+                raise_exc=True,
+            )
+
+        except Exception:
+
+            async def _clean_up() -> None:
+                await db_session.execute(
+                    RetryTask.__table__.delete()
+                    .where(RetryTask.retry_task_id.in_(pending_task_ids))
+                    .execution_options(synchronize_session=False)
+                )
+                await db_session.commit()
+
+            await async_run_query(_clean_up, db_session, rollback_on_exc=True)
+            raise HTTPException(  # pylint: disable=raise-missing-from
+                detail="Failed to enqueue tasks.",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     if errors:  # pragma: no cover
         raise HTTPException(detail=errors, status_code=status_code)
-
-    retry_tasks_ids = await crud.create_reward_status_adjustment_and_campaign_balances_tasks(
-        db_session=db_session,
-        campaigns=valid_campaigns,
-        retailer=retailer,
-        status=payload.requested_status,
-        balance_task_type=balance_task_type,
-    )
-
-    asyncio.create_task(enqueue_many_tasks(retry_tasks_ids=retry_tasks_ids))
 
     return {}
 
