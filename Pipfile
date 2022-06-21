@@ -25,13 +25,15 @@ rq = "*"
 asyncpg = "*"
 tenacity = "*"
 requests = "*"
-retry-tasks-lib = {version=">=1.12.9", index="pypi-cloud"}
+retry-tasks-lib = {version=">=1.12.10", index="pypi-cloud"}
 prometheus-client = "==0.12.0" # make sure app.core.cli monkeypatch is still needed and functioning
 fastapi-prometheus-metrics = {version=">=0.2.1", index="pypi-cloud"}
 typer = "*"
 apscheduler = "*"
 aiohttp = "*"
 aiodns = "*"
+babel = "*"
+cosmos-message-lib = {version=">=1.1.1", index="pypi-cloud"}
 
 [dev-packages]
 typing-extensions = "*"
@@ -50,6 +52,7 @@ pytest-asyncio = "*"
 sqlalchemy-utils = "*"
 pylint = "*"
 pylint-pytest = "*"
+deepdiff = "*"
 
 [requires]
 python_version = "3.10"

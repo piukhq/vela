@@ -13,7 +13,7 @@ from app.core.config import redis, settings
 from app.db.base import Base
 from app.db.session import SyncSessionMaker, sync_engine
 from app.enums import CampaignStatuses
-from app.models import Campaign, EarnRule, RetailerRewards, Transaction
+from app.models import Campaign, EarnRule, RetailerRewards, RetailerStore, Transaction
 from app.models.retailer import RewardRule
 
 if TYPE_CHECKING:
@@ -376,3 +376,11 @@ def run_task_with_metrics() -> Generator:
     settings.ACTIVATE_TASKS_METRICS = True
     yield
     settings.ACTIVATE_TASKS_METRICS = val
+
+
+@pytest.fixture
+def retailer_store(db_session: "Session", retailer: RetailerRewards) -> RetailerStore:
+    rstore = RetailerStore(store_name="Test Store", mid="TS123456", retailer=retailer)
+    db_session.add(rstore)
+
+    return rstore
