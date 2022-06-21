@@ -557,7 +557,7 @@ def test__process_reward_status_adjustment_connection_error(
 
 def test__set_param_value(db_session: "Session", reward_adjustment_task: RetryTask) -> None:
     value = str(uuid4())
-    assert 999 == _set_param_value(db_session, reward_adjustment_task, "secondary_reward_retry_task_id", 999)
+    assert "999" == _set_param_value(db_session, reward_adjustment_task, "secondary_reward_retry_task_id", 999)
     assert value == _set_param_value(db_session, reward_adjustment_task, "post_allocation_token", value)
 
 

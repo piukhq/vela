@@ -33,7 +33,7 @@ apscheduler = "*"
 aiohttp = "*"
 aiodns = "*"
 babel = "*"
-cosmos-message-lib = {version=">=0.3.1", index="pypi-cloud"}
+cosmos-message-lib = {version=">=1.1.1", index="pypi-cloud"}
 
 [dev-packages]
 typing-extensions = "*"
