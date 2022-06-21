@@ -85,6 +85,13 @@ class HttpErrors(Enum):
         },
         status_code=status.HTTP_404_NOT_FOUND,
     )
+    DELETE_FAILED = HTTPException(
+        detail={
+            "display_message": "The campaign could not be deleted.",
+            "code": "DELETE_FAILED",
+        },
+        status_code=status.HTTP_409_CONFLICT,
+    )
 
 
 class HttpsErrorTemplates(Enum):

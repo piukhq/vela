@@ -101,3 +101,20 @@ async def create_pending_rewards_tasks(
         return tasks
 
     return [task.retry_task_id for task in await async_run_query(_query, db_session)]
+
+
+async def get_campaign(
+    db_session: "AsyncSession",
+    campaign_slug: str,
+    retailer: RetailerRewards,
+) -> Campaign:
+    async def _query() -> Campaign:
+        return (
+            await db_session.execute(
+                select(Campaign)
+                .with_for_update()
+                .where(Campaign.slug == campaign_slug, Campaign.retailer_id == retailer.id)
+            )
+        ).scalar_one_or_none()
+
+    return await async_run_query(_query, db_session, rollback_on_exc=False)
