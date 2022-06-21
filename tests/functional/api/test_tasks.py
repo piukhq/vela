@@ -34,7 +34,7 @@ async def test_send_processed_tx_activity(
     mock_to_thread = mocker.patch("asyncio.to_thread")
 
     expected_payload = {
-        "type": ActivityType.TRANSACTION_HISTORY,
+        "type": ActivityType.TX_HISTORY,
         "datetime": ptx.created_at,
         "underlying_datetime": ptx.datetime,
         "summary": f"{retailer.slug} Transaction Processed for {retailer_store.store_name} (MID: {ptx.mid})",

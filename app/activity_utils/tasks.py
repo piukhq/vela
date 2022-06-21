@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 connection, exchange = get_connection_and_exchange(
-    rabbitmq_uri=settings.RABBITMQ_URI,
+    rabbitmq_dsn=settings.RABBITMQ_URI,
     message_exchange_name=settings.MESSAGE_EXCHANGE_NAME,
 )
 
@@ -38,7 +38,7 @@ async def send_processed_tx_activity(
         try:
             store_name = await get_retailer_store_name_by_mid(db_session, retailer.id, processed_tx.mid) or "N/A"
             payload = {
-                "type": ActivityType.TRANSACTION_HISTORY,
+                "type": ActivityType.TX_HISTORY,
                 "datetime": processed_tx.created_at,
                 "underlying_datetime": processed_tx.datetime,
                 "summary": f"{retailer.slug} Transaction Processed for {store_name} (MID: {processed_tx.mid})",
