@@ -38,8 +38,8 @@ class Campaign(Base, TimestampMixin):
     end_date = Column(DateTime, nullable=True)
 
     retailer = relationship("RetailerRewards", back_populates="campaigns")
-    earn_rules = relationship("EarnRule", back_populates="campaign")
-    reward_rule = relationship("RewardRule", back_populates="campaign", uselist=False)
+    earn_rules = relationship("EarnRule", cascade="all,delete", back_populates="campaign")
+    reward_rule = relationship("RewardRule", cascade="all,delete", back_populates="campaign", uselist=False)
 
     def __str__(self) -> str:  # pragma: no cover
         return str(self.name)
