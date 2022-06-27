@@ -7,7 +7,7 @@ def build_tx_history_reasons(tx_amount: int, adjustments: dict, is_refund: bool,
     reasons = []
     for v in adjustments.values():
 
-        amount = pence_integer_to_currency_string(tx_amount, currency)
+        amount = pence_integer_to_currency_string(abs(tx_amount), currency)
         threshold = pence_integer_to_currency_string(v["threshold"], currency)
 
         if v["accepted"]:
@@ -42,4 +42,4 @@ def pence_integer_to_currency_string(value: int, currency: str, currency_sign: b
     if not currency_sign:
         extras = {"format": "#,##0.##"}
 
-    return format_currency(abs(value) / 100, currency, locale="en_GB", **extras)
+    return format_currency(value / 100, currency, locale="en_GB", **extras)
