@@ -180,6 +180,7 @@ async def campaigns_status_change(
 @router.delete(
     path="/{retailer_slug}/campaigns/{campaign_slug}",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(user_is_authorised)],
 )
 async def delete_draft_campaigns(
     campaign_slug: constr(min_length=1, strip_whitespace=True),  # type: ignore  # noqa
