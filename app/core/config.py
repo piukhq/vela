@@ -239,6 +239,7 @@ class Settings(BaseSettings):  # pragma: no cover
 
     REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "*/10 * * * *"
     REPORT_TASKS_SUMMARY_SCHEDULE: str = "5,20,35,50 */1 * * *"
+    REPORT_JOB_QUEUE_LENGTH_SCHEDULE: str = "*/10 * * * *"
     REDIS_KEY_PREFIX: str = "vela:"
     ACTIVATE_TASKS_METRICS: bool = True
 
