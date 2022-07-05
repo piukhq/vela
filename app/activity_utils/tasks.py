@@ -2,8 +2,9 @@ import asyncio
 
 from typing import TYPE_CHECKING
 
-from cosmos_message_lib import ActivityType, get_connection_and_exchange, verify_payload_and_send_activity
+from cosmos_message_lib import get_connection_and_exchange, verify_payload_and_send_activity
 
+from app.activity_utils.enums import ActivityType
 from app.activity_utils.schemas import ProcessedTXEventSchema
 from app.core.config import settings
 from app.crud import get_retailer_store_name_by_mid
@@ -38,7 +39,7 @@ async def send_processed_tx_activity(
         try:
             store_name = await get_retailer_store_name_by_mid(db_session, retailer.id, processed_tx.mid) or "N/A"
             payload = {
-                "type": ActivityType.TX_HISTORY,
+                "type": ActivityType.TX_HISTORY.name,
                 "datetime": processed_tx.created_at,
                 "underlying_datetime": processed_tx.datetime,
                 "summary": f"{retailer.slug} Transaction Processed for {store_name} (MID: {processed_tx.mid})",
@@ -63,5 +64,5 @@ async def send_processed_tx_activity(
             raise
 
     await asyncio.to_thread(
-        verify_payload_and_send_activity, connection, exchange, payload, settings.TX_PROCESSED_ROUTING_KEY
+        verify_payload_and_send_activity, connection, exchange, payload, ActivityType.TX_HISTORY.value
     )
