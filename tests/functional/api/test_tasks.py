@@ -3,10 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from cosmos_message_lib import ActivityType
 from deepdiff import DeepDiff
 from pytest_mock import MockerFixture
 
+from app.activity_utils.enums import ActivityType
 from app.activity_utils.tasks import send_processed_tx_activity
 from app.enums import LoyaltyTypes
 from app.models import ProcessedTransaction, RetailerStore
@@ -34,7 +34,7 @@ async def test_send_processed_tx_activity(
     mock_to_thread = mocker.patch("asyncio.to_thread")
 
     expected_payload = {
-        "type": ActivityType.TX_HISTORY,
+        "type": ActivityType.TX_HISTORY.name,
         "datetime": ptx.created_at,
         "underlying_datetime": ptx.datetime,
         "summary": f"{retailer.slug} Transaction Processed for {retailer_store.store_name} (MID: {ptx.mid})",
