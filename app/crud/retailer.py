@@ -92,7 +92,7 @@ def _calculate_amount_and_set_threshold(
         adjustment_amounts[campaign.slug]["accepted"] = True
 
 
-def _calculate_transaction_amounts_for_each_earn_rule(campaigns: list[Campaign], transaction: Transaction) -> dict:
+def _calculate_transaction_amounts_for_each_earn_rule(campaigns: list[Campaign], tx_amount: int) -> dict:
     adjustment_amounts: dict[str, dict] = {}
 
     # pylint: disable=chained-comparison
@@ -105,7 +105,7 @@ def _calculate_transaction_amounts_for_each_earn_rule(campaigns: list[Campaign],
         }
 
         for earn_rule in campaign.earn_rules:
-            _calculate_amount_and_set_threshold(adjustment_amounts, transaction.amount, campaign, earn_rule)
+            _calculate_amount_and_set_threshold(adjustment_amounts, tx_amount, campaign, earn_rule)
 
     return adjustment_amounts
 
@@ -128,7 +128,7 @@ async def get_adjustment_amounts(
         )
 
     campaigns = await async_run_query(_query, db_session, rollback_on_exc=False)
-    return _calculate_transaction_amounts_for_each_earn_rule(campaigns, transaction)
+    return _calculate_transaction_amounts_for_each_earn_rule(campaigns, transaction.amount)
 
 
 async def get_retailer_store_name_by_mid(db_session: "AsyncSession", retailer_id: int, mid: str) -> str | None:
