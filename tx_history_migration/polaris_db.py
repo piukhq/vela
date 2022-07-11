@@ -18,7 +18,7 @@ PolarisTables = namedtuple("PolarisTables", "RetailerConfig AccountHolder Accoun
 def polaris_session_and_tables(polaris_db_name: str) -> Generator[tuple[Session, PolarisTables], None, None]:
     parsed_uri = urlparse(settings.SQLALCHEMY_DATABASE_URI)
     polaris_sqlalchemy_uri = parsed_uri._replace(path=f"/{polaris_db_name}").geturl()
-    Base: AutomapBase = automap_base()
+    Base: AutomapBase = automap_base()  # pylint: disable=invalid-name
     try:
         engine = create_engine(polaris_sqlalchemy_uri, poolclass=NullPool, future=True, pool_pre_ping=True)
         Base.prepare(autoload_with=engine, reflect=True)
