@@ -61,6 +61,7 @@ def test__process_adjustment_ok(
         adjustment_amount=task_params["adjustment_amount"],
         campaign_slug=task_params["campaign_slug"],
         idempotency_token=task_params["pre_allocation_token"],
+        reason="Transaction 1",
     )
 
     last_request = httpretty.last_request()
@@ -69,11 +70,12 @@ def test__process_adjustment_ok(
     assert json.loads(last_request.body) == {
         "balance_change": task_params["adjustment_amount"],
         "campaign_slug": task_params["campaign_slug"],
+        "reason": "Transaction 1",
     }
 
     assert response_audit == {
         "request": {
-            "body": json.dumps({"balance_change": 100, "campaign_slug": "test-campaign"}),
+            "body": json.dumps({"balance_change": 100, "campaign_slug": "test-campaign", "reason": "Transaction 1"}),
             "url": "{0}/{1}/accounts/{2}/adjustments".format(
                 settings.POLARIS_BASE_URL, task_params["retailer_slug"], task_params["account_holder_uuid"]
             ),
@@ -112,6 +114,7 @@ def test__process_adjustment_http_errors(
                 adjustment_amount=task_params["adjustment_amount"],
                 campaign_slug=task_params["campaign_slug"],
                 idempotency_token=task_params["pre_allocation_token"],
+                reason="Transaction 1",
             )
 
         assert isinstance(excinfo.value, requests.RequestException)
@@ -122,6 +125,7 @@ def test__process_adjustment_http_errors(
         assert json.loads(last_request.body) == {
             "balance_change": task_params["adjustment_amount"],
             "campaign_slug": task_params["campaign_slug"],
+            "reason": "Transaction 1",
         }
 
 
@@ -141,6 +145,7 @@ def test__process_adjustment_connection_error(
             adjustment_amount=task_params["adjustment_amount"],
             campaign_slug=task_params["campaign_slug"],
             idempotency_token=task_params["pre_allocation_token"],
+            reason="Transaction 1",
         )
 
     assert isinstance(excinfo.value, asyncio.TimeoutError)
@@ -279,6 +284,10 @@ def test_adjust_balance_multiple_rewards(
     mock_sync_create_task.return_value = mock_secondary_task
 
     adjust_balance(reward_adjustment_task.retry_task_id)
+    transaction_request = list(httpretty.HTTPretty.latest_requests[1].parsed_body.values())
+    reward_request = list(httpretty.HTTPretty.latest_requests[-1].parsed_body.values())
+    assert transaction_request[2] == "Transaction 1"
+    assert reward_request[2] == f"Reward goal: {reward_rule.reward_goal}"
 
     db_session.refresh(reward_adjustment_task)
 
