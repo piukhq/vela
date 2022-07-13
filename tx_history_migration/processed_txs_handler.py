@@ -17,9 +17,8 @@ if TYPE_CHECKING:
 
 # pylint: disable=too-many-instance-attributes
 class VelaTxHistoryHandler:
-    def __init__(self, batch_size: int, retailer_slug: str, excluded_txs_ids: list[str], debug: bool = False) -> None:
+    def __init__(self, retailer_slug: str, excluded_txs_ids: list[str], debug: bool = False) -> None:
         self.debug = debug
-        self.batch_size = batch_size
         self.retailer_slug = retailer_slug
         self.excluded_txs_ids = excluded_txs_ids
         self.current_offset = 0
@@ -37,7 +36,8 @@ class VelaTxHistoryHandler:
             )
         )
 
-    def fetch_batch(self) -> list[Row]:
+    def fetch_batch(self, batch_size: int) -> list[Row]:
+
         processed_txs_data = self.db_session.execute(
             select(
                 ProcessedTransaction.id,
@@ -61,10 +61,10 @@ class VelaTxHistoryHandler:
                 ProcessedTransaction.retailer_id == self.retailer_id,
                 ~ProcessedTransaction.transaction_id.in_(self.excluded_txs_ids),
             )
-            .limit(self.batch_size)
+            .limit(batch_size)
             .offset(self.current_offset)
         ).all()
-        self.current_offset += self.batch_size
+        self.current_offset += batch_size
         return processed_txs_data
 
     def _load_retailer_id(self) -> int:
