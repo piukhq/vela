@@ -4,6 +4,7 @@ import sys
 
 from logging.config import dictConfig
 from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import urlparse
 
 import sentry_sdk
 
@@ -51,10 +52,13 @@ class Settings(BaseSettings):  # pragma: no cover
     @classmethod
     def is_test(cls, v: bool) -> bool:
         command = sys.argv[0]
-        args = sys.argv[1:] if len(sys.argv) > 1 else []
 
-        if "pytest" in command or any("test" in arg for arg in args):
+        if command == "pipenv":
+            command = sys.argv[2] if len(sys.argv) > 2 else "None"
+
+        if "test" in command:
             return True
+
         return v
 
     MIGRATING: bool = False
@@ -118,7 +122,8 @@ class Settings(BaseSettings):  # pragma: no cover
             )
 
         if values["TESTING"]:
-            db_uri += "_test"
+            parsed_uri = urlparse(db_uri)
+            db_uri = parsed_uri._replace(path=parsed_uri.path + "_test").geturl()
 
         return db_uri
 

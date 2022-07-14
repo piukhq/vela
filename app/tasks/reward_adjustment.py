@@ -132,6 +132,7 @@ def _process_balance_adjustment(
     adjustment_amount: int,
     campaign_slug: str,
     idempotency_token: str,
+    reason: str,
 ) -> tuple[int, dict]:
     url_template = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments"
     url_kwargs = {
@@ -142,6 +143,7 @@ def _process_balance_adjustment(
     payload = {
         "balance_change": adjustment_amount,
         "campaign_slug": campaign_slug,
+        "reason": reason,
     }
 
     response_audit: dict = {
@@ -304,6 +306,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             campaign_slug=campaign_slug,
             adjustment_amount=adjustment_amount,
             idempotency_token=pre_allocation_token,
+            reason=f"Transaction {processed_tx_id}",
         )
         logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
         retry_task.update_task(db_session, response_audit=response_audit)
@@ -343,6 +346,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             campaign_slug=campaign_slug,
             idempotency_token=post_allocation_token,
             adjustment_amount=-int(reward_rule.reward_goal),
+            reason=f"Reward goal: {reward_rule.reward_goal}",
         )
         logger.info(f"Balance readjusted - new balance: {balance} {log_suffix}")
         retry_task.update_task(db_session, response_audit=response_audit)
