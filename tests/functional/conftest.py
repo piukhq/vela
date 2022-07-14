@@ -47,6 +47,7 @@ def reward_adjustment_task(
             "campaign_slug": processed_transaction.campaign_slugs[0],
             "adjustment_amount": 100,
             "pre_allocation_token": uuid4(),
+            "transaction_datetime": processed_transaction.datetime,
         },
     )
     db_session.commit()

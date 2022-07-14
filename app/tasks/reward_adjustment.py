@@ -133,6 +133,7 @@ def _process_balance_adjustment(
     campaign_slug: str,
     idempotency_token: str,
     reason: str,
+    tx_datetime: datetime,
 ) -> tuple[int, dict]:
     url_template = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments"
     url_kwargs = {
@@ -144,6 +145,7 @@ def _process_balance_adjustment(
         "balance_change": adjustment_amount,
         "campaign_slug": campaign_slug,
         "reason": reason,
+        "transaction_datetime": tx_datetime.replace(tzinfo=timezone.utc).timestamp(),
     }
 
     response_audit: dict = {
@@ -212,6 +214,7 @@ def _enqueue_secondary_reward_only_task(db_session: "Session", retry_task: Retry
                 "retailer_slug": task_params["retailer_slug"],
                 "campaign_slug": task_params["campaign_slug"],
                 "reward_only": True,
+                "transaction_datetime": task_params["transaction_datetime"],
             },
         )
         # To allow this to be re-runnable
@@ -286,6 +289,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
         retry_task.update_task(db_session, status=RetryTaskStatuses.CANCELLED, clear_next_attempt_time=True)
         return
 
+    tx_datetime = task_params["transaction_datetime"]
     retailer_slug = task_params["retailer_slug"]
     campaign_slug = task_params["campaign_slug"]
     account_holder_uuid = task_params["account_holder_uuid"]
@@ -307,6 +311,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             adjustment_amount=adjustment_amount,
             idempotency_token=pre_allocation_token,
             reason=f"Transaction {processed_tx_id}",
+            tx_datetime=tx_datetime,
         )
         logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
         retry_task.update_task(db_session, response_audit=response_audit)
@@ -347,6 +352,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             idempotency_token=post_allocation_token,
             adjustment_amount=-int(reward_rule.reward_goal),
             reason=f"Reward goal: {reward_rule.reward_goal}",
+            tx_datetime=tx_datetime,
         )
         logger.info(f"Balance readjusted - new balance: {balance} {log_suffix}")
         retry_task.update_task(db_session, response_audit=response_audit)

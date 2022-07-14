@@ -261,6 +261,7 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
                 ("allocation_token", TaskParamsKeyTypes.STRING),
                 ("reward_only", TaskParamsKeyTypes.BOOLEAN),
                 ("secondary_reward_retry_task_id", TaskParamsKeyTypes.INTEGER),
+                ("transaction_datetime", TaskParamsKeyTypes.DATETIME),
             )
         ]
     )

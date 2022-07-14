@@ -86,6 +86,7 @@ async def create_reward_adjustment_tasks(
                     "campaign_slug": campaign_slug,
                     "adjustment_amount": int(amount),
                     "pre_allocation_token": uuid4(),
+                    "transaction_datetime": processed_transaction.datetime,
                 },
             )
 
