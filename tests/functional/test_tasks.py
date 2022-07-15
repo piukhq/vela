@@ -62,6 +62,7 @@ def test__process_adjustment_ok(
         campaign_slug=task_params["campaign_slug"],
         idempotency_token=task_params["pre_allocation_token"],
         reason="Transaction 1",
+        tx_datetime=task_params["transaction_datetime"],
     )
 
     last_request = httpretty.last_request()
@@ -71,11 +72,19 @@ def test__process_adjustment_ok(
         "balance_change": task_params["adjustment_amount"],
         "campaign_slug": task_params["campaign_slug"],
         "reason": "Transaction 1",
+        "transaction_datetime": task_params["transaction_datetime"].timestamp(),
     }
 
     assert response_audit == {
         "request": {
-            "body": json.dumps({"balance_change": 100, "campaign_slug": "test-campaign", "reason": "Transaction 1"}),
+            "body": json.dumps(
+                {
+                    "balance_change": 100,
+                    "campaign_slug": "test-campaign",
+                    "reason": "Transaction 1",
+                    "transaction_datetime": task_params["transaction_datetime"].timestamp(),
+                }
+            ),
             "url": "{0}/{1}/accounts/{2}/adjustments".format(
                 settings.POLARIS_BASE_URL, task_params["retailer_slug"], task_params["account_holder_uuid"]
             ),
@@ -115,6 +124,7 @@ def test__process_adjustment_http_errors(
                 campaign_slug=task_params["campaign_slug"],
                 idempotency_token=task_params["pre_allocation_token"],
                 reason="Transaction 1",
+                tx_datetime=task_params["transaction_datetime"],
             )
 
         assert isinstance(excinfo.value, requests.RequestException)
@@ -126,6 +136,7 @@ def test__process_adjustment_http_errors(
             "balance_change": task_params["adjustment_amount"],
             "campaign_slug": task_params["campaign_slug"],
             "reason": "Transaction 1",
+            "transaction_datetime": task_params["transaction_datetime"].timestamp(),
         }
 
 
@@ -146,6 +157,7 @@ def test__process_adjustment_connection_error(
             campaign_slug=task_params["campaign_slug"],
             idempotency_token=task_params["pre_allocation_token"],
             reason="Transaction 1",
+            tx_datetime=task_params["transaction_datetime"],
         )
 
     assert isinstance(excinfo.value, asyncio.TimeoutError)
@@ -304,6 +316,7 @@ def test_adjust_balance_multiple_rewards(
             "retailer_slug": task_params["retailer_slug"],
             "campaign_slug": task_params["campaign_slug"],
             "reward_only": True,
+            "transaction_datetime": task_params["transaction_datetime"],
         },
     )
     mock_enqueue_retry_task.assert_called_once_with(connection=redis_raw, retry_task=mock_secondary_task, at_front=True)
