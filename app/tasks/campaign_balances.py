@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.db.session import SyncSessionMaker
 
 from . import logger, send_request_with_metrics
-from .prometheus import tasks_run_total
+from .prometheus import task_processing_time_callback_fn, tasks_run_total
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -48,7 +48,7 @@ def _process_campaign_balances_update(task_type_name: str, task_params: dict) ->
 
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
 # it is relevantly reflected in the TaskType table
-@retryable_task(db_session_factory=SyncSessionMaker)
+@retryable_task(db_session_factory=SyncSessionMaker, metrics_callback_fn=task_processing_time_callback_fn)
 def update_campaign_balances(retry_task: RetryTask, db_session: "Session") -> None:
     if settings.ACTIVATE_TASKS_METRICS:
         tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=retry_task.task_type.name).inc()
