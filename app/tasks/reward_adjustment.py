@@ -23,7 +23,7 @@ from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards, RewardRule
 
 from . import logger, send_request_with_metrics
-from .prometheus import tasks_run_total
+from .prometheus import task_processing_time_callback_fn, tasks_run_total
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
@@ -277,6 +277,7 @@ def update_metrics() -> None:
         )
     ],
     redis_connection=redis_raw,
+    metrics_callback_fn=task_processing_time_callback_fn,
 )
 def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
     update_metrics()
