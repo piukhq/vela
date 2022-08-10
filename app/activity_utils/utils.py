@@ -30,7 +30,7 @@ def build_tx_history_earns(adjustments: dict, currency: str) -> list[dict[str, s
         if v["type"] == LoyaltyTypes.ACCUMULATOR:
             amount = pence_integer_to_currency_string(v["amount"], currency)
         else:
-            amount = str(v["amount"])
+            amount = str(int(v["amount"] / 100))
 
         earns.append({"value": amount, "type": v["type"]})
 
