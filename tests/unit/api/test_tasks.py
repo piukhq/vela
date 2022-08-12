@@ -34,7 +34,7 @@ def test_build_tx_history_earns() -> None:
         {
             1: {"type": LoyaltyTypes.ACCUMULATOR, "amount": 1199},
             2: {"type": LoyaltyTypes.ACCUMULATOR, "amount": -1199},
-            3: {"type": LoyaltyTypes.STAMPS, "amount": 5},
+            3: {"type": LoyaltyTypes.STAMPS, "amount": 500},
         },
         "GBP",
     )
