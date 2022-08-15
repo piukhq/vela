@@ -27,7 +27,7 @@ tenacity = "*"
 requests = "*"
 retry-tasks-lib = {version=">=1.15.0", index="pypi-cloud"}
 prometheus-client = "==0.12.0" # make sure app.core.cli monkeypatch is still needed and functioning
-fastapi-prometheus-metrics = {version=">=0.2.1", index="pypi-cloud"}
+fastapi-prometheus-metrics = {version=">=0.2.2", index="pypi-cloud"}
 typer = "*"
 apscheduler = "*"
 aiohttp = "*"
