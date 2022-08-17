@@ -14,7 +14,7 @@ from rq import Worker
 from app.core.config import redis_raw, settings
 from app.db.session import SyncSessionMaker
 from app.scheduled_tasks.scheduler import cron_scheduler as vela_cron_scheduler
-from app.tasks.prometheus import job_queue_summary, task_statuses, tasks_summary
+from app.tasks.prometheus.metrics import job_queue_summary, task_statuses, tasks_summary
 
 cli = typer.Typer()
 logger = logging.getLogger(__name__)

@@ -7,9 +7,10 @@ from retry_tasks_lib.utils.synchronous import retryable_task
 
 from app.core.config import settings
 from app.db.session import SyncSessionMaker
+from app.tasks.prometheus.metrics import tasks_run_total
+from app.tasks.prometheus.synchronous import task_processing_time_callback_fn
 
 from . import logger, send_request_with_metrics
-from .prometheus import task_processing_time_callback_fn, tasks_run_total
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

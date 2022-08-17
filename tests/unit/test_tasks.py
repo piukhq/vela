@@ -13,7 +13,7 @@ def test_send_request_with_metrics_exclude_val(mocker: MockerFixture, run_task_w
     base_url = "http://sample-domain"
 
     httpretty.register_uri("GET", f"{base_url}/{uuid_val}/test/url", body="OK", status=200)
-    mocked_metric = mocker.patch("app.tasks.prometheus.outgoing_http_requests_total")
+    mocked_metric = mocker.patch("app.tasks.prometheus.synchronous.outgoing_http_requests_total")
 
     resp = send_request_with_metrics(
         "GET",
@@ -36,7 +36,7 @@ def test_send_request_with_metrics_no_excluded_val(mocker: MockerFixture, run_ta
     base_url = "http://sample-domain"
 
     httpretty.register_uri("GET", f"{base_url}/{uuid_val}/test/url", body="OK", status=200)
-    mocked_metric = mocker.patch("app.tasks.prometheus.outgoing_http_requests_total")
+    mocked_metric = mocker.patch("app.tasks.prometheus.synchronous.outgoing_http_requests_total")
 
     resp = send_request_with_metrics(
         "GET",

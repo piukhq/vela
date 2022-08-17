@@ -9,7 +9,7 @@ from tenacity.stop import stop_after_attempt
 from tenacity.wait import wait_fixed
 
 from app.core.config import settings
-from app.tasks.prometheus import update_metrics_exception_handler, update_metrics_hook
+from app.tasks.prometheus.synchronous import update_metrics_exception_handler, update_metrics_hook
 
 logger = logging.getLogger(__name__)
 
