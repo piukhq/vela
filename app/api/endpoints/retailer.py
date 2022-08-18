@@ -19,4 +19,5 @@ async def get_active_campaign_slugs(
     retailer: RetailerRewards = Depends(retailer_is_valid),
     db_session: AsyncSession = Depends(get_session),
 ) -> Any:
-    return await crud.get_active_campaign_slugs(db_session, retailer)
+    campaigns = await crud.get_active_campaigns(db_session, retailer)
+    return [campaign.slug for campaign in campaigns]
