@@ -9,6 +9,7 @@ from app import crud
 from app.activity_utils.tasks import send_processed_tx_activity
 from app.api.deps import get_session, retailer_is_valid, user_is_authorised
 from app.api.tasks import enqueue_many_tasks
+from app.core.utils import calculate_adjustment_amounts
 from app.internal_requests import validate_account_holder_uuid
 from app.models import RetailerRewards
 from app.schemas import CreateTransactionSchema
@@ -34,9 +35,10 @@ async def record_transaction(
     # ---------------------------------------------------------------------------------------- #
 
     transaction = await crud.create_transaction(db_session, retailer, transaction_data)
-    active_campaign_slugs = await crud.get_active_campaign_slugs(db_session, retailer, transaction)
-    adjustment_amounts = await crud.get_adjustment_amounts(db_session, transaction, active_campaign_slugs)
+    active_campaigns = await crud.get_active_campaigns(db_session, retailer, transaction, join_rules=True)
+    adjustment_amounts = calculate_adjustment_amounts(campaigns=active_campaigns, tx_amount=transaction.amount)
 
+    active_campaign_slugs = [campaign.slug for campaign in active_campaigns]
     processed_transaction = await crud.create_processed_transaction(
         db_session, retailer, active_campaign_slugs, transaction
     )

@@ -21,9 +21,10 @@ from app.db.base_class import sync_run_query
 from app.db.session import SyncSessionMaker
 from app.enums import CampaignStatuses
 from app.models import Campaign, RetailerRewards, RewardRule
+from app.tasks.prometheus.metrics import tasks_run_total
+from app.tasks.prometheus.synchronous import task_processing_time_callback_fn
 
 from . import logger, send_request_with_metrics
-from .prometheus import task_processing_time_callback_fn, tasks_run_total
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
