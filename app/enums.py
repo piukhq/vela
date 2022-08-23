@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum, auto
 
 from fastapi import HTTPException, status
 
@@ -121,3 +121,16 @@ class RewardAdjustmentStatuses(Enum):
     FAILED = "failed"
     SUCCESS = "success"
     ACCOUNT_HOLDER_DELETED = "account_holder_deleted"
+
+
+class RewardCap(IntEnum):
+    ONE = auto()
+    TWO = auto()
+    THREE = auto()
+    FOUR = auto()
+    FIVE = auto()
+    SIX = auto()
+    SEVEN = auto()
+    EIGHT = auto()
+    NINE = auto()
+    TEN = auto()
