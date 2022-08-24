@@ -4,7 +4,7 @@ from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, Str
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base, TimestampMixin
-from app.enums import CampaignStatuses, LoyaltyTypes
+from app.enums import CampaignStatuses, LoyaltyTypes, RewardCap
 
 if TYPE_CHECKING:  # pragma: no cover
     from .transaction import ProcessedTransaction, Transaction  # noqa 401
@@ -66,6 +66,10 @@ class RewardRule(Base, TimestampMixin):
     reward_goal = Column(Integer, nullable=False)
     reward_slug = Column(String(32), index=True, unique=True, nullable=False)
     allocation_window = Column(Integer, nullable=False, server_default="0")
+    reward_cap = Column(
+        Enum(RewardCap, values_callable=lambda x: [str(e.value) for e in RewardCap]),
+        nullable=True,
+    )
 
     campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
     campaign = relationship("Campaign", back_populates="reward_rule")

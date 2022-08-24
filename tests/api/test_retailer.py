@@ -4,10 +4,14 @@ from typing import TYPE_CHECKING, Any, Generator
 import pytest
 
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import StatementError
+from sqlalchemy.future import select
 from starlette import status
 
 from app.core.config import settings
+from app.enums import RewardCap
 from app.models import Campaign, RetailerRewards
+from app.models.retailer import RewardRule
 from asgi import app
 
 if TYPE_CHECKING:
@@ -93,3 +97,29 @@ def test_active_campaign_slugs_no_active_campaigns(retailer: RetailerRewards) ->
     # THEN
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "No active campaigns found for retailer.", "code": "NO_ACTIVE_CAMPAIGNS"}
+
+
+def test_reward_cap_enum(setup: SetupType, reward_rule: RewardRule) -> None:
+    db_session = setup.db_session
+    reward_rule.reward_cap = RewardCap.FIVE
+    db_session.commit()
+
+    reward_cap_from_db = db_session.execute(select(RewardRule.reward_cap)).scalar_one_or_none()
+
+    assert reward_cap_from_db == RewardCap.FIVE
+    assert reward_cap_from_db.value == 5
+
+
+def test_reward_cap_enum_invalid(setup: SetupType, reward_rule: RewardRule) -> None:
+    db_session = setup.db_session
+    invalid_reward_cap = 11
+
+    with pytest.raises(StatementError) as exc_info:
+        reward_rule.reward_cap = invalid_reward_cap
+        db_session.commit()
+
+    assert (
+        exc_info.value.orig.args[0]
+        == f"'{invalid_reward_cap}' is not among the defined enum values. Enum name: rewardcap."
+        " Possible values: 1, 2, 3, ..., 10"
+    )
