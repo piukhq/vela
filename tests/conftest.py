@@ -259,7 +259,6 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
                 ("pre_allocation_token", TaskParamsKeyTypes.STRING),
                 ("post_allocation_token", TaskParamsKeyTypes.STRING),
                 ("allocation_token", TaskParamsKeyTypes.STRING),
-                ("reward_only", TaskParamsKeyTypes.BOOLEAN),
                 ("secondary_reward_retry_task_id", TaskParamsKeyTypes.INTEGER),
                 ("transaction_datetime", TaskParamsKeyTypes.DATETIME),
             )
@@ -374,7 +373,7 @@ def convert_or_delete_pending_rewards_task_type(db_session: "Session") -> TaskTy
 @pytest.fixture
 def run_task_with_metrics() -> Generator:
     val = settings.ACTIVATE_TASKS_METRICS
-    settings.ACTIVATE_TASKS_METRICS = True
+    settings.ACTIVATE_TASKS_METRICS = True  # pylint: disable=invalid-name
     yield
     settings.ACTIVATE_TASKS_METRICS = val
 
