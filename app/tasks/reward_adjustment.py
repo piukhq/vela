@@ -1,19 +1,13 @@
 import json
 
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.enums import RetryTaskStatuses
-from retry_tasks_lib.utils.synchronous import (
-    RetryTaskAdditionalQueryData,
-    enqueue_retry_task,
-    get_retry_task,
-    retryable_task,
-    sync_create_task,
-)
-from rq.job import Job
+from retry_tasks_lib.utils.synchronous import RetryTaskAdditionalQueryData, retryable_task
 from sqlalchemy.future import select
 
 from app.core.config import redis_raw, settings
@@ -31,7 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _process_reward_allocation(
-    *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str
+    *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str, count: int
 ) -> dict:
     url_template = "{base_url}/{retailer_slug}/rewards/{reward_slug}/allocation"
     url_kwargs = {
@@ -40,11 +34,12 @@ def _process_reward_allocation(
         "reward_slug": reward_slug,
     }
     payload = {
+        "count": count,
         "account_url": "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/rewards".format(
             base_url=settings.POLARIS_BASE_URL,
             retailer_slug=retailer_slug,
             account_holder_uuid=account_holder_uuid,
-        )
+        ),
     }
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
@@ -75,6 +70,7 @@ def _process_pending_reward_allocation(
     reward_value: int,
     allocation_window: int,
     campaign_slug: str,
+    count: int,
 ) -> dict:
     # we are storing the date as a DateTime in Polaris so we want to send a midnight utc datetime
     today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -90,6 +86,7 @@ def _process_pending_reward_allocation(
         "value": reward_value,
         "campaign_slug": campaign_slug,
         "reward_slug": reward_slug,
+        "count": count,
     }
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
@@ -122,8 +119,8 @@ def _get_reward_rule(db_session: "Session", campaign_slug: str) -> RewardRule:
     return reward_rule
 
 
-def _reward_achieved(reward_rule: RewardRule, new_balance: int) -> bool:
-    return new_balance >= reward_rule.reward_goal
+def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int) -> int:
+    return new_balance // reward_rule.reward_goal
 
 
 def _process_balance_adjustment(
@@ -180,12 +177,16 @@ def _process_balance_adjustment(
 def _set_param_value(
     db_session: "Session", retry_task: RetryTask, param_name: str, param_value: Any, commit: bool = True
 ) -> str:
-    key_ids_by_name = retry_task.task_type.get_key_ids_by_name()
-    task_type_key_val = retry_task.get_task_type_key_values([(key_ids_by_name[param_name], param_value)])[0]
-    db_session.add(task_type_key_val)
-    if commit:
-        db_session.commit()
-    return task_type_key_val.value
+    def _query() -> str:
+        key_ids_by_name = retry_task.task_type.get_key_ids_by_name()
+        task_type_key_val = retry_task.get_task_type_key_values([(key_ids_by_name[param_name], param_value)])[0]
+        db_session.add(task_type_key_val)
+        if commit:
+            db_session.commit()
+
+        return task_type_key_val.value
+
+    return sync_run_query(_query, db_session)
 
 
 def _get_campaign_status(db_session: "Session", retailer_slug: str, campaign_slug: str) -> CampaignStatuses:
@@ -201,39 +202,14 @@ def _get_campaign_status(db_session: "Session", retailer_slug: str, campaign_slu
     return campaign_status
 
 
-def _enqueue_secondary_reward_only_task(db_session: "Session", retry_task: RetryTask) -> tuple[RetryTask, Job]:
-    task_params = retry_task.get_params()
-    if secondary_task_id := task_params.get("secondary_reward_retry_task_id"):
-        secondary_reward_task = get_retry_task(db_session, secondary_task_id)
-    else:
-        secondary_reward_task = sync_create_task(
-            db_session,
-            task_type_name=settings.REWARD_ADJUSTMENT_TASK_NAME,
-            params={
-                "processed_transaction_id": task_params["processed_transaction_id"],
-                "account_holder_uuid": task_params["account_holder_uuid"],
-                "retailer_slug": task_params["retailer_slug"],
-                "campaign_slug": task_params["campaign_slug"],
-                "reward_only": True,
-                "transaction_datetime": task_params["transaction_datetime"],
-            },
-        )
-        # To allow this to be re-runnable
-        _set_param_value(
-            db_session,
-            retry_task,
-            "secondary_reward_retry_task_id",
-            secondary_reward_task.retry_task_id,
-            commit=False,
-        )
-        db_session.commit()
-
-    rq_job = enqueue_retry_task(connection=redis_raw, retry_task=secondary_reward_task, at_front=True)
-    return secondary_reward_task, rq_job
-
-
 def _process_reward_path(
-    log_suffix: str, task_params: dict, campaign_slug: str, reward_rule: RewardRule, allocation_token: str
+    *,
+    log_suffix: str,
+    task_params: dict,
+    campaign_slug: str,
+    reward_rule: RewardRule,
+    allocation_token: str,
+    count: int,
 ) -> dict:
     if reward_rule.allocation_window > 0:
         logger.info("Requesting pending reward allocation %s", log_suffix)
@@ -245,6 +221,7 @@ def _process_reward_path(
             reward_value=reward_rule.reward_goal,
             allocation_window=reward_rule.allocation_window,
             campaign_slug=campaign_slug,
+            count=count,
         )
         logger.info("Pending reward allocation request complete %s", log_suffix)
 
@@ -255,6 +232,7 @@ def _process_reward_path(
             reward_slug=reward_rule.reward_slug,
             account_holder_uuid=task_params["account_holder_uuid"],
             idempotency_token=allocation_token,
+            count=count,
         )
         logger.info("Reward allocation request complete %s", log_suffix)
 
@@ -264,6 +242,12 @@ def _process_reward_path(
 def update_metrics() -> None:
     if settings.ACTIVATE_TASKS_METRICS:
         tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_ADJUSTMENT_TASK_NAME).inc()
+
+
+class TokenParamNames(Enum):
+    PRE_ALLOCATION_TOKEN = "pre_allocation_token"
+    ALLOCATION_TOKEN = "allocation_token"
+    POST_ALLOCATION_TOKEN = "post_allocation_token"
 
 
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
@@ -296,41 +280,40 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
     campaign_slug = task_params["campaign_slug"]
     account_holder_uuid = task_params["account_holder_uuid"]
     reward_rule = _get_reward_rule(db_session, campaign_slug)
-    reward_achieved = False
-    reward_only = task_params.get("reward_only", False)
 
-    if not reward_only:
-        adjustment_amount = task_params["adjustment_amount"]
-        logger.info("Adjusting balance by %s %s", adjustment_amount, log_suffix)
-        token_param_name = "pre_allocation_token"
-        pre_allocation_token = retry_task.get_params().get(token_param_name) or _set_param_value(
-            db_session, retry_task, token_param_name, str(uuid4())
-        )
-        new_balance, response_audit = _process_balance_adjustment(
-            account_holder_uuid=account_holder_uuid,
-            retailer_slug=retailer_slug,
-            campaign_slug=campaign_slug,
-            adjustment_amount=adjustment_amount,
-            idempotency_token=pre_allocation_token,
-            reason=f"Transaction {processed_tx_id}",
-            tx_datetime=tx_datetime,
-        )
-        logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
-        retry_task.update_task(db_session, response_audit=response_audit)
+    adjustment_amount = task_params["adjustment_amount"]
+    logger.info("Adjusting balance by %s %s", adjustment_amount, log_suffix)
 
-        reward_achieved = _reward_achieved(reward_rule, new_balance)
+    pre_allocation_token = retry_task.get_params().get(TokenParamNames.PRE_ALLOCATION_TOKEN.value) or _set_param_value(
+        db_session, retry_task, TokenParamNames.PRE_ALLOCATION_TOKEN.value, str(uuid4())
+    )
+    new_balance, response_audit = _process_balance_adjustment(
+        account_holder_uuid=account_holder_uuid,
+        retailer_slug=retailer_slug,
+        campaign_slug=campaign_slug,
+        adjustment_amount=adjustment_amount,
+        idempotency_token=pre_allocation_token,
+        reason=f"Transaction {processed_tx_id}",
+        tx_datetime=tx_datetime,
+    )
+    logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
+    retry_task.update_task(db_session, response_audit=response_audit)
 
-    if reward_achieved or reward_only:
+    rewards_achieved_n = _number_of_rewards_achieved(reward_rule, new_balance)
+
+    if rewards_achieved_n > 0:
+        tot_value = rewards_achieved_n * reward_rule.reward_goal
 
         logger.info(
-            "%s %s",
-            f"Reward goal ({reward_rule.reward_goal}) met" if reward_achieved else "Reward only",
+            "Reward goal (%d) met %d time%s %s",
+            reward_rule.reward_goal,
+            rewards_achieved_n,
+            "s" if rewards_achieved_n > 1 else "",
             log_suffix,
         )
 
-        token_param_name = "allocation_token"
-        allocation_token = retry_task.get_params().get(token_param_name) or _set_param_value(
-            db_session, retry_task, token_param_name, str(uuid4())
+        allocation_token = retry_task.get_params().get(TokenParamNames.ALLOCATION_TOKEN.value) or _set_param_value(
+            db_session, retry_task, TokenParamNames.ALLOCATION_TOKEN.value, str(uuid4())
         )
 
         response_audit = _process_reward_path(
@@ -339,34 +322,26 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             campaign_slug=campaign_slug,
             reward_rule=reward_rule,
             allocation_token=allocation_token,
+            count=rewards_achieved_n,
         )
         retry_task.update_task(db_session, response_audit=response_audit)
 
-        logger.info("Decreasing balance by reward goal (%s) %s", reward_rule.reward_goal, log_suffix)
-        token_param_name = "post_allocation_token"
-        post_allocation_token = retry_task.get_params().get(token_param_name) or _set_param_value(
-            db_session, retry_task, token_param_name, str(uuid4())
-        )
+        logger.info("Decreasing balance by total rewards value (%s) %s", tot_value, log_suffix)
+
+        post_allocation_token = retry_task.get_params().get(
+            TokenParamNames.POST_ALLOCATION_TOKEN.value
+        ) or _set_param_value(db_session, retry_task, TokenParamNames.POST_ALLOCATION_TOKEN.value, str(uuid4()))
+
         balance, response_audit = _process_balance_adjustment(
             retailer_slug=retailer_slug,
             account_holder_uuid=account_holder_uuid,
             campaign_slug=campaign_slug,
             idempotency_token=post_allocation_token,
-            adjustment_amount=-int(reward_rule.reward_goal),
-            reason=f"Reward goal: {reward_rule.reward_goal}",
+            adjustment_amount=-tot_value,
+            reason=f"Reward goal: {reward_rule.reward_goal} Count: {rewards_achieved_n}",
             tx_datetime=tx_datetime,
         )
         logger.info(f"Balance readjusted - new balance: {balance} {log_suffix}")
         retry_task.update_task(db_session, response_audit=response_audit)
-
-        secondary_reward_achieved = _reward_achieved(reward_rule, balance)
-
-        if secondary_reward_achieved:
-            logger.info("Further reward allocation required %s", log_suffix)
-            secondary_task, rq_job = _enqueue_secondary_reward_only_task(db_session, retry_task)
-            logger.info(
-                f"Secondary task (retry_task_id: {secondary_task.retry_task_id}, job_id: {rq_job.id}) queued"
-                + log_suffix
-            )
 
     retry_task.update_task(db_session, status=RetryTaskStatuses.SUCCESS, clear_next_attempt_time=True)
