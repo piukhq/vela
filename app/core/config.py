@@ -246,7 +246,7 @@ class Settings(BaseSettings):  # pragma: no cover
     REPORT_TASKS_SUMMARY_SCHEDULE: str = "5,20,35,50 */1 * * *"
     REPORT_JOB_QUEUE_LENGTH_SCHEDULE: str = "*/10 * * * *"
     REDIS_KEY_PREFIX: str = "vela:"
-    ACTIVATE_TASKS_METRICS: bool = True
+    ACTIVATE_TASKS_METRICS: bool = True  # pylint: disable=invalid-name
 
     RABBITMQ_URI: str = "amqp://guest:guest@localhost:5672//"
     MESSAGE_EXCHANGE_NAME: str = "hubble-activities"

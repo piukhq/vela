@@ -3,7 +3,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi_prometheus_metrics.endpoints import router as metrics_router
 from fastapi_prometheus_metrics.manager import PrometheusManager
 from fastapi_prometheus_metrics.middleware import MetricsSecurityMiddleware, PrometheusMiddleware
-from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from starlette.exceptions import HTTPException
 
 from app.api.api import api_router
@@ -27,9 +26,6 @@ def create_app() -> FastAPI:
     app.add_middleware(PrometheusMiddleware)
 
     PrometheusManager(settings.PROJECT_NAME, metric_name_prefix="bpl")  # initialise signals
-
-    if settings.SENTRY_DSN:  # pragma: no cover
-        app.add_middleware(SentryAsgiMiddleware)
 
     # Prevent 307 temporary redirects if URLs have slashes on the end
     app.router.redirect_slashes = False

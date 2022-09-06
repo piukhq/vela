@@ -17,15 +17,15 @@ from retry_tasks_lib.db.models import RetryTask, TaskType
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import IncorrectRetryTaskStatusError, sync_create_task
 
-from app.core.config import redis_raw, settings
+from app.core.config import settings
 from app.enums import CampaignStatuses
 from app.models import Campaign, RewardRule
 from app.tasks.campaign_balances import update_campaign_balances
 from app.tasks.pending_rewards import convert_or_delete_pending_rewards
 from app.tasks.reward_adjustment import (
+    _number_of_rewards_achieved,
     _process_balance_adjustment,
     _process_reward_allocation,
-    _reward_achieved,
     _set_param_value,
     adjust_balance,
 )
@@ -178,6 +178,7 @@ def test__process_reward_allocation_connection_error(
             reward_slug="slug",
             account_holder_uuid="uuid",
             idempotency_token="token",
+            count=1,
         )
 
     assert isinstance(excinfo.value, asyncio.TimeoutError)
@@ -253,23 +254,20 @@ def test_adjust_balance_pending_reward(
 
 
 @httpretty.activate
-@mock.patch("app.tasks.reward_adjustment.enqueue_retry_task")
-@mock.patch("app.tasks.reward_adjustment.sync_create_task", return_value=mock.MagicMock(retry_task_id=9999))
 def test_adjust_balance_multiple_rewards(
-    mock_sync_create_task: mock.MagicMock,
-    mock_enqueue_retry_task: mock.MagicMock,
     db_session: "Session",
     reward_adjustment_task: RetryTask,
     reward_rule: RewardRule,
     adjustment_url: str,
     allocation_url: str,
-    mocker: MockerFixture,
 ) -> None:
     task_params = reward_adjustment_task.get_params()
 
     reward_rule.reward_goal = 50
+    adj_amount = 100
+    expected_count = adj_amount // reward_rule.reward_goal
     db_session.commit()
-    assert reward_adjustment_task.get_params()["adjustment_amount"] == 100
+    assert reward_adjustment_task.get_params()["adjustment_amount"] == adj_amount
 
     httpretty.register_uri(
         "POST",
@@ -281,7 +279,7 @@ def test_adjust_balance_multiple_rewards(
             ),
             httpretty.core.httpretty.Response(
                 method=httpretty.POST,
-                body=json.dumps({"new_balance": 50, "campaign_slug": task_params["campaign_slug"]}),
+                body=json.dumps({"new_balance": 0, "campaign_slug": task_params["campaign_slug"]}),
             ),
         ],
         status=200,
@@ -292,14 +290,14 @@ def test_adjust_balance_multiple_rewards(
         body=json.dumps({"account_url": "http://account-url/"}),
         status=202,
     )
-    mock_secondary_task = mock.MagicMock(retry_task_id=42)
-    mock_sync_create_task.return_value = mock_secondary_task
 
     adjust_balance(reward_adjustment_task.retry_task_id)
     transaction_request = list(httpretty.HTTPretty.latest_requests[1].parsed_body.values())
+    reward_allocation_request = list(httpretty.HTTPretty.latest_requests[2].parsed_body.values())
     reward_request = list(httpretty.HTTPretty.latest_requests[-1].parsed_body.values())
     assert transaction_request[2] == "Transaction 1"
-    assert reward_request[2] == f"Reward goal: {reward_rule.reward_goal}"
+    assert reward_allocation_request[0] == expected_count
+    assert reward_request[2] == f"Reward goal: {reward_rule.reward_goal} Count: {expected_count}"
 
     db_session.refresh(reward_adjustment_task)
 
@@ -307,19 +305,6 @@ def test_adjust_balance_multiple_rewards(
     assert reward_adjustment_task.next_attempt_time is None
     assert reward_adjustment_task.status == RetryTaskStatuses.SUCCESS
     assert len(reward_adjustment_task.audit_data) == 3
-    mock_sync_create_task.assert_called_once_with(
-        mock.ANY,
-        task_type_name="reward-adjustment",
-        params={
-            "processed_transaction_id": task_params["processed_transaction_id"],
-            "account_holder_uuid": task_params["account_holder_uuid"],
-            "retailer_slug": task_params["retailer_slug"],
-            "campaign_slug": task_params["campaign_slug"],
-            "reward_only": True,
-            "transaction_datetime": task_params["transaction_datetime"],
-        },
-    )
-    mock_enqueue_retry_task.assert_called_once_with(connection=redis_raw, retry_task=mock_secondary_task, at_front=True)
 
 
 @mock.patch("app.tasks.requests")
@@ -347,9 +332,9 @@ def test_adjust_balance_task_cancelled_when_campaign_cancelled_or_ended(
 
 
 @httpretty.activate
-@mock.patch("app.tasks.reward_adjustment._reward_achieved")
+@mock.patch("app.tasks.reward_adjustment._number_of_rewards_achieved")
 def test_adjust_balance_fails_with_409_no_balance_for_campaign_slug(
-    mock__reward_achieved: mock.MagicMock,
+    mock__rewards_achieved: mock.MagicMock,
     db_session: "Session",
     reward_adjustment_task: RetryTask,
     reward_rule: RewardRule,
@@ -366,7 +351,7 @@ def test_adjust_balance_fails_with_409_no_balance_for_campaign_slug(
 
     with pytest.raises(requests.RequestException):
         adjust_balance(reward_adjustment_task.retry_task_id)
-    mock__reward_achieved.assert_not_called()
+    mock__rewards_achieved.assert_not_called()
 
 
 @httpretty.activate
@@ -430,6 +415,7 @@ def test__process_reward_allocation(
     reward_slug: str,
     allocation_url: str,
 ) -> None:
+    count = 2
     task_params = reward_adjustment_task.get_params()
     mock_datetime.now.return_value = fake_now
     httpretty.register_uri(
@@ -446,6 +432,7 @@ def test__process_reward_allocation(
         reward_slug=reward_slug,
         account_holder_uuid=account_holder_uuid,
         idempotency_token=str(uuid4()),
+        count=count,
     )
 
     last_request = httpretty.last_request()
@@ -454,11 +441,9 @@ def test__process_reward_allocation(
     assert last_request.url == allocation_url
 
     account_url = f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/rewards"
-    assert json.loads(last_request.body) == {
-        "account_url": account_url,
-    }
+    assert json.loads(last_request.body) == {"account_url": account_url, "count": count}
     assert response_audit == {
-        "request": {"body": json.dumps({"account_url": account_url}), "url": allocation_url},
+        "request": {"body": json.dumps({"count": count, "account_url": account_url}), "url": allocation_url},
         "timestamp": fake_now.isoformat(),
         "response": {
             "status": 202,
@@ -473,6 +458,7 @@ def test__process_reward_allocation_http_errors(
     allocation_url: str,
     reward_slug: str,
 ) -> None:
+    count = 1
     task_params = reward_adjustment_task.get_params()
     retailer_slug = task_params["retailer_slug"]
     account_holder_uuid = task_params["account_holder_uuid"]
@@ -489,6 +475,7 @@ def test__process_reward_allocation_http_errors(
                 reward_slug=reward_slug,
                 account_holder_uuid=account_holder_uuid,
                 idempotency_token=idempotency_token,
+                count=count,
             )
 
         assert isinstance(excinfo.value, requests.RequestException)
@@ -497,6 +484,7 @@ def test__process_reward_allocation_http_errors(
         last_request = httpretty.last_request()
         assert last_request.method == "POST"
         assert json.loads(last_request.body) == {
+            "count": count,
             "account_url": (f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/rewards"),
         }
 
@@ -506,14 +494,14 @@ def test__reward_achieved(
     reward_adjustment_task: RetryTask,
     reward_rule: RewardRule,
 ) -> None:
-    def _compare_result(result: bool, expected_result: bool) -> None:
+    def _compare_result(result: int, expected_result: int) -> None:
         assert result == expected_result
 
     assert reward_rule.reward_goal == 5
-    _compare_result(_reward_achieved(reward_rule, 1), False)
-    _compare_result(_reward_achieved(reward_rule, -5), False)
-    _compare_result(_reward_achieved(reward_rule, 5), True)
-    _compare_result(_reward_achieved(reward_rule, 10), True)
+    _compare_result(_number_of_rewards_achieved(reward_rule, 1), 0)
+    _compare_result(_number_of_rewards_achieved(reward_rule, 0), 0)
+    _compare_result(_number_of_rewards_achieved(reward_rule, 5), 1)
+    _compare_result(_number_of_rewards_achieved(reward_rule, 10), 2)
 
 
 @httpretty.activate
