@@ -71,6 +71,7 @@ def _process_pending_reward_allocation(
     allocation_window: int,
     campaign_slug: str,
     count: int,
+    tot_cost_to_user: int,
 ) -> dict:
     # we are storing the date as a DateTime in Polaris so we want to send a midnight utc datetime
     today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -87,6 +88,7 @@ def _process_pending_reward_allocation(
         "campaign_slug": campaign_slug,
         "reward_slug": reward_slug,
         "count": count,
+        "total_cost_to_user": tot_cost_to_user,
     }
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
@@ -119,8 +121,15 @@ def _get_reward_rule(db_session: "Session", campaign_slug: str) -> RewardRule:
     return reward_rule
 
 
-def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int) -> int:
-    return new_balance // reward_rule.reward_goal
+def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int) -> tuple[int, bool]:
+    n_reward_achieved = new_balance // reward_rule.reward_goal
+    adj_amount_over_cap = False
+
+    if reward_rule.reward_cap and n_reward_achieved > reward_rule.reward_cap:
+        n_reward_achieved = reward_rule.reward_cap
+        adj_amount_over_cap = True
+
+    return n_reward_achieved, adj_amount_over_cap
 
 
 def _process_balance_adjustment(
@@ -210,6 +219,7 @@ def _process_reward_path(
     reward_rule: RewardRule,
     allocation_token: str,
     count: int,
+    tot_cost_to_user: int,
 ) -> dict:
     if reward_rule.allocation_window > 0:
         logger.info("Requesting pending reward allocation %s", log_suffix)
@@ -222,6 +232,7 @@ def _process_reward_path(
             allocation_window=reward_rule.allocation_window,
             campaign_slug=campaign_slug,
             count=count,
+            tot_cost_to_user=tot_cost_to_user,
         )
         logger.info("Pending reward allocation request complete %s", log_suffix)
 
@@ -299,18 +310,24 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
     logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
     retry_task.update_task(db_session, response_audit=response_audit)
 
-    rewards_achieved_n = _number_of_rewards_achieved(reward_rule, new_balance)
+    rewards_achieved_n, adj_amount_over_cap = _number_of_rewards_achieved(reward_rule, new_balance)
 
     if rewards_achieved_n > 0:
-        tot_value = rewards_achieved_n * reward_rule.reward_goal
+        if adj_amount_over_cap:
+            tot_cost_to_user = adjustment_amount
+            logger.info("Transaction reward cap '%s' reached %s", reward_rule.reward_cap, log_suffix)
+            post_msg = "Transaction reward cap reached, decreasing balance by original adjustment amount (%s) %s"
 
-        logger.info(
-            "Reward goal (%d) met %d time%s %s",
-            reward_rule.reward_goal,
-            rewards_achieved_n,
-            "s" if rewards_achieved_n > 1 else "",
-            log_suffix,
-        )
+        else:
+            tot_cost_to_user = rewards_achieved_n * reward_rule.reward_goal
+            logger.info(
+                "Reward goal (%d) met %d time%s %s",
+                reward_rule.reward_goal,
+                rewards_achieved_n,
+                "s" if rewards_achieved_n > 1 else "",
+                log_suffix,
+            )
+            post_msg = "Decreasing balance by total rewards value (%s) %s"
 
         allocation_token = retry_task.get_params().get(TokenParamNames.ALLOCATION_TOKEN.value) or _set_param_value(
             db_session, retry_task, TokenParamNames.ALLOCATION_TOKEN.value, str(uuid4())
@@ -323,10 +340,11 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             reward_rule=reward_rule,
             allocation_token=allocation_token,
             count=rewards_achieved_n,
+            tot_cost_to_user=tot_cost_to_user,
         )
         retry_task.update_task(db_session, response_audit=response_audit)
 
-        logger.info("Decreasing balance by total rewards value (%s) %s", tot_value, log_suffix)
+        logger.info(post_msg, tot_cost_to_user, log_suffix)
 
         post_allocation_token = retry_task.get_params().get(
             TokenParamNames.POST_ALLOCATION_TOKEN.value
@@ -337,7 +355,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             account_holder_uuid=account_holder_uuid,
             campaign_slug=campaign_slug,
             idempotency_token=post_allocation_token,
-            adjustment_amount=-tot_value,
+            adjustment_amount=-tot_cost_to_user,
             reason=f"Reward goal: {reward_rule.reward_goal} Count: {rewards_achieved_n}",
             tx_datetime=tx_datetime,
         )
