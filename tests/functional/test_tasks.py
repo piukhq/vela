@@ -12,7 +12,6 @@ import httpretty
 import pytest
 import requests
 
-from pytest_mock import MockerFixture
 from retry_tasks_lib.db.models import RetryTask, TaskType
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import IncorrectRetryTaskStatusError, sync_create_task
@@ -192,22 +191,16 @@ def test_adjust_balance(
     reward_rule: RewardRule,
     adjustment_url: str,
     allocation_url: str,
-    mocker: MockerFixture,
 ) -> None:
     task_params = reward_adjustment_task.get_params()
 
     httpretty.register_uri(
         "POST",
         adjustment_url,
-        body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
+        body=json.dumps({"new_balance": reward_rule.reward_goal, "campaign_slug": task_params["campaign_slug"]}),
         status=200,
     )
-    httpretty.register_uri(
-        "POST",
-        allocation_url,
-        body=json.dumps({"account_url": "http://account-url/"}),
-        status=202,
-    )
+    httpretty.register_uri("POST", allocation_url, status=202)
 
     adjust_balance(reward_adjustment_task.retry_task_id)
 
@@ -217,6 +210,7 @@ def test_adjust_balance(
     assert reward_adjustment_task.next_attempt_time is None
     assert reward_adjustment_task.status == RetryTaskStatuses.SUCCESS
     assert len(reward_adjustment_task.audit_data) == 3
+    assert httpretty.latest_requests()[2].parsed_body.get("count") == 1
 
 
 @httpretty.activate
@@ -230,7 +224,7 @@ def test_adjust_balance_pending_reward(
     httpretty.register_uri(
         "POST",
         adjustment_url,
-        body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
+        body=json.dumps({"new_balance": reward_rule.reward_goal * 3, "campaign_slug": task_params["campaign_slug"]}),
         status=200,
     )
     httpretty.register_uri(
@@ -251,6 +245,55 @@ def test_adjust_balance_pending_reward(
     assert reward_adjustment_task.next_attempt_time is None
     assert reward_adjustment_task.status == RetryTaskStatuses.SUCCESS
     assert len(reward_adjustment_task.audit_data) == 3
+
+    pending_allocation_body = httpretty.latest_requests()[2].parsed_body
+    assert pending_allocation_body.get("count") == 3
+    assert pending_allocation_body.get("total_cost_to_user") == reward_rule.reward_goal * 3
+
+
+@httpretty.activate
+def test_adjust_balance_pending_reward_with_trc(
+    db_session: "Session", reward_adjustment_task: RetryTask, reward_rule: RewardRule, adjustment_url: str
+) -> None:
+    trc = 2
+
+    reward_rule.allocation_window = 15
+    reward_rule.reward_goal = 40
+    reward_rule.reward_cap = trc
+
+    db_session.commit()
+
+    task_params = reward_adjustment_task.get_params()
+    assert task_params["adjustment_amount"] == 100
+
+    httpretty.register_uri(
+        "POST",
+        adjustment_url,
+        body=json.dumps({"new_balance": 120, "campaign_slug": task_params["campaign_slug"]}),
+        status=200,
+    )
+    httpretty.register_uri(
+        "POST",
+        "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
+            base_url=settings.POLARIS_BASE_URL,
+            retailer_slug=task_params["retailer_slug"],
+            account_holder_uuid=task_params["account_holder_uuid"],
+        ),
+        status=202,
+    )
+
+    adjust_balance(reward_adjustment_task.retry_task_id)
+
+    db_session.refresh(reward_adjustment_task)
+
+    assert reward_adjustment_task.attempts == 1
+    assert reward_adjustment_task.next_attempt_time is None
+    assert reward_adjustment_task.status == RetryTaskStatuses.SUCCESS
+    assert len(reward_adjustment_task.audit_data) == 3
+
+    pending_allocation_body = httpretty.latest_requests()[2].parsed_body
+    assert pending_allocation_body.get("count") == trc
+    assert pending_allocation_body.get("total_cost_to_user") == task_params["adjustment_amount"]
 
 
 @httpretty.activate
@@ -275,7 +318,7 @@ def test_adjust_balance_multiple_rewards(
         responses=[
             httpretty.core.httpretty.Response(
                 method=httpretty.POST,
-                body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
+                body=json.dumps({"new_balance": adj_amount, "campaign_slug": task_params["campaign_slug"]}),
             ),
             httpretty.core.httpretty.Response(
                 method=httpretty.POST,
@@ -489,19 +532,39 @@ def test__process_reward_allocation_http_errors(
         }
 
 
-def test__reward_achieved(
-    db_session: "Session",
-    reward_adjustment_task: RetryTask,
-    reward_rule: RewardRule,
-) -> None:
-    def _compare_result(result: int, expected_result: int) -> None:
-        assert result == expected_result
+def test__number_of_rewards_achieved(reward_rule: RewardRule) -> None:
 
     assert reward_rule.reward_goal == 5
-    _compare_result(_number_of_rewards_achieved(reward_rule, 1), 0)
-    _compare_result(_number_of_rewards_achieved(reward_rule, 0), 0)
-    _compare_result(_number_of_rewards_achieved(reward_rule, 5), 1)
-    _compare_result(_number_of_rewards_achieved(reward_rule, 10), 2)
+    assert reward_rule.reward_cap is None
+
+    for new_balance, expected_res in [
+        # (new balance, (num of rewards achieved, cap reached))
+        (1, (0, False)),
+        (0, (0, False)),
+        (5, (1, False)),
+        (10, (2, False)),
+        (15, (3, False)),
+    ]:
+        assert _number_of_rewards_achieved(reward_rule, new_balance) == expected_res
+
+
+def test__number_of_rewards_achieved_with_trc(db_session: "Session", reward_rule: RewardRule) -> None:
+
+    reward_rule.reward_cap = 2
+    db_session.commit()
+
+    assert reward_rule.reward_goal == 5
+    assert reward_rule.reward_cap == 2
+
+    for new_balance, expected_res in [
+        # (new balance, (num of rewards achieved, cap reached))
+        (1, (0, False)),
+        (0, (0, False)),
+        (5, (1, False)),
+        (10, (2, False)),
+        (15, (2, True)),
+    ]:
+        assert _number_of_rewards_achieved(reward_rule, new_balance) == expected_res
 
 
 @httpretty.activate
