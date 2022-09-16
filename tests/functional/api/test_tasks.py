@@ -6,11 +6,11 @@ import pytest
 from deepdiff import DeepDiff
 from pytest_mock import MockerFixture
 
-from app.activity_utils.enums import ActivityType
-from app.activity_utils.tasks import send_processed_tx_activity
-from app.enums import LoyaltyTypes
-from app.models import ProcessedTransaction, RetailerStore
 from tests.conftest import SetupType
+from vela.activity_utils.enums import ActivityType
+from vela.activity_utils.tasks import send_processed_tx_activity
+from vela.enums import LoyaltyTypes
+from vela.models import ProcessedTransaction, RetailerStore
 
 
 @pytest.mark.asyncio

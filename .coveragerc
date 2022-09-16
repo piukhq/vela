@@ -1,11 +1,11 @@
 [run]
 omit = *test*
        *alembic*
-        app/version.py
-        app/tests
-        app/api/healthz.py
-        app/core/reporting.py
-        app/tasks/worker.py
+        vela/version.py
+        vela/tests
+        vela/api/healthz.py
+        vela/core/reporting.py
+        vela/tasks/worker.py
 branch = True
 concurrency = thread
               greenlet

@@ -4,8 +4,8 @@ import pytest
 
 from aioresponses import aioresponses
 
-from app import settings
-from app.internal_requests import send_async_request_with_retry
+from vela import settings
+from vela.internal_requests import send_async_request_with_retry
 
 
 @pytest.mark.asyncio

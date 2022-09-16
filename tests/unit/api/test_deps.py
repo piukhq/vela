@@ -3,7 +3,7 @@ import pytest
 from fastapi import HTTPException
 from pytest_mock import MockerFixture
 
-from app.api.deps import get_authorization_token, user_is_authorised
+from vela.api.deps import get_authorization_token, user_is_authorised
 
 
 def test_get_authorization_token() -> None:
@@ -38,7 +38,7 @@ def test_get_authorization_token_raises_httpexception() -> None:
 def test_user_is_authorised_raises_httpexception(mocker: MockerFixture) -> None:
     # GIVEN
     test_token = "token BADTOKENBAD"
-    from app.api import deps  # pylint: disable=import-outside-toplevel
+    from vela.api import deps  # pylint: disable=import-outside-toplevel
 
     spy = mocker.spy(deps, "get_authorization_token")
 

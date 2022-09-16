@@ -16,19 +16,19 @@ from retry_tasks_lib.db.models import RetryTask, TaskType
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import IncorrectRetryTaskStatusError, sync_create_task
 
-from app.core.config import settings
-from app.enums import CampaignStatuses
-from app.models import Campaign, RewardRule
-from app.tasks.campaign_balances import update_campaign_balances
-from app.tasks.pending_rewards import convert_or_delete_pending_rewards
-from app.tasks.reward_adjustment import (
+from vela.core.config import settings
+from vela.enums import CampaignStatuses
+from vela.models import Campaign, RewardRule
+from vela.tasks.campaign_balances import update_campaign_balances
+from vela.tasks.pending_rewards import convert_or_delete_pending_rewards
+from vela.tasks.reward_adjustment import (
     _number_of_rewards_achieved,
     _process_balance_adjustment,
     _process_reward_allocation,
     _set_param_value,
     adjust_balance,
 )
-from app.tasks.reward_status_adjustment import _process_reward_status_adjustment, reward_status_adjustment
+from vela.tasks.reward_status_adjustment import _process_reward_status_adjustment, reward_status_adjustment
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ fake_now = datetime.now(tz=timezone.utc)
 
 
 @httpretty.activate
-@mock.patch("app.tasks.reward_adjustment.datetime")
+@mock.patch("vela.tasks.reward_adjustment.datetime")
 def test__process_adjustment_ok(
     mock_datetime: mock.Mock,
     reward_adjustment_task: RetryTask,
@@ -139,7 +139,7 @@ def test__process_adjustment_http_errors(
         }
 
 
-@mock.patch("app.tasks.reward_adjustment.send_request_with_metrics")
+@mock.patch("vela.tasks.reward_adjustment.send_request_with_metrics")
 def test__process_adjustment_connection_error(
     mock_send_request_with_metrics: mock.MagicMock,
     reward_adjustment_task: RetryTask,
@@ -163,7 +163,7 @@ def test__process_adjustment_connection_error(
     assert not hasattr(excinfo.value, "response")
 
 
-@mock.patch("app.tasks.reward_adjustment.send_request_with_metrics")
+@mock.patch("vela.tasks.reward_adjustment.send_request_with_metrics")
 def test__process_reward_allocation_connection_error(
     mock_send_request_with_metrics: mock.MagicMock,
     reward_adjustment_task: RetryTask,
@@ -350,7 +350,7 @@ def test_adjust_balance_multiple_rewards(
     assert len(reward_adjustment_task.audit_data) == 3
 
 
-@mock.patch("app.tasks.requests")
+@mock.patch("vela.tasks.requests")
 def test_adjust_balance_task_cancelled_when_campaign_cancelled_or_ended(
     mock_requests: mock.MagicMock,
     db_session: "Session",
@@ -375,7 +375,7 @@ def test_adjust_balance_task_cancelled_when_campaign_cancelled_or_ended(
 
 
 @httpretty.activate
-@mock.patch("app.tasks.reward_adjustment._number_of_rewards_achieved")
+@mock.patch("vela.tasks.reward_adjustment._number_of_rewards_achieved")
 def test_adjust_balance_fails_with_409_no_balance_for_campaign_slug(
     mock__rewards_achieved: mock.MagicMock,
     db_session: "Session",
@@ -450,7 +450,7 @@ def test_adjust_balance_wrong_status(
 
 
 @httpretty.activate
-@mock.patch("app.tasks.reward_adjustment.datetime")
+@mock.patch("vela.tasks.reward_adjustment.datetime")
 def test__process_reward_allocation(
     mock_datetime: mock.MagicMock,
     reward_adjustment_task: RetryTask,
@@ -614,7 +614,7 @@ def test__process_reward_status_adjustment_http_errors(
         assert json.loads(last_request.body) == reward_status_adjustment_expected_payload
 
 
-@mock.patch("app.tasks.reward_status_adjustment.send_request_with_metrics")
+@mock.patch("vela.tasks.reward_status_adjustment.send_request_with_metrics")
 def test__process_reward_status_adjustment_connection_error(
     mock_send_request_with_metrics: mock.MagicMock, reward_status_adjustment_retry_task: RetryTask
 ) -> None:
