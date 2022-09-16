@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from app.enums import CampaignStatuses
-from app.models import Campaign, EarnRule, RewardRule
+from vela.enums import CampaignStatuses
+from vela.models import Campaign, EarnRule, RewardRule
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from app.models import RetailerRewards
+    from vela.models import RetailerRewards
 
 
 def test_campaign_is_activable_ok(db_session: "Session", retailer: "RetailerRewards") -> None:

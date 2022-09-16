@@ -2,9 +2,9 @@ import random
 
 from prometheus_client import REGISTRY
 
-from app.core.config import settings
-from app.tasks.prometheus.metrics import METRIC_NAME_PREFIX
-from app.tasks.prometheus.synchronous import task_processing_time_callback_fn
+from vela.core.config import settings
+from vela.tasks.prometheus.metrics import METRIC_NAME_PREFIX
+from vela.tasks.prometheus.synchronous import task_processing_time_callback_fn
 
 
 def test_metrics_callback_fn_multiple_metrics() -> None:

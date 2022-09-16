@@ -34,8 +34,8 @@ def upgrade() -> None:
     inserted_obj = conn.execute(
         sa.insert(task_type).values(
             name=pending_rewards_task_name,
-            path="app.tasks.pending_rewards.convert_or_delete_pending_rewards",
-            error_handler_path="app.tasks.error_handlers.handle_retry_task_request_error",
+            path="vela.tasks.pending_rewards.convert_or_delete_pending_rewards",
+            error_handler_path="vela.tasks.error_handlers.handle_retry_task_request_error",
             queue_name="vela:default",
         )
     )

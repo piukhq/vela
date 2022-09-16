@@ -7,9 +7,9 @@ import pytest
 from retry_tasks_lib.db.models import RetryTask, TaskType, TaskTypeKeyValue
 from retry_tasks_lib.utils.synchronous import sync_create_task
 
-from app.core.config import settings
-from app.enums import CampaignStatuses
-from app.models import Campaign, ProcessedTransaction
+from vela.core.config import settings
+from vela.enums import CampaignStatuses
+from vela.models import Campaign, ProcessedTransaction
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

@@ -5,7 +5,7 @@ from requests.exceptions import RequestException
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.enums import RetryTaskStatuses
 
-from app.tasks.error_handlers import handle_adjust_balance_error
+from vela.tasks.error_handlers import handle_adjust_balance_error
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -18,7 +18,7 @@ def test_handle_adjust_balance_requests_exception(
     reward_adjustment_task.status = RetryTaskStatuses.IN_PROGRESS  # for the sake of correctness
     db_session.commit()
 
-    mock_handle_error = mocker.patch("app.tasks.error_handlers.handle_request_exception")
+    mock_handle_error = mocker.patch("vela.tasks.error_handlers.handle_request_exception")
 
     handle_adjust_balance_error(
         job=MagicMock(), exc_type=RequestException, exc_value=RequestException(), traceback=MagicMock()
