@@ -253,7 +253,7 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
             for key_name, key_type in (
                 ("account_holder_uuid", TaskParamsKeyTypes.STRING),
                 ("retailer_slug", TaskParamsKeyTypes.STRING),
-                ("processed_transaction_id", TaskParamsKeyTypes.INTEGER),
+                ("processed_transaction_id", TaskParamsKeyTypes.STRING),
                 ("campaign_slug", TaskParamsKeyTypes.STRING),
                 ("adjustment_amount", TaskParamsKeyTypes.INTEGER),
                 ("pre_allocation_token", TaskParamsKeyTypes.STRING),
