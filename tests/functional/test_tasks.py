@@ -18,7 +18,7 @@ from retry_tasks_lib.utils.synchronous import IncorrectRetryTaskStatusError, syn
 
 from vela.core.config import settings
 from vela.enums import CampaignStatuses
-from vela.models import Campaign, RewardRule
+from vela.models import Campaign, ProcessedTransaction, RewardRule
 from vela.tasks.campaign_balances import update_campaign_balances
 from vela.tasks.pending_rewards import convert_or_delete_pending_rewards
 from vela.tasks.reward_adjustment import (
@@ -300,6 +300,7 @@ def test_adjust_balance_pending_reward_with_trc(
 def test_adjust_balance_multiple_rewards(
     db_session: "Session",
     reward_adjustment_task: RetryTask,
+    processed_transaction: ProcessedTransaction,
     reward_rule: RewardRule,
     adjustment_url: str,
     allocation_url: str,
@@ -338,7 +339,7 @@ def test_adjust_balance_multiple_rewards(
     transaction_request = list(httpretty.HTTPretty.latest_requests[1].parsed_body.values())
     reward_allocation_request = list(httpretty.HTTPretty.latest_requests[2].parsed_body.values())
     reward_request = list(httpretty.HTTPretty.latest_requests[-1].parsed_body.values())
-    assert transaction_request[2] == "Transaction 1"
+    assert transaction_request[2] == f"Transaction {processed_transaction.transaction_id}"
     assert reward_allocation_request[0] == expected_count
     assert reward_request[2] == f"Reward goal: {reward_rule.reward_goal} Count: {expected_count}"
 

@@ -43,7 +43,7 @@ def reward_adjustment_task(
         params={
             "account_holder_uuid": processed_transaction.account_holder_uuid,
             "retailer_slug": processed_transaction.retailer.slug,
-            "processed_transaction_id": processed_transaction.id,
+            "processed_transaction_id": processed_transaction.transaction_id,
             "campaign_slug": processed_transaction.campaign_slugs[0],
             "adjustment_amount": 100,
             "pre_allocation_token": uuid4(),
