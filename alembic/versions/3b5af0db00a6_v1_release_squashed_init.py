@@ -30,8 +30,8 @@ TaskTypeData = namedtuple("TaskTypeData", ["name", "path", "error_handler_path",
 task_type_data = [
     TaskTypeData(
         name="reward-adjustment",
-        path="app.tasks.reward_adjustment.adjust_balance",
-        error_handler_path="app.tasks.error_handlers.handle_adjust_balance_error",
+        path="vela.tasks.reward_adjustment.adjust_balance",
+        error_handler_path="vela.tasks.error_handlers.handle_adjust_balance_error",
         keys=[
             TaskTypeKeyData(name="account_holder_uuid", type=STRING),
             TaskTypeKeyData(name="retailer_slug", type=STRING),
@@ -47,8 +47,8 @@ task_type_data = [
     ),
     TaskTypeData(
         name="reward-status-adjustment",
-        path="app.tasks.reward_status_adjustment.reward_status_adjustment",
-        error_handler_path="app.tasks.error_handlers.handle_retry_task_request_error",
+        path="vela.tasks.reward_status_adjustment.reward_status_adjustment",
+        error_handler_path="vela.tasks.error_handlers.handle_retry_task_request_error",
         keys=[
             TaskTypeKeyData(name="retailer_slug", type=STRING),
             TaskTypeKeyData(name="reward_slug", type=STRING),
@@ -57,8 +57,8 @@ task_type_data = [
     ),
     TaskTypeData(
         name="create-campaign-balances",
-        path="app.tasks.campaign_balances.update_campaign_balances",
-        error_handler_path="app.tasks.error_handlers.handle_retry_task_request_error",
+        path="vela.tasks.campaign_balances.update_campaign_balances",
+        error_handler_path="vela.tasks.error_handlers.handle_retry_task_request_error",
         keys=[
             TaskTypeKeyData(name="retailer_slug", type=STRING),
             TaskTypeKeyData(name="campaign_slug", type=STRING),
@@ -66,8 +66,8 @@ task_type_data = [
     ),
     TaskTypeData(
         name="delete-campaign-balances",
-        path="app.tasks.campaign_balances.update_campaign_balances",
-        error_handler_path="app.tasks.error_handlers.handle_retry_task_request_error",
+        path="vela.tasks.campaign_balances.update_campaign_balances",
+        error_handler_path="vela.tasks.error_handlers.handle_retry_task_request_error",
         keys=[
             TaskTypeKeyData(name="retailer_slug", type=STRING),
             TaskTypeKeyData(name="campaign_slug", type=STRING),

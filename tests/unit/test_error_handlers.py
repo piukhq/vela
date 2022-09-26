@@ -4,11 +4,11 @@ from unittest import mock
 import pytest
 import rq
 
-from app.tasks.error_handlers import handle_adjust_balance_error, handle_retry_task_request_error
+from vela.tasks.error_handlers import handle_adjust_balance_error, handle_retry_task_request_error
 
 
-@mock.patch("app.tasks.error_handlers.logger")
-@mock.patch("app.tasks.error_handlers.handle_request_exception")
+@mock.patch("vela.tasks.error_handlers.logger")
+@mock.patch("vela.tasks.error_handlers.handle_request_exception")
 def test_handle_adjust_balance_error(
     mock_handle_request_exception: mock.MagicMock, mock_logger: mock.MagicMock
 ) -> None:
@@ -28,8 +28,8 @@ def test_handle_adjust_balance_error(
     )
 
 
-@mock.patch("app.tasks.error_handlers.logger")
-@mock.patch("app.tasks.error_handlers.handle_request_exception")
+@mock.patch("vela.tasks.error_handlers.logger")
+@mock.patch("vela.tasks.error_handlers.handle_request_exception")
 def test_handle_retry_task_request_error(
     mock_handle_request_exception: mock.MagicMock, mock_logger: mock.MagicMock
 ) -> None:

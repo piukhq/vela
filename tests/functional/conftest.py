@@ -7,9 +7,9 @@ import pytest
 from retry_tasks_lib.db.models import RetryTask, TaskType, TaskTypeKeyValue
 from retry_tasks_lib.utils.synchronous import sync_create_task
 
-from app.core.config import settings
-from app.enums import CampaignStatuses
-from app.models import Campaign, ProcessedTransaction
+from vela.core.config import settings
+from vela.enums import CampaignStatuses
+from vela.models import Campaign, ProcessedTransaction
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -43,7 +43,7 @@ def reward_adjustment_task(
         params={
             "account_holder_uuid": processed_transaction.account_holder_uuid,
             "retailer_slug": processed_transaction.retailer.slug,
-            "processed_transaction_id": processed_transaction.id,
+            "processed_transaction_id": processed_transaction.transaction_id,
             "campaign_slug": processed_transaction.campaign_slugs[0],
             "adjustment_amount": 100,
             "pre_allocation_token": uuid4(),

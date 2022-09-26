@@ -9,12 +9,12 @@ from retry_tasks_lib.db.models import TaskType, TaskTypeKey
 from retry_tasks_lib.enums import TaskParamsKeyTypes
 from sqlalchemy_utils import create_database, database_exists, drop_database
 
-from app.core.config import redis, settings
-from app.db.base import Base
-from app.db.session import SyncSessionMaker, sync_engine
-from app.enums import CampaignStatuses
-from app.models import Campaign, EarnRule, RetailerRewards, RetailerStore, Transaction
-from app.models.retailer import RewardRule
+from vela.core.config import redis, settings
+from vela.db.base import Base
+from vela.db.session import SyncSessionMaker, sync_engine
+from vela.enums import CampaignStatuses
+from vela.models import Campaign, EarnRule, RetailerRewards, RetailerStore, Transaction
+from vela.models.retailer import RewardRule
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -253,7 +253,7 @@ def reward_adjustment_task_type(db_session: "Session") -> TaskType:
             for key_name, key_type in (
                 ("account_holder_uuid", TaskParamsKeyTypes.STRING),
                 ("retailer_slug", TaskParamsKeyTypes.STRING),
-                ("processed_transaction_id", TaskParamsKeyTypes.INTEGER),
+                ("processed_transaction_id", TaskParamsKeyTypes.STRING),
                 ("campaign_slug", TaskParamsKeyTypes.STRING),
                 ("adjustment_amount", TaskParamsKeyTypes.INTEGER),
                 ("pre_allocation_token", TaskParamsKeyTypes.STRING),

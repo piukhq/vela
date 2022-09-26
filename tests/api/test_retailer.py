@@ -8,11 +8,11 @@ from sqlalchemy.exc import StatementError
 from sqlalchemy.future import select
 from starlette import status
 
-from app.core.config import settings
-from app.enums import RewardCap
-from app.models import Campaign, RetailerRewards
-from app.models.retailer import RewardRule
 from asgi import app
+from vela.core.config import settings
+from vela.enums import RewardCap
+from vela.models import Campaign, RetailerRewards
+from vela.models.retailer import RewardRule
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

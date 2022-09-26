@@ -1,5 +1,5 @@
-from app.activity_utils.utils import build_tx_history_earns, build_tx_history_reasons
-from app.enums import LoyaltyTypes
+from vela.activity_utils.utils import build_tx_history_earns, build_tx_history_reasons
+from vela.enums import LoyaltyTypes
 
 
 def test_build_tx_history_reasons() -> None:

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from app.core.utils import calculate_adjustment_amount_for_earn_rule
-from app.enums import LoyaltyTypes
-from app.models.retailer import EarnRule
+from vela.core.utils import calculate_adjustment_amount_for_earn_rule
+from vela.enums import LoyaltyTypes
+from vela.models.retailer import EarnRule
 
 
 @dataclass

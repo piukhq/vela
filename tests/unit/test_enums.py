@@ -1,4 +1,4 @@
-from app.enums import CampaignStatuses
+from vela.enums import CampaignStatuses
 
 
 def test_campaign_statuses_legal_transitions() -> None:

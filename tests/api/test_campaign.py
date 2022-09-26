@@ -15,11 +15,11 @@ from retry_tasks_lib.enums import RetryTaskStatuses
 from sqlalchemy import delete
 from sqlalchemy.future import select
 
-from app.core.config import settings
-from app.enums import CampaignStatuses, HttpErrors
-from app.models import Campaign, EarnRule, RetailerRewards, RewardRule
 from asgi import app
 from tests.conftest import SetupType
+from vela.core.config import settings
+from vela.enums import CampaignStatuses, HttpErrors
+from vela.models import Campaign, EarnRule, RetailerRewards, RewardRule
 
 client = TestClient(app, raise_server_exceptions=False)
 auth_headers = {"Authorization": f"Token {settings.VELA_API_AUTH_TOKEN}", "Bpl-User-Channel": "channel"}
@@ -58,7 +58,7 @@ def validate_composite_error_response(response: Response, exptected_errors: list
         assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
 
 
-@mock.patch("app.api.endpoints.campaign.datetime")
+@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_update_campaign_active_status_to_ended(
     mock_datetime: mock.MagicMock,
     setup: SetupType,
@@ -87,7 +87,7 @@ def test_update_campaign_active_status_to_ended(
         }
     )
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
@@ -116,7 +116,7 @@ def test_update_campaign_active_status_to_ended(
     assert activation_task.status == RetryTaskStatuses.PENDING
 
 
-@mock.patch("app.api.endpoints.campaign.datetime")
+@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_update_multiple_campaigns_ok(
     mock_datetime: mock.MagicMock,
     setup: SetupType,
@@ -164,7 +164,7 @@ def test_update_multiple_campaigns_ok(
             "slug": "fourth-test-campaign",
         }
     )
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
     resp = client.post(
@@ -459,7 +459,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
         }
     )
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
@@ -563,7 +563,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         }
     )
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
@@ -711,7 +711,7 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         }
     )
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
@@ -866,10 +866,10 @@ def test_activating_a_campaign(
     activable_campaign.start_date = None
     db_session.commit()
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
-    mock_datetime = mocker.patch("app.api.endpoints.campaign.datetime")
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
     mock_datetime.now.return_value = now
 
     create_mock_reward_rule(reward_slug="activable-reward-type", campaign_id=activable_campaign.id)
@@ -1000,7 +1000,7 @@ def test_activating_a_campaign_with_no_reward_rule_multiple_errors(
     assert activable_campaign.status == CampaignStatuses.DRAFT
 
 
-@mock.patch("app.api.endpoints.campaign.datetime")
+@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_ending_campaign_convert_pending_rewards(
     mock_datetime: mock.MagicMock,
     setup: SetupType,
@@ -1027,7 +1027,7 @@ def test_ending_campaign_convert_pending_rewards(
     create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
     db_session.commit()
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
@@ -1084,7 +1084,7 @@ def test_ending_campaign_convert_pending_rewards(
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
 
 
-@mock.patch("app.api.endpoints.campaign.datetime")
+@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_ending_campaign_delete_pending_rewards(
     mock_datetime: mock.MagicMock,
     setup: SetupType,
@@ -1096,7 +1096,7 @@ def test_ending_campaign_delete_pending_rewards(
     mocker: MockerFixture,
 ) -> None:
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
     db_session, retailer, campaign = setup
@@ -1177,7 +1177,7 @@ def test_ending_campaign_delete_pending_rewards(
         assert pending_reward_task.status == RetryTaskStatuses.PENDING
 
 
-@mock.patch("app.api.endpoints.campaign.datetime")
+@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_ending_campaign_convert_pending_rewards_without_refund_window(
     mock_datetime: mock.MagicMock,
     setup: SetupType,
@@ -1204,7 +1204,7 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
     create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id)
     db_session.commit()
 
-    import app.api.endpoints.campaign as endpoints_campaign
+    import vela.api.endpoints.campaign as endpoints_campaign
 
     mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
