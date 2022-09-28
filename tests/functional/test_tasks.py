@@ -62,6 +62,7 @@ def test__process_adjustment_ok(
         idempotency_token=task_params["pre_allocation_token"],
         reason="Transaction 1",
         tx_datetime=task_params["transaction_datetime"],
+        is_transaction=False,
     )
 
     last_request = httpretty.last_request()
@@ -72,6 +73,7 @@ def test__process_adjustment_ok(
         "campaign_slug": task_params["campaign_slug"],
         "reason": "Transaction 1",
         "transaction_datetime": task_params["transaction_datetime"].timestamp(),
+        "is_transaction": False,
     }
 
     assert response_audit == {
@@ -82,6 +84,7 @@ def test__process_adjustment_ok(
                     "campaign_slug": "test-campaign",
                     "reason": "Transaction 1",
                     "transaction_datetime": task_params["transaction_datetime"].timestamp(),
+                    "is_transaction": False,
                 }
             ),
             "url": "{0}/{1}/accounts/{2}/adjustments".format(
@@ -136,6 +139,7 @@ def test__process_adjustment_http_errors(
             "campaign_slug": task_params["campaign_slug"],
             "reason": "Transaction 1",
             "transaction_datetime": task_params["transaction_datetime"].timestamp(),
+            "is_transaction": True,
         }
 
 

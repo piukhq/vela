@@ -59,6 +59,9 @@ pylint-pytest = "^1.1.2"
 deepdiff = "^5.8.1"
 aioresponses = "^0.7.3"
 
+[tool.poetry.scripts]
+vela = 'vela.core.cli:cli'
+
 [tool.black]
 line-length = 120
 
