@@ -141,6 +141,7 @@ def _process_balance_adjustment(
     idempotency_token: str,
     reason: str,
     tx_datetime: datetime,
+    is_transaction: bool = True,
 ) -> tuple[int, dict]:
     url_template = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments"
     url_kwargs = {
@@ -153,6 +154,7 @@ def _process_balance_adjustment(
         "campaign_slug": campaign_slug,
         "reason": reason,
         "transaction_datetime": tx_datetime.replace(tzinfo=timezone.utc).timestamp(),
+        "is_transaction": is_transaction,
     }
 
     response_audit: dict = {
@@ -358,6 +360,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             adjustment_amount=-tot_cost_to_user,
             reason=f"Reward goal: {reward_rule.reward_goal} Count: {rewards_achieved_n}",
             tx_datetime=tx_datetime,
+            is_transaction=False,
         )
         logger.info(f"Balance readjusted - new balance: {balance} {log_suffix}")
         retry_task.update_task(db_session, response_audit=response_audit)
