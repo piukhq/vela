@@ -256,7 +256,52 @@ def test_adjust_balance_pending_reward(
 
 
 @httpretty.activate
-def test_adjust_balance_pending_reward_with_trc(
+def test_adjust_balance_pending_reward_with_trc_exceed_reward_cap(
+    db_session: "Session", reward_adjustment_task: RetryTask, reward_rule: RewardRule, adjustment_url: str
+) -> None:
+    trc = 2
+
+    reward_rule.allocation_window = 15
+    reward_rule.reward_goal = 30
+    reward_rule.reward_cap = trc
+
+    db_session.commit()
+
+    task_params = reward_adjustment_task.get_params()
+    assert task_params["adjustment_amount"] == 100
+
+    httpretty.register_uri(
+        "POST",
+        adjustment_url,
+        body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
+        status=200,
+    )
+    httpretty.register_uri(
+        "POST",
+        "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/pendingrewardallocation".format(
+            base_url=settings.POLARIS_BASE_URL,
+            retailer_slug=task_params["retailer_slug"],
+            account_holder_uuid=task_params["account_holder_uuid"],
+        ),
+        status=202,
+    )
+
+    adjust_balance(reward_adjustment_task.retry_task_id)
+
+    db_session.refresh(reward_adjustment_task)
+
+    assert reward_adjustment_task.attempts == 1
+    assert reward_adjustment_task.next_attempt_time is None
+    assert reward_adjustment_task.status == RetryTaskStatuses.SUCCESS
+    assert len(reward_adjustment_task.audit_data) == 3
+
+    pending_allocation_body = httpretty.latest_requests()[2].parsed_body
+    assert pending_allocation_body.get("count") == trc
+    assert pending_allocation_body.get("total_cost_to_user") == task_params["adjustment_amount"]
+
+
+@httpretty.activate
+def test_adjust_balance_pending_reward_with_trc_reaches_reward_cap_with_slush(
     db_session: "Session", reward_adjustment_task: RetryTask, reward_rule: RewardRule, adjustment_url: str
 ) -> None:
     trc = 2
@@ -273,7 +318,7 @@ def test_adjust_balance_pending_reward_with_trc(
     httpretty.register_uri(
         "POST",
         adjustment_url,
-        body=json.dumps({"new_balance": 120, "campaign_slug": task_params["campaign_slug"]}),
+        body=json.dumps({"new_balance": 100, "campaign_slug": task_params["campaign_slug"]}),
         status=200,
     )
     httpretty.register_uri(
@@ -542,15 +587,16 @@ def test__number_of_rewards_achieved(reward_rule: RewardRule) -> None:
     assert reward_rule.reward_goal == 5
     assert reward_rule.reward_cap is None
 
-    for new_balance, expected_res in [
-        # (new balance, (num of rewards achieved, cap reached))
-        (1, (0, False)),
-        (0, (0, False)),
-        (5, (1, False)),
-        (10, (2, False)),
-        (15, (3, False)),
+    for new_balance, adjustment, expected_res in [
+        # (new balance, adjustment, (num of rewards achieved, cap reached))
+        (1, 1, (0, False)),
+        (0, 0, (0, False)),
+        (5, 5, (1, False)),
+        (10, 10, (2, False)),
+        (13, 12, (2, False)),
+        (15, 15, (3, False)),
     ]:
-        assert _number_of_rewards_achieved(reward_rule, new_balance) == expected_res
+        assert _number_of_rewards_achieved(reward_rule, new_balance, adjustment) == expected_res
 
 
 def test__number_of_rewards_achieved_with_trc(db_session: "Session", reward_rule: RewardRule) -> None:
@@ -561,15 +607,17 @@ def test__number_of_rewards_achieved_with_trc(db_session: "Session", reward_rule
     assert reward_rule.reward_goal == 5
     assert reward_rule.reward_cap == 2
 
-    for new_balance, expected_res in [
-        # (new balance, (num of rewards achieved, cap reached))
-        (1, (0, False)),
-        (0, (0, False)),
-        (5, (1, False)),
-        (10, (2, False)),
-        (15, (2, True)),
+    for new_balance, adjustment, expected_res in [
+        # (new balance, adjustment, (num of rewards achieved, cap reached))
+        (1, 1, (0, False)),
+        (0, 0, (0, False)),
+        (5, 5, (1, False)),
+        (10, 10, (2, False)),
+        (12, 10, (2, False)),
+        (12, 12, (2, True)),
+        (15, 15, (2, True)),
     ]:
-        assert _number_of_rewards_achieved(reward_rule, new_balance) == expected_res
+        assert _number_of_rewards_achieved(reward_rule, new_balance, adjustment) == expected_res
 
 
 @httpretty.activate
