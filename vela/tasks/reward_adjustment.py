@@ -121,15 +121,18 @@ def _get_reward_rule(db_session: "Session", campaign_slug: str) -> RewardRule:
     return reward_rule
 
 
-def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int) -> tuple[int, bool]:
+def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int, adjustment_amount: int) -> tuple[int, bool]:
     n_reward_achieved = new_balance // reward_rule.reward_goal
-    adj_amount_over_cap = False
+    trc_reached = False
 
-    if reward_rule.reward_cap and n_reward_achieved > reward_rule.reward_cap:
+    if reward_rule.reward_cap and (
+        n_reward_achieved > reward_rule.reward_cap
+        or adjustment_amount > reward_rule.reward_cap * reward_rule.reward_goal
+    ):
         n_reward_achieved = reward_rule.reward_cap
-        adj_amount_over_cap = True
+        trc_reached = True
 
-    return n_reward_achieved, adj_amount_over_cap
+    return n_reward_achieved, trc_reached
 
 
 def _process_balance_adjustment(
@@ -312,10 +315,10 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
     logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
     retry_task.update_task(db_session, response_audit=response_audit)
 
-    rewards_achieved_n, adj_amount_over_cap = _number_of_rewards_achieved(reward_rule, new_balance)
+    rewards_achieved_n, trc_reached = _number_of_rewards_achieved(reward_rule, new_balance, adjustment_amount)
 
     if rewards_achieved_n > 0:
-        if adj_amount_over_cap:
+        if trc_reached:
             tot_cost_to_user = adjustment_amount
             logger.info("Transaction reward cap '%s' reached %s", reward_rule.reward_cap, log_suffix)
             post_msg = "Transaction reward cap reached, decreasing balance by original adjustment amount (%s) %s"
