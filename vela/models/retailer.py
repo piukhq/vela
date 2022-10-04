@@ -64,7 +64,7 @@ class RewardRule(Base, TimestampMixin):
     __tablename__ = "reward_rule"
 
     reward_goal = Column(Integer, nullable=False)
-    reward_slug = Column(String(32), index=True, unique=True, nullable=False)
+    reward_slug = Column(String(32), index=True, unique=False, nullable=False)
     allocation_window = Column(Integer, nullable=False, server_default="0")
     reward_cap = Column(
         Enum(RewardCap, values_callable=lambda x: [str(e.value) for e in RewardCap]),
