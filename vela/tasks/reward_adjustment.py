@@ -25,7 +25,13 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _process_reward_allocation(
-    *, retailer_slug: str, reward_slug: str, account_holder_uuid: str, idempotency_token: str, count: int
+    *,
+    retailer_slug: str,
+    reward_slug: str,
+    campaign_slug: str,
+    account_holder_uuid: str,
+    idempotency_token: str,
+    count: int,
 ) -> dict:
     url_template = "{base_url}/{retailer_slug}/rewards/{reward_slug}/allocation"
     url_kwargs = {
@@ -40,6 +46,7 @@ def _process_reward_allocation(
             retailer_slug=retailer_slug,
             account_holder_uuid=account_holder_uuid,
         ),
+        "campaign_slug": campaign_slug,
     }
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
@@ -246,6 +253,7 @@ def _process_reward_path(
         response_audit = _process_reward_allocation(
             retailer_slug=task_params["retailer_slug"],
             reward_slug=reward_rule.reward_slug,
+            campaign_slug=campaign_slug,
             account_holder_uuid=task_params["account_holder_uuid"],
             idempotency_token=allocation_token,
             count=count,
