@@ -22,3 +22,10 @@ class ProcessedTXEventSchema(BaseModel):
     store_name: str
     earned: list[EarnedSchema]
     mid: str
+
+
+class TxImportEventSchema(BaseModel):
+    transaction_id: str
+    datetime: utc_datetime
+    amount: str
+    mid: str
