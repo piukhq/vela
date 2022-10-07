@@ -179,6 +179,7 @@ def test__process_reward_allocation_connection_error(
         _process_reward_allocation(
             retailer_slug="retailer_slug",
             reward_slug="slug",
+            campaign_slug="campaign-slug",
             account_holder_uuid="uuid",
             idempotency_token="token",
             count=1,
@@ -523,6 +524,7 @@ def test__process_reward_allocation(
     response_audit = _process_reward_allocation(
         retailer_slug=retailer_slug,
         reward_slug=reward_slug,
+        campaign_slug="campaign-slug",
         account_holder_uuid=account_holder_uuid,
         idempotency_token=str(uuid4()),
         count=count,
@@ -534,9 +536,16 @@ def test__process_reward_allocation(
     assert last_request.url == allocation_url
 
     account_url = f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/rewards"
-    assert json.loads(last_request.body) == {"account_url": account_url, "count": count}
+    assert json.loads(last_request.body) == {
+        "account_url": account_url,
+        "count": count,
+        "campaign_slug": "campaign-slug",
+    }
     assert response_audit == {
-        "request": {"body": json.dumps({"count": count, "account_url": account_url}), "url": allocation_url},
+        "request": {
+            "body": json.dumps({"count": count, "account_url": account_url, "campaign_slug": "campaign-slug"}),
+            "url": allocation_url,
+        },
         "timestamp": fake_now.isoformat(),
         "response": {
             "status": 202,
@@ -566,6 +575,7 @@ def test__process_reward_allocation_http_errors(
             _process_reward_allocation(
                 retailer_slug=retailer_slug,
                 reward_slug=reward_slug,
+                campaign_slug="campaign-slug",
                 account_holder_uuid=account_holder_uuid,
                 idempotency_token=idempotency_token,
                 count=count,
@@ -579,6 +589,7 @@ def test__process_reward_allocation_http_errors(
         assert json.loads(last_request.body) == {
             "count": count,
             "account_url": (f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/rewards"),
+            "campaign_slug": "campaign-slug",
         }
 
 
