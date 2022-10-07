@@ -1,9 +1,9 @@
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments, too-many-locals
 
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Callable
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 from uuid import uuid4
 
 import pytest
@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 
 from asgi import app
 from tests.conftest import SetupType
+from vela.activity_utils.enums import ActivityType
 from vela.core.config import settings
 from vela.enums import CampaignStatuses, LoyaltyTypes, TransactionProcessingStatuses
 from vela.models import EarnRule, ProcessedTransaction, RetailerRewards, Transaction
@@ -60,17 +61,23 @@ def test_post_transaction_happy_path(
         "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
     )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_get_processed_tx_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_processed_tx_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
     create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
-
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json() == "Awarded"
-
     processed_transaction = (
         db_session.query(ProcessedTransaction).filter_by(transaction_id=payload["id"], retailer_id=retailer.id).first()
     )
-
     assert processed_transaction is not None
     assert processed_transaction.mid == payload["MID"]
     assert processed_transaction.amount == payload["transaction_total"]
@@ -78,6 +85,31 @@ def test_post_transaction_happy_path(
     assert processed_transaction.payment_transaction_id == payload["transaction_id"]
     assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
+    processed_datetime = datetime.fromtimestamp(float(payload["datetime"]), tz=timezone.utc)
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": 1125,
+        "datetime": processed_datetime,
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+    tx_import_activity_data = {
+        "retailer_slug": retailer.slug,
+        "active_campaign_slugs": [f"{campaign.slug}"],
+        "refunds_valid": True,
+        "error": "N/A",
+    }
+    mock_get_tx_import_activity_data.assert_called_once_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data,
+    )
+    mock_get_processed_tx_activity_data.assert_called_once()
+    expected_calls = [  # The expected call stack for send_activity, in order
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+    ]
+    mock_async_send_activity.assert_has_calls(expected_calls)
 
 
 def test_post_transaction_not_awarded(
@@ -119,6 +151,11 @@ def test_post_transaction_no_active_campaigns(
     mocker.patch(
         "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
     )
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
 
@@ -132,6 +169,26 @@ def test_post_transaction_no_active_campaigns(
     assert transaction.amount == payload["transaction_total"]
     assert transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert transaction.account_holder_uuid == account_holder_uuid
+    processed_datetime = datetime.fromtimestamp(float(payload["datetime"]), tz=timezone.utc)
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": 1125,
+        "datetime": processed_datetime,
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+    tx_import_activity_data = {
+        "retailer_slug": retailer.slug,
+        "active_campaign_slugs": None,
+        "refunds_valid": None,
+        "error": "NO_ACTIVE_CAMPAIGNS",
+    }
+    mock_get_tx_import_activity_data.assert_called_once_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data,
+    )
+    mock_async_send_activity.assert_called_once_with({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value)
 
 
 def test_post_transaction_no_active_campaigns_pre_start_date(
@@ -185,13 +242,32 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     assert transaction.status == TransactionProcessingStatuses.NO_ACTIVE_CAMPAIGNS
 
 
-def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, mocker: MockerFixture) -> None:
+def test_post_transaction_existing_transaction(
+    setup: SetupType,
+    earn_rule: EarnRule,
+    reward_adjustment_task_type: "TaskType",
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: "TaskType",
+    payload: dict,
+    mocker: MockerFixture,
+) -> None:
     retailer_slug = setup.retailer.slug
+    campaign = setup.campaign
     db_session = setup.db_session
 
     mocker.patch(
         "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
     )
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_get_processed_tx_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_processed_tx_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
+    create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
@@ -207,6 +283,32 @@ def test_post_transaction_existing_transaction(setup: SetupType, payload: dict, 
     assert transaction.status == TransactionProcessingStatuses.DUPLICATE
     assert db_session.execute(select(func.count()).select_from(ProcessedTransaction)).scalar() == 1
     assert resp.json() == {"display_message": "Duplicate Transaction.", "code": "DUPLICATE_TRANSACTION"}
+    processed_datetime = datetime.fromtimestamp(float(payload["datetime"]), tz=timezone.utc)
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": 1125,
+        "datetime": processed_datetime,
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+    tx_import_activity_data = {
+        "retailer_slug": retailer_slug,
+        "active_campaign_slugs": None,
+        "refunds_valid": None,
+        "error": "DUPLICATE_TRANSACTION",
+    }
+    mock_get_tx_import_activity_data.assert_called_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data,
+    )
+    mock_get_processed_tx_activity_data.assert_called_once()
+    expected_calls = [  # The expected call stack for send_activity, in order
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+    ]
+    mock_async_send_activity.assert_has_calls(expected_calls)
 
 
 def test_post_transaction_wrong_retailer(payload: dict) -> None:
@@ -216,9 +318,36 @@ def test_post_transaction_wrong_retailer(payload: dict) -> None:
 
 
 def test_post_transaction_account_holder_validation_errors(
-    setup: SetupType, payload: dict, mocker: MockerFixture
+    setup: SetupType,
+    earn_rule: EarnRule,
+    reward_adjustment_task_type: "TaskType",
+    create_mock_reward_rule: Callable,
+    reward_status_adjustment_task_type: "TaskType",
+    payload: dict,
+    mocker: MockerFixture,
 ) -> None:
     retailer_slug = setup.retailer.slug
+    campaign = setup.campaign
+    processed_datetime = datetime.fromtimestamp(float(payload["datetime"]), tz=timezone.utc)
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": 1125,
+        "datetime": processed_datetime,
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_get_processed_tx_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_processed_tx_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
+    create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
 
     mocked_session = mocker.patch("vela.internal_requests.send_async_request_with_retry")
     mocked_session.return_value = (status.HTTP_200_OK, {"status": "pending"})
@@ -227,6 +356,15 @@ def test_post_transaction_account_holder_validation_errors(
 
     assert resp.status_code == status.HTTP_409_CONFLICT
     assert resp.json() == {"display_message": "User Account not Active", "code": "USER_NOT_ACTIVE"}
+    tx_import_activity_data_not_active = {
+        "retailer_slug": retailer_slug,
+        "active_campaign_slugs": None,
+        "refunds_valid": None,
+        "error": "USER_NOT_ACTIVE",
+    }
+    mock_get_tx_import_activity_data.assert_called_with(
+        transaction=transaction_data, data=tx_import_activity_data_not_active
+    )
 
     mocked_session.return_value = (status.HTTP_404_NOT_FOUND, {})
 
@@ -234,6 +372,15 @@ def test_post_transaction_account_holder_validation_errors(
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     assert resp.json() == {"display_message": "Unknown User.", "code": "USER_NOT_FOUND"}
+    tx_import_activity_data_not_found = {
+        "retailer_slug": retailer_slug,
+        "active_campaign_slugs": None,
+        "refunds_valid": None,
+        "error": "USER_NOT_FOUND",
+    }
+    mock_get_tx_import_activity_data.assert_called_with(
+        transaction=transaction_data, data=tx_import_activity_data_not_found
+    )
 
     mocked_session.return_value = (status.HTTP_500_INTERNAL_SERVER_ERROR, {})
 
@@ -244,6 +391,25 @@ def test_post_transaction_account_holder_validation_errors(
         "display_message": "An unexpected system error occurred, please try again later.",
         "code": "INTERNAL_ERROR",
     }
+    tx_import_activity_data_client_error = {
+        "retailer_slug": retailer_slug,
+        "active_campaign_slugs": None,
+        "refunds_valid": None,
+        "error": "Response returned 500",
+    }
+    mock_get_tx_import_activity_data.assert_called_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data_client_error,
+    )
+
+    mock_get_processed_tx_activity_data.assert_not_called()
+
+    expected_calls = [  # The expected call stack for send_activity, in order
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+    ]
+    mock_async_send_activity.assert_has_calls(expected_calls)
 
 
 def _check_transaction_endpoint_422_response(retailer_slug: str, bad_payload: dict) -> None:
@@ -363,6 +529,15 @@ def test_post_transaction_zero_amount(
             "loyalty_type": LoyaltyTypes.ACCUMULATOR,
         }
     )
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_get_processed_tx_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_processed_tx_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
     create_mock_reward_rule(
         reward_slug="zero-test-reward", campaign_id=mock_campaign.id, reward_goal=10, allocation_window=5
     )
@@ -383,6 +558,34 @@ def test_post_transaction_zero_amount(
     assert processed_transaction.amount == payload["transaction_total"]
     assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
+    processed_datetime = datetime.fromtimestamp(float(payload["datetime"]), tz=timezone.utc)
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": 0,
+        "datetime": processed_datetime,
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+
+    tx_import_activity_data = {
+        "retailer_slug": retailer.slug,
+        "active_campaign_slugs": ["zero-test-campaign"],
+        "refunds_valid": True,
+        "error": "N/A",
+    }
+    mock_get_tx_import_activity_data.assert_called_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data,
+    )
+
+    mock_get_processed_tx_activity_data.assert_called_once()
+
+    expected_calls = [  # The expected call stack for send_activity, in order
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+    ]
+    mock_async_send_activity.assert_has_calls(expected_calls)
 
 
 def test_post_transaction_negative_amount_but_no_allocation_window(
@@ -400,6 +603,15 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
     mocker.patch(
         "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
     )
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_get_processed_tx_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_processed_tx_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_campaign = create_mock_campaign(
         **{
@@ -429,6 +641,34 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
     assert processed_transaction.amount == payload["transaction_total"]
     assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
+    processed_datetime = datetime.fromtimestamp(float(payload["datetime"]), tz=timezone.utc)
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": processed_transaction.amount,
+        "datetime": processed_datetime,
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+
+    tx_import_activity_data = {
+        "retailer_slug": retailer.slug,
+        "active_campaign_slugs": [mock_campaign.slug],
+        "refunds_valid": False,
+        "error": "N/A",
+    }
+    mock_get_tx_import_activity_data.assert_called_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data,
+    )
+
+    mock_get_processed_tx_activity_data.assert_called_once()
+
+    expected_calls = [  # The expected call stack for send_activity, in order
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+    ]
+    mock_async_send_activity.assert_has_calls(expected_calls)
 
 
 def test_post_transaction_negative_amount_but_not_accumulator(
@@ -447,6 +687,15 @@ def test_post_transaction_negative_amount_but_not_accumulator(
         "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
     )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_get_processed_tx_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_processed_tx_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
     mock_campaign = create_mock_campaign(
         **{
             "status": CampaignStatuses.ACTIVE,
@@ -475,3 +724,31 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     assert processed_transaction.amount == payload["transaction_total"]
     assert processed_transaction.datetime == datetime.fromtimestamp(timestamp_now, tz=timezone.utc).replace(tzinfo=None)
     assert processed_transaction.account_holder_uuid == account_holder_uuid
+    processed_datetime = datetime.fromtimestamp(float(payload["datetime"]), tz=timezone.utc)
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": processed_transaction.amount,
+        "datetime": processed_datetime,
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+
+    tx_import_activity_data = {
+        "retailer_slug": retailer.slug,
+        "active_campaign_slugs": [mock_campaign.slug],
+        "refunds_valid": False,
+        "error": "N/A",
+    }
+    mock_get_tx_import_activity_data.assert_called_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data,
+    )
+
+    mock_get_processed_tx_activity_data.assert_called_once()
+
+    expected_calls = [  # The expected call stack for send_activity, in order
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+    ]
+    mock_async_send_activity.assert_has_calls(expected_calls)
