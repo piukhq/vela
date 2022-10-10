@@ -66,7 +66,7 @@ class ActivityType(Enum):
             "summary": summary,
             "reasons": reasons,
             "activity_identifier": activity_identifier,
-            "user_identifier": user_id,
+            "user_id": user_id,
             "associated_value": associated_value,
             "retailer": retailer_slug,
             "campaigns": campaigns,
