@@ -19,7 +19,6 @@ class TxImportReasons(Enum):
     NO_ACTIVE_CAMPAIGNS = "No active campaigns"
     NO_ACTIVE_USER = "No active user"
     DUPLICATE_TRANSACTION = "Transaction ID not unique"
-    VALID_TRANSACTION = ""
 
 
 class ActivityType(Enum):
@@ -82,21 +81,21 @@ class ActivityType(Enum):
         data: dict,
         currency: str = "GBP",
     ) -> dict:
+        reason = []
         if data["error"] != "N/A":
-            reason = cls._get_http_error_reason(error=data["error"])
+            reason.append(cls._get_http_error_reason(error=data["error"]))
             summary = f"{data['retailer_slug']} Transaction Import Failed"
         elif not data["refunds_valid"]:
-            reason = TxImportReasons.REFUNDS_NOT_SUPPORTED.value
+            reason.append(TxImportReasons.REFUNDS_NOT_SUPPORTED.value)
             summary = f"{data['retailer_slug']} Transaction Import Failed"
         else:
-            reason = TxImportReasons.VALID_TRANSACTION.value
             summary = f"{data['retailer_slug']} Transaction Imported"
         return cls._assemble_payload(
             ActivityType.TX_IMPORT,
             underlying_datetime=transaction["datetime"],
             activity_datetime=datetime.now(tz=timezone.utc),
             summary=summary,
-            reasons=list(reason),
+            reasons=reason,
             activity_identifier=transaction["transaction_id"],
             user_id=transaction["account_holder_uuid"],
             associated_value=pence_integer_to_currency_string(transaction["amount"], currency),
