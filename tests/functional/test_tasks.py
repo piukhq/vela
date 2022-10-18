@@ -28,6 +28,7 @@ from vela.tasks.reward_adjustment import (
     _set_param_value,
     adjust_balance,
 )
+from vela.tasks.reward_cancellation import _process_cancel_account_holder_rewards, cancel_account_holder_rewards
 from vela.tasks.reward_status_adjustment import _process_reward_status_adjustment, reward_status_adjustment
 
 if TYPE_CHECKING:
@@ -826,3 +827,58 @@ def test_delete_pending_rewards_task(
     assert create_convert_pending_rewards_task.status == RetryTaskStatuses.SUCCESS
     assert create_convert_pending_rewards_task.attempts == 1
     assert create_convert_pending_rewards_task.next_attempt_time is None
+
+
+@httpretty.activate
+def test_reward_cancellation(
+    db_session: "Session", reward_cancellation_retry_task: RetryTask, reward_cancellation_url: str
+) -> None:
+
+    httpretty.register_uri("POST", reward_cancellation_url, body="OK", status=202)
+
+    cancel_account_holder_rewards(reward_cancellation_retry_task.retry_task_id)
+
+    db_session.refresh(reward_cancellation_retry_task)
+
+    assert reward_cancellation_retry_task.attempts == 1
+    assert reward_cancellation_retry_task.next_attempt_time is None
+    assert reward_cancellation_retry_task.status == RetryTaskStatuses.SUCCESS
+
+
+@httpretty.activate
+def test__process_cancel_account_holder_rewards_ok(
+    reward_cancellation_retry_task: RetryTask,
+    reward_cancellation_url: str,
+) -> None:
+    httpretty.register_uri("POST", reward_cancellation_url, body="OK", status=202)
+
+    response_audit = _process_cancel_account_holder_rewards(reward_cancellation_retry_task.get_params())
+    assert httpretty.last_request().method == "POST"
+    assert response_audit == {
+        "timestamp": mock.ANY,
+        "response": {
+            "status": 202,
+            "body": "OK",
+        },
+    }
+
+
+@httpretty.activate
+def test__process_cancel_account_holder_rewards_http_errors(
+    reward_cancellation_retry_task: RetryTask,
+    reward_cancellation_url: str,
+) -> None:
+
+    for status, body in [
+        (401, "Unauthorized"),
+        (500, "Internal Server Error"),
+    ]:
+        httpretty.register_uri("POST", reward_cancellation_url, body=body, status=status)
+
+        with pytest.raises(requests.RequestException) as excinfo:
+            _process_cancel_account_holder_rewards(reward_cancellation_retry_task.get_params())
+
+        assert isinstance(excinfo.value, requests.RequestException)
+        assert excinfo.value.response.status_code == status
+
+        assert httpretty.last_request().method == "POST"

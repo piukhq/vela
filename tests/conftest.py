@@ -370,6 +370,31 @@ def convert_or_delete_pending_rewards_task_type(db_session: "Session") -> TaskTy
     return task
 
 
+@pytest.fixture(scope="function")
+def account_holder_cancel_reward_task_type(db_session: "Session") -> TaskType:
+    task = TaskType(
+        name=settings.REWARD_CANCELLATION_TASK_NAME,
+        path="sample.path",
+        queue_name="test_queue",
+        error_handler_path="path.to.error_handler",
+    )
+    db_session.add(task)
+    db_session.flush()
+
+    db_session.bulk_save_objects(
+        [
+            TaskTypeKey(task_type_id=task.task_type_id, name=key_name, type=key_type)
+            for key_name, key_type in (
+                ("campaign_slug", "STRING"),
+                ("retailer_slug", "STRING"),
+            )
+        ]
+    )
+
+    db_session.commit()
+    return task
+
+
 @pytest.fixture
 def run_task_with_metrics() -> Generator:
     val = settings.ACTIVATE_TASKS_METRICS
