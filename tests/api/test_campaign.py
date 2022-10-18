@@ -431,7 +431,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -487,7 +487,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
             )
         )
         .unique()
@@ -534,7 +534,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
     create_mock_campaign: Callable,
     create_mock_retailer: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -614,7 +614,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
             )
         )
         .unique()
@@ -663,7 +663,7 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -725,7 +725,7 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         db_session.execute(
             select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
             )
         )
         .unique()
@@ -1091,6 +1091,7 @@ def test_ending_campaign_delete_pending_rewards(
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
@@ -1151,12 +1152,16 @@ def test_ending_campaign_delete_pending_rewards(
             .first()
         )
 
+        if status == "cancelled":
+            task_type_to_check = settings.REWARD_CANCELLATION_TASK_NAME
+        elif status == "ended":
+            task_type_to_check = settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME
         reward_status_adjustment = (
             db_session.execute(
                 select(RetryTask)
                 .where(
                     TaskType.task_type_id == RetryTask.task_type_id,
-                    TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                    TaskType.name == task_type_to_check,
                 )
                 .order_by(RetryTask.created_at.desc())
             )

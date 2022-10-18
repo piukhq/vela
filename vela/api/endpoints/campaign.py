@@ -111,7 +111,7 @@ async def campaigns_status_change(
         payload.campaign_slugs, campaigns, requested_status
     )
 
-    pending_task_ids: list[int] = []
+    tasks_to_run_ids: list[int] = []
 
     # Check that this retailer will not be left with no active campaigns
     if requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
@@ -130,7 +130,7 @@ async def campaigns_status_change(
                 retailer=retailer,
                 issue_pending_rewards=payload.issue_pending_rewards and requested_status == CampaignStatuses.ENDED,
             )
-            pending_task_ids.extend(pending_reward_retry_task_ids)
+            tasks_to_run_ids.extend(pending_reward_retry_task_ids)
 
     if valid_campaigns:
         await _campaign_status_change(
@@ -146,12 +146,12 @@ async def campaigns_status_change(
             status=payload.requested_status,
             balance_task_type=balance_task_type,
         )
-        pending_task_ids.extend(retry_tasks_ids)
+        tasks_to_run_ids.extend(retry_tasks_ids)
 
         try:
             await enqueue_many_retry_tasks(
                 db_session=db_session,
-                retry_tasks_ids=pending_task_ids,
+                retry_tasks_ids=tasks_to_run_ids,
                 connection=redis_raw,
                 raise_exc=True,
             )
@@ -161,7 +161,7 @@ async def campaigns_status_change(
             async def _clean_up() -> None:
                 await db_session.execute(
                     RetryTask.__table__.delete()
-                    .where(RetryTask.retry_task_id.in_(pending_task_ids))
+                    .where(RetryTask.retry_task_id.in_(tasks_to_run_ids))
                     .execution_options(synchronize_session=False)
                 )
                 await db_session.commit()

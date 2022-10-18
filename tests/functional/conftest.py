@@ -122,3 +122,43 @@ def reward_status_adjustment_url(reward_status_adjustment_task_params: dict) -> 
         retailer_slug=reward_status_adjustment_task_params["retailer_slug"],
         reward_slug=reward_status_adjustment_task_params["reward_slug"],
     )
+
+
+@pytest.fixture(scope="function")
+def reward_cancellatin_task_params(mock_retailer: dict) -> dict:
+    return {
+        "retailer_slug": mock_retailer["slug"],
+        "campaign_slug": "test-campaign",
+    }
+
+
+@pytest.fixture(scope="function")
+def reward_cancellation_url(reward_cancellatin_task_params: dict) -> str:
+    return "{base_url}/{retailer_slug}/rewards/{campaign_slug}/cancel".format(
+        base_url=settings.POLARIS_BASE_URL,
+        retailer_slug=reward_cancellatin_task_params["retailer_slug"],
+        campaign_slug=reward_cancellatin_task_params["campaign_slug"],
+    )
+
+
+@pytest.fixture(scope="function")
+def reward_cancellation_retry_task(
+    db_session: "Session", reward_cancellatin_task_params: dict, account_holder_cancel_reward_task_type: TaskType
+) -> RetryTask:
+    task = RetryTask(task_type_id=account_holder_cancel_reward_task_type.task_type_id)
+    db_session.add(task)
+    db_session.flush()
+
+    key_ids = account_holder_cancel_reward_task_type.get_key_ids_by_name()
+    db_session.add_all(
+        [
+            TaskTypeKeyValue(
+                task_type_key_id=key_ids[key],
+                value=value,
+                retry_task_id=task.retry_task_id,
+            )
+            for key, value in reward_cancellatin_task_params.items()
+        ]
+    )
+    db_session.commit()
+    return task
