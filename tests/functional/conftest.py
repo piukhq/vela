@@ -125,10 +125,10 @@ def reward_status_adjustment_url(reward_status_adjustment_task_params: dict) -> 
 
 
 @pytest.fixture(scope="function")
-def reward_cancellatin_task_params(mock_retailer: dict) -> dict:
+def reward_cancellatin_task_params(mock_campaign: dict, mock_retailer: dict) -> dict:
     return {
         "retailer_slug": mock_retailer["slug"],
-        "campaign_slug": "test-campaign",
+        "campaign_slug": mock_campaign["slug"],
     }
 
 

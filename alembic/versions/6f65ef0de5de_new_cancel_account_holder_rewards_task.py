@@ -16,8 +16,7 @@ down_revision = "b5161b249af5"
 branch_labels = None
 depends_on = None
 
-
-cancel_rewards_task_name = "cancel-rewards"
+cancel_rewards_task_name = "cancel-account-holder-rewards"
 key_type_list = [
     {"name": "retailer_slug", "type": "STRING"},
     {"name": "campaign_slug", "type": "STRING"},
@@ -53,9 +52,10 @@ def downgrade() -> None:
     task_type_key = sa.Table("task_type_key", metadata, autoload_with=conn)
 
     conn.execute(
-        sa.delete(task_type_key)
-        .where(task_type_key.c.name.in_(k["name"] for k in key_type_list))
-        .where(task_type.c.task_type_id == task_type_key.c.task_type_id)
-        .where(task_type.c.name == cancel_rewards_task_name)
+        task_type_key.delete().where(
+            task_type_key.c.name.in_(k["name"] for k in key_type_list),
+            task_type.c.task_type_id == task_type_key.c.task_type_id,
+            task_type.c.name == cancel_rewards_task_name,
+        )
     )
     conn.execute(sa.delete(task_type).where(task_type.c.name == cancel_rewards_task_name))

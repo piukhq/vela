@@ -36,44 +36,20 @@ async def get_campaigns_by_slug(
     return await async_run_query(_query, db_session, rollback_on_exc=False)
 
 
-async def create_reward_status_adjustment_and_campaign_balances_tasks(
+async def create_reward_cancel_and_campaign_balances_tasks(
     db_session: "AsyncSession",
     retailer: RetailerRewards,
-    campaigns: list[Campaign],
+    campaign: Campaign,
     status: CampaignStatuses,
     balance_task_type: str,
 ) -> list[int]:
     async def _query() -> list[RetryTask]:
         tasks = []
-        for campaign in campaigns:
-            if status is CampaignStatuses.ENDED:
-                tasks.append(
-                    await async_create_task(
-                        db_session=db_session,
-                        task_type_name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
-                        params={
-                            "retailer_slug": retailer.slug,
-                            "reward_slug": campaign.reward_rule.reward_slug,
-                            "status": status.value,
-                        },
-                    )
-                )
-            elif status is CampaignStatuses.CANCELLED:
-                tasks.append(
-                    await async_create_task(
-                        db_session=db_session,
-                        task_type_name=settings.REWARD_CANCELLATION_TASK_NAME,
-                        params={
-                            "retailer_slug": retailer.slug,
-                            "campaign_slug": campaign.slug,
-                        },
-                    )
-                )
-
+        if status is CampaignStatuses.CANCELLED:
             tasks.append(
                 await async_create_task(
                     db_session=db_session,
-                    task_type_name=balance_task_type,
+                    task_type_name=settings.REWARD_CANCELLATION_TASK_NAME,
                     params={
                         "retailer_slug": retailer.slug,
                         "campaign_slug": campaign.slug,
@@ -81,37 +57,44 @@ async def create_reward_status_adjustment_and_campaign_balances_tasks(
                 )
             )
 
+        tasks.append(
+            await async_create_task(
+                db_session=db_session,
+                task_type_name=balance_task_type,
+                params={
+                    "retailer_slug": retailer.slug,
+                    "campaign_slug": campaign.slug,
+                },
+            )
+        )
+
         await db_session.commit()
         return tasks
 
     return [task.retry_task_id for task in await async_run_query(_query, db_session)]
 
 
-async def create_pending_rewards_tasks(
+async def create_pending_rewards_task(
     db_session: "AsyncSession",
-    campaigns: list[Campaign],
+    campaign: Campaign,
     retailer: RetailerRewards,
     issue_pending_rewards: Optional[bool] = False,
-) -> list[int]:
+) -> RetryTask:
     async def _query() -> list[RetryTask]:
-        tasks = []
-        for campaign in campaigns:
-            tasks.append(
-                await async_create_task(
-                    db_session=db_session,
-                    task_type_name=settings.PENDING_REWARDS_TASK_NAME,
-                    params={
-                        "retailer_slug": retailer.slug,
-                        "campaign_slug": campaign.slug,
-                        "issue_pending_rewards": issue_pending_rewards,
-                    },
-                )
-            )
+        task = await async_create_task(
+            db_session=db_session,
+            task_type_name=settings.PENDING_REWARDS_TASK_NAME,
+            params={
+                "retailer_slug": retailer.slug,
+                "campaign_slug": campaign.slug,
+                "issue_pending_rewards": issue_pending_rewards,
+            },
+        )
 
         await db_session.commit()
-        return tasks
+        return task
 
-    return [task.retry_task_id for task in await async_run_query(_query, db_session)]
+    return await async_run_query(_query, db_session)
 
 
 async def get_campaign(
