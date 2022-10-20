@@ -132,3 +132,39 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
 
     if resp_json["status"] != "active":
         raise HttpErrors.USER_NOT_ACTIVE.value
+
+
+async def put_carina_campaign(
+    retailer_slug: str, campaign_slug: str, reward_slug: str, requested_status: str
+) -> tuple[int, str]:
+    http_method = "PUT"
+    endpoint_url = f"{settings.CARINA_BASE_URL}/{retailer_slug}/{reward_slug}/campaign"
+    request_payload = {"campaign_slug": campaign_slug, "status": requested_status}
+
+    with sentry_sdk.start_span(op="http", description=f"{http_method} {endpoint_url}") as span:
+        status_code, resp_json = await send_async_request_with_retry(
+            method=http_method,
+            url=endpoint_url,
+            json=request_payload,
+            url_template="{base_url}/{retailer_slug}/{reward_slug}/campaign",
+            url_kwargs={
+                "base_url": settings.CARINA_BASE_URL,
+                "retailer_slug": retailer_slug,
+                "reward_slug": reward_slug,
+            },
+            exclude_from_label_url=["retailer_slug", "reward_slug"],
+            headers={"Authorization": f"Token {settings.CARINA_API_AUTH_TOKEN}"},
+        )
+
+        msg_prefix = "Carina responded with: "
+        msg = (
+            f"{msg_prefix}{status_code} - {resp_json['display_message']}" if resp_json else f"{msg_prefix}{status_code}"
+        )
+
+        span.set_tag("http.status_code", status_code)
+
+        if not 200 <= status_code <= 300:
+            ex = aiohttp.ClientError(f"Carina response returned: {status_code}")
+            logger.exception(msg, exc_info=ex)
+
+        return status_code, msg

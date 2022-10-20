@@ -199,7 +199,7 @@ class Settings(BaseSettings):  # pragma: no cover
 
     REWARD_ADJUSTMENT_TASK_NAME: str = "reward-adjustment"
     REWARD_STATUS_ADJUSTMENT_TASK_NAME = "reward-status-adjustment"
-    REWARD_CANCELLATION_TASK_NAME = "cancel-rewards"
+    REWARD_CANCELLATION_TASK_NAME = "cancel-account-holder-rewards"
     CREATE_CAMPAIGN_BALANCES_TASK_NAME = "create-campaign-balances"
     DELETE_CAMPAIGN_BALANCES_TASK_NAME = "delete-campaign-balances"
     PENDING_REWARDS_TASK_NAME = "convert-or-delete-pending-rewards"
