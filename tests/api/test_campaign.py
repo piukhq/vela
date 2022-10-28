@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Callable, cast
-from unittest import mock
 
 import pytest
 
@@ -58,19 +57,24 @@ def validate_composite_error_response(response: Response, exptected_errors: list
         assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
 
 
-@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_update_campaign_active_status_to_ended(
-    mock_datetime: mock.MagicMock,
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
+    db_session, retailer, campaign = setup
+
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
-    db_session, retailer, campaign = setup
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug],
@@ -87,49 +91,60 @@ def test_update_campaign_active_status_to_ended(
         }
     )
 
-    import vela.api.endpoints.campaign as endpoints_campaign
-
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
-
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
         headers=auth_headers,
     )
 
-    activation_task = (
+    # Check which tasks were created
+    delete_campaign_balances_task_id = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
             )
         )
         .unique()
         .scalar_one()
     )
 
-    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    expected_status_code = fastapi_http_status.HTTP_200_OK
+    assert resp.status_code == expected_status_code
+    assert resp.json() == {}
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=campaign.slug,
+        reward_slug=reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
     assert campaign.end_date == fake_now.replace(tzinfo=None)
-    mock_enqueue_many_retry_tasks.assert_called_once()
-    assert activation_task.status == RetryTaskStatuses.PENDING
+    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[delete_campaign_balances_task_id], raise_exc=True)
 
 
-@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_update_multiple_campaigns_ok(
-    mock_datetime: mock.MagicMock,
     setup: SetupType,
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
     create_campaign_balances_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
     """Test that multiple campaigns are handled, when they all transition to legal states"""
     db_session, retailer, campaign = setup
+
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
     # Set the first campaign to ACTIVE, this should transition to ENDED ok
@@ -152,9 +167,10 @@ def test_update_multiple_campaigns_ok(
         }
     )
     create_mock_reward_rule(reward_slug="third-reward-type", campaign_id=third_campaign.id)
+    campaigns_to_update = [campaign.slug, second_campaign.slug, third_campaign.slug]
     payload = {
         "requested_status": "ended",
-        "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
+        "campaign_slugs": campaigns_to_update,
     }
     # Set up a fourth ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
     create_mock_campaign(
@@ -164,20 +180,18 @@ def test_update_multiple_campaigns_ok(
             "slug": "fourth-test-campaign",
         }
     )
-    import vela.api.endpoints.campaign as endpoints_campaign
 
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
         headers=auth_headers,
     )
 
-    activation_tasks = (
+    delete_campaign_balances_task_ids = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
             )
         )
         .unique()
@@ -195,10 +209,10 @@ def test_update_multiple_campaigns_ok(
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED
     assert third_campaign.end_date == fake_now.replace(tzinfo=None)
-    mock_enqueue_many_retry_tasks.assert_called_once()
-    assert len(activation_tasks) == 3
-    for activation_task in activation_tasks:
-        assert activation_task.status == RetryTaskStatuses.PENDING
+    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=delete_campaign_balances_task_ids, raise_exc=True)
+    assert len(delete_campaign_balances_task_ids) == len(campaigns_to_update)
+
+    assert mock_put_carina_campaign.call_count == len(campaigns_to_update)
 
 
 def test_status_change_mangled_json(setup: SetupType) -> None:
@@ -431,7 +445,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -441,7 +455,14 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
     Test that the legal campaign state change(s) are applied and that the illegal campaign state change(s) are not made
     """
     db_session, retailer, campaign = setup
-    campaign.status = CampaignStatuses.ACTIVE  # This should transition to ENDED ok
+
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
+    campaign.status = CampaignStatuses.ACTIVE  # This should transition to CANCELLED ok
     db_session.commit()
     # Create second and third campaigns
     second_campaign: Campaign = create_mock_campaign(
@@ -458,10 +479,6 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
             "slug": "third-test-campaign",
         }
     )
-
-    import vela.api.endpoints.campaign as endpoints_campaign
-
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
     payload = {
         "requested_status": "cancelled",
@@ -483,20 +500,20 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
         headers=auth_headers,
     )
 
-    reward_status_task = (
+    reward_cancel_task_id = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
             )
         )
         .unique()
-        .scalar_one()
+        .scalar_one_or_none()
     )
 
-    deletion_task = (
+    deletion_task_id = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
                 TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
             )
@@ -507,11 +524,20 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
 
     assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
     db_session.refresh(campaign)
-    assert mock_enqueue_many_retry_tasks.call_args[1]["retry_tasks_ids"] == [
-        reward_status_task.retry_task_id,
-        deletion_task.retry_task_id,
-    ]
+
+    # Check that Campaign change for the first campaign was successful
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=campaign.slug,
+        reward_slug=reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[reward_cancel_task_id, deletion_task_id], raise_exc=True
+    )
     assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
+
+    # Check that second and third failed validation and no status change
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.DRAFT  # i.e. no change
     db_session.refresh(third_campaign)
@@ -534,7 +560,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
     create_mock_campaign: Callable,
     create_mock_retailer: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -545,7 +571,14 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
     Test that the legal campaign state change(s) are applied and that the illegal campaign state change(s) are not made
     """
     db_session, retailer, campaign = setup
-    campaign.status = CampaignStatuses.ACTIVE  # This should transition to ENDED ok
+
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
+    campaign.status = CampaignStatuses.ACTIVE  # This should transition to CANCELLED ok
     db_session.commit()
     # Create second and third campaigns
     second_campaign: Campaign = create_mock_campaign(
@@ -562,10 +595,6 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
             "slug": "third-test-campaign",
         }
     )
-
-    import vela.api.endpoints.campaign as endpoints_campaign
-
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
     payload = {
         "requested_status": "cancelled",
@@ -610,20 +639,20 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         headers=auth_headers,
     )
 
-    reward_status_task = (
+    reward_cancel_task_id = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
             )
         )
         .unique()
         .scalar_one()
     )
 
-    deletion_task = (
+    deletion_task_id = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
                 TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
             )
@@ -632,11 +661,24 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         .scalar_one()
     )
 
-    assert mock_enqueue_many_retry_tasks.call_args[1]["retry_tasks_ids"] == [
-        reward_status_task.retry_task_id,
-        deletion_task.retry_task_id,
-    ]
+    db_session.refresh(campaign)
+    # Check that Campaign change for the first campaign was successful
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=campaign.slug,
+        reward_slug=reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[reward_cancel_task_id, deletion_task_id], raise_exc=True
+    )
+    assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
 
+    # Check that second and third failed validation and no status change
+    db_session.refresh(second_campaign)
+    assert second_campaign.status == CampaignStatuses.DRAFT  # i.e. no change
+    db_session.refresh(third_campaign)
+    assert third_campaign.status == CampaignStatuses.ENDED  # i.e. no change
     assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
     validate_composite_error_response(
         resp,
@@ -663,7 +705,7 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
     setup: SetupType,
     create_mock_campaign: Callable,
     reward_rule: RewardRule,
-    reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -674,7 +716,14 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
     Test that the legal campaign state change(s) are applied and that the illegal campaign state change(s) are not made
     """
     db_session, retailer, campaign = setup
-    campaign.status = CampaignStatuses.ACTIVE  # This should transition to ENDED ok
+
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
+    campaign.status = CampaignStatuses.ACTIVE  # This should transition to CANCELLED ok
     db_session.commit()
     # Create second and third campaigns
     second_campaign: Campaign = create_mock_campaign(
@@ -711,30 +760,26 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         }
     )
 
-    import vela.api.endpoints.campaign as endpoints_campaign
-
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
-
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
         headers=auth_headers,
     )
 
-    reward_status_task = (
+    reward_cancel_task_id = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
             )
         )
         .unique()
         .scalar_one()
     )
 
-    deletion_task = (
+    deletion_task_id = (
         db_session.execute(
-            select(RetryTask).where(
+            select(RetryTask.retry_task_id).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
                 TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
             )
@@ -743,14 +788,25 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         .scalar_one()
     )
 
-    assert mock_enqueue_many_retry_tasks.call_args[1]["retry_tasks_ids"] == [
-        reward_status_task.retry_task_id,
-        deletion_task.retry_task_id,
-    ]
-
     assert resp.status_code == fastapi_http_status.HTTP_409_CONFLICT
+    # Check that Campaign change for the first campaign was successful
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=campaign.slug,
+        reward_slug=reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[
+            reward_cancel_task_id,
+            deletion_task_id,
+        ],
+        raise_exc=True,
+    )
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
+
+    # Check that second and third failed validation and no status change
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.DRAFT  # i.e. no change
     db_session.refresh(third_campaign)
@@ -855,8 +911,6 @@ def test_having_no_active_campaigns_gives_invalid_status_error(
 def test_activating_a_campaign(
     setup: SetupType,
     activable_campaign: Campaign,
-    create_mock_reward_rule: Callable,
-    reward_status_adjustment_task_type: TaskType,
     create_campaign_balances_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
@@ -866,13 +920,14 @@ def test_activating_a_campaign(
     activable_campaign.start_date = None
     db_session.commit()
 
-    import vela.api.endpoints.campaign as endpoints_campaign
-
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
     mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
     mock_datetime.now.return_value = now
 
-    create_mock_reward_rule(reward_slug="activable-reward-type", campaign_id=activable_campaign.id)
     payload = {
         "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
@@ -884,13 +939,91 @@ def test_activating_a_campaign(
         headers=auth_headers,
     )
 
+    create_balance_task_id = (
+        db_session.execute(
+            select(RetryTask.retry_task_id).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.CREATE_CAMPAIGN_BALANCES_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    assert resp.json() == {}
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=activable_campaign.slug,
+        reward_slug=activable_campaign.reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[
+            create_balance_task_id,
+        ],
+        raise_exc=True,
+    )
+
     db_session.refresh(activable_campaign)
-    mock_enqueue_many_retry_tasks.assert_called_once()
     mock_datetime.now.assert_called_once()
     assert activable_campaign.status == CampaignStatuses.ACTIVE
     assert activable_campaign.end_date is None
     assert activable_campaign.start_date == now.replace(tzinfo=None)
+
+
+def test_activating_a_campaign_carin_call_fails(
+    setup: SetupType,
+    activable_campaign: Campaign,
+    create_campaign_balances_task_type: TaskType,
+    mocker: MockerFixture,
+) -> None:
+    db_session, retailer, _ = setup
+
+    mock_carina_resp_msg = "Carina responded with: 404 - Reward slug does not exist"
+    mock_carina_resp_status_code = fastapi_http_status.HTTP_404_NOT_FOUND
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(mock_carina_resp_status_code, mock_carina_resp_msg),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
+    payload = {
+        "requested_status": "active",
+        "campaign_slugs": [activable_campaign.slug],
+    }
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == mock_carina_resp_status_code
+    assert resp.json() == {
+        "display_message": f"Unable to update campaign: {activable_campaign.slug} due to upstream errors. "
+        f"Carina responses: {{'{activable_campaign.slug}': '{mock_carina_resp_msg}'}}. "
+        "Successfully updated campaigns: [].",
+        "code": "CARINA_RESPONSE_ERROR",
+    }
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=activable_campaign.slug,
+        reward_slug=activable_campaign.reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+
+    # No tasks were enqueued because the carina call failed
+    all_tasks = db_session.execute(select(RetryTask)).scalars().all()
+    assert len(all_tasks) == 0
+    mock_enqueue_many_tasks.assert_not_called()
+
+    db_session.refresh(activable_campaign)
+    assert activable_campaign.status == CampaignStatuses.DRAFT  # not changed
 
 
 def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_campaign: Campaign) -> None:
@@ -1000,17 +1133,22 @@ def test_activating_a_campaign_with_no_reward_rule_multiple_errors(
     assert activable_campaign.status == CampaignStatuses.DRAFT
 
 
-@mock.patch("vela.api.endpoints.campaign.datetime")
 def test_ending_campaign_convert_pending_rewards(
-    mock_datetime: mock.MagicMock,
     setup: SetupType,
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
-    reward_status_adjustment_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
+
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
     db_session, retailer, campaign = setup
@@ -1024,12 +1162,10 @@ def test_ending_campaign_convert_pending_rewards(
             "slug": "second-test-campaign",
         }
     )
-    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
+    second_reward_rule = create_mock_reward_rule(
+        reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5
+    )
     db_session.commit()
-
-    import vela.api.endpoints.campaign as endpoints_campaign
-
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
 
     payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug], "issue_pending_rewards": True}
     resp = client.post(
@@ -1060,134 +1196,238 @@ def test_ending_campaign_convert_pending_rewards(
         .scalar_one()
     )
 
-    reward_status_adjustment = (
-        db_session.execute(
-            select(RetryTask).where(
-                TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
-            )
-        )
-        .unique()
-        .scalar_one()
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=second_campaign.slug,
+        reward_slug=second_reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
     )
 
-    assert resp.status_code == fastapi_http_status.HTTP_200_OK
     db_session.refresh(second_campaign)
     assert second_campaign.status == CampaignStatuses.ENDED
     assert second_campaign.end_date == fake_now.replace(tzinfo=None)
-    assert mock_enqueue_many_retry_tasks.call_args[1]["retry_tasks_ids"] == [
-        pending_reward_task.retry_task_id,
-        reward_status_adjustment.retry_task_id,
-        deletion_task.retry_task_id,
-    ]
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[
+            pending_reward_task.retry_task_id,
+            deletion_task.retry_task_id,
+        ],
+        raise_exc=True,
+    )
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
 
 
-@mock.patch("vela.api.endpoints.campaign.datetime")
-def test_ending_campaign_delete_pending_rewards(
-    mock_datetime: mock.MagicMock,
+def test_cancelling_campaign_delete_pending_rewards(
     setup: SetupType,
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
-    reward_status_adjustment_task_type: TaskType,
+    account_holder_cancel_reward_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
 
-    import vela.api.endpoints.campaign as endpoints_campaign
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
 
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
     db_session, retailer, campaign = setup
     campaign.status = CampaignStatuses.ACTIVE
-    for status in ["cancelled", "ended"]:
-        fake_now = datetime.now(tz=timezone.utc)
-        mock_datetime.now.return_value = fake_now
-        # Set up a second ACTIVE campaign just so we don't end up with no
-        # current ACTIVE campaigns (would produce 409 error)
-        second_campaign = create_mock_campaign(
-            **{
-                "status": CampaignStatuses.ACTIVE,
-                "name": "secondtestcampaign",
-                "slug": f"second-test-campaign-{status}",
-            }
-        )
-        create_mock_reward_rule(
-            reward_slug=f"second-reward-type-{status}", campaign_id=second_campaign.id, allocation_window=5
-        )
-        db_session.commit()
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    # Set up a second ACTIVE campaign just so we don't end up with no
+    # current ACTIVE campaigns (would produce 409 error)
+    second_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
+    db_session.commit()
 
-        payload = {"requested_status": status, "campaign_slugs": [second_campaign.slug]}
-        resp = client.post(
-            f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
-            json=payload,
-            headers=auth_headers,
-        )
+    payload = {"requested_status": "cancelled", "campaign_slugs": [second_campaign.slug]}
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
 
-        deletion_task = (
-            db_session.execute(
-                select(RetryTask)
-                .where(
-                    TaskType.task_type_id == RetryTask.task_type_id,
-                    TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
-                )
-                .order_by(RetryTask.created_at.desc())
+    deletion_task = (
+        db_session.execute(
+            select(RetryTask)
+            .where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
             )
-            .scalars()
-            .first()
+            .order_by(RetryTask.created_at.desc())
         )
+        .scalars()
+        .first()
+    )
 
-        pending_reward_task = (
-            db_session.execute(
-                select(RetryTask)
-                .where(
-                    TaskType.task_type_id == RetryTask.task_type_id,
-                    TaskType.name == settings.PENDING_REWARDS_TASK_NAME,
-                )
-                .order_by(RetryTask.created_at.desc())
+    pending_reward_task = (
+        db_session.execute(
+            select(RetryTask)
+            .where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.PENDING_REWARDS_TASK_NAME,
             )
-            .scalars()
-            .first()
+            .order_by(RetryTask.created_at.desc())
         )
+        .scalars()
+        .first()
+    )
 
-        reward_status_adjustment = (
-            db_session.execute(
-                select(RetryTask)
-                .where(
-                    TaskType.task_type_id == RetryTask.task_type_id,
-                    TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
-                )
-                .order_by(RetryTask.created_at.desc())
+    reward_cancel_task = (
+        db_session.execute(
+            select(RetryTask)
+            .where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
             )
-            .scalars()
-            .first()
+            .order_by(RetryTask.created_at.desc())
         )
+        .scalars()
+        .first()
+    )
 
-        assert resp.status_code == fastapi_http_status.HTTP_200_OK
-        db_session.refresh(second_campaign)
-        assert second_campaign.status.value == status
-        assert second_campaign.end_date == fake_now.replace(tzinfo=None)
-        assert mock_enqueue_many_retry_tasks.call_args[1]["retry_tasks_ids"] == [
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    db_session.refresh(second_campaign)
+    assert second_campaign.status.value == payload["requested_status"]
+    assert second_campaign.end_date == fake_now.replace(tzinfo=None)
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=second_campaign.slug,
+        reward_slug=second_campaign.reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[
             pending_reward_task.retry_task_id,
-            reward_status_adjustment.retry_task_id,
+            reward_cancel_task.retry_task_id,
             deletion_task.retry_task_id,
-        ]
-        assert deletion_task.status == RetryTaskStatuses.PENDING
-        assert pending_reward_task.status == RetryTaskStatuses.PENDING
+        ],
+        raise_exc=True,
+    )
+    assert deletion_task.status == RetryTaskStatuses.PENDING
+    assert pending_reward_task.status == RetryTaskStatuses.PENDING
+    assert reward_cancel_task.status == RetryTaskStatuses.PENDING
 
 
-@mock.patch("vela.api.endpoints.campaign.datetime")
-def test_ending_campaign_convert_pending_rewards_without_refund_window(
-    mock_datetime: mock.MagicMock,
+def test_ending_campaign_delete_pending_rewards(
     setup: SetupType,
     create_mock_campaign: Callable,
     create_mock_reward_rule: Callable,
-    reward_status_adjustment_task_type: TaskType,
     delete_campaign_balances_task_type: TaskType,
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
+
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+
+    db_session, retailer, campaign = setup
+    campaign.status = CampaignStatuses.ACTIVE
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    # Set up a second ACTIVE campaign just so we don't end up with no
+    # current ACTIVE campaigns (would produce 409 error)
+    second_campaign = create_mock_campaign(
+        **{
+            "status": CampaignStatuses.ACTIVE,
+            "name": "secondtestcampaign",
+            "slug": "second-test-campaign",
+        }
+    )
+    create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
+    db_session.commit()
+
+    payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug]}
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    deletion_task = (
+        db_session.execute(
+            select(RetryTask)
+            .where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
+            )
+            .order_by(RetryTask.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
+
+    pending_reward_task = (
+        db_session.execute(
+            select(RetryTask)
+            .where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.PENDING_REWARDS_TASK_NAME,
+            )
+            .order_by(RetryTask.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
+
+    assert resp.status_code == fastapi_http_status.HTTP_200_OK
+    db_session.refresh(second_campaign)
+    assert second_campaign.status.value == payload["requested_status"]
+    assert second_campaign.end_date == fake_now.replace(tzinfo=None)
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=second_campaign.slug,
+        reward_slug=second_campaign.reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[
+            pending_reward_task.retry_task_id,
+            deletion_task.retry_task_id,
+        ],
+        raise_exc=True,
+    )
+    assert deletion_task.status == RetryTaskStatuses.PENDING
+    assert pending_reward_task.status == RetryTaskStatuses.PENDING
+
+
+def test_ending_campaign_convert_pending_rewards_without_refund_window(
+    setup: SetupType,
+    create_mock_campaign: Callable,
+    create_mock_reward_rule: Callable,
+    delete_campaign_balances_task_type: TaskType,
+    convert_or_delete_pending_rewards_task_type: TaskType,
+    mocker: MockerFixture,
+) -> None:
+
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
     db_session, retailer, campaign = setup
@@ -1204,26 +1444,11 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
     create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id)
     db_session.commit()
 
-    import vela.api.endpoints.campaign as endpoints_campaign
-
-    mock_enqueue_many_retry_tasks = mocker.spy(endpoints_campaign, "enqueue_many_retry_tasks")
-
     payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug], "issue_pending_rewards": True}
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
         headers=auth_headers,
-    )
-
-    reward_status_task = (
-        db_session.execute(
-            select(RetryTask).where(
-                TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME,
-            )
-        )
-        .unique()
-        .scalar_one()
     )
 
     deletion_task = (
@@ -1245,12 +1470,21 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
     assert second_campaign.status == CampaignStatuses.ENDED
     assert second_campaign.end_date == fake_now.replace(tzinfo=None)
     assert settings.PENDING_REWARDS_TASK_NAME not in task_names
-    assert mock_enqueue_many_retry_tasks.call_args[1]["retry_tasks_ids"] == [
-        reward_status_task.retry_task_id,
-        deletion_task.retry_task_id,
-    ]
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=second_campaign.slug,
+        reward_slug=second_campaign.reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[
+            deletion_task.retry_task_id,
+        ],
+        raise_exc=True,
+    )
     assert deletion_task.status == RetryTaskStatuses.PENDING
-    assert reward_status_task.status == RetryTaskStatuses.PENDING
 
 
 def test_delete_draft_campaign(

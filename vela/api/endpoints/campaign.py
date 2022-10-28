@@ -4,14 +4,15 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic.types import constr
 from retry_tasks_lib.db.models import RetryTask
-from retry_tasks_lib.utils.asynchronous import enqueue_many_retry_tasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vela import crud
 from vela.api.deps import get_session, retailer_is_valid, user_is_authorised
-from vela.core.config import redis_raw, settings
+from vela.api.tasks import enqueue_many_tasks
+from vela.core.config import settings
 from vela.db.base_class import async_run_query
 from vela.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates
+from vela.internal_requests import put_carina_campaign
 from vela.models.retailer import Campaign, RetailerRewards
 from vela.schemas import CampaignsStatusChangeSchema
 
@@ -75,22 +76,22 @@ async def _check_valid_campaigns(
 
 
 async def _campaign_status_change(
-    db_session: "AsyncSession", campaigns: list[Campaign], requested_status: CampaignStatuses
+    db_session: "AsyncSession", campaign: Campaign, requested_status: CampaignStatuses
 ) -> None:
-    async def _query(campaigns: list[Campaign]) -> None:
-        for campaign in campaigns:
-            campaign.status = requested_status
-            now = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-            if requested_status in (CampaignStatuses.CANCELLED, CampaignStatuses.ENDED):
-                campaign.end_date = now
-            elif requested_status == CampaignStatuses.ACTIVE:
-                campaign.start_date = now
+    async def _query(campaign: Campaign) -> None:
+        campaign.status = requested_status
+        now = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+        if requested_status in (CampaignStatuses.CANCELLED, CampaignStatuses.ENDED):
+            campaign.end_date = now
+        elif requested_status == CampaignStatuses.ACTIVE:
+            campaign.start_date = now
 
         await db_session.commit()
 
-    await async_run_query(_query, db_session, campaigns=campaigns)
+    await async_run_query(_query, db_session, campaign=campaign)
 
 
+# pylint: disable=too-many-locals
 @router.post(
     path="/{retailer_slug}/campaigns/status_change",
     status_code=status.HTTP_200_OK,
@@ -111,7 +112,7 @@ async def campaigns_status_change(
         payload.campaign_slugs, campaigns, requested_status
     )
 
-    pending_task_ids: list[int] = []
+    tasks_to_run_ids: list[int] = []
 
     # Check that this retailer will not be left with no active campaigns
     if requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
@@ -120,48 +121,62 @@ async def campaigns_status_change(
         )
         balance_task_type = settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME
 
-        campaigns_with_refund_window = [
-            campaign for campaign in valid_campaigns if campaign.reward_rule.allocation_window > 0
-        ]
-        if campaigns_with_refund_window:
-            pending_reward_retry_task_ids = await crud.create_pending_rewards_tasks(
-                db_session=db_session,
-                campaigns=campaigns_with_refund_window,
-                retailer=retailer,
-                issue_pending_rewards=payload.issue_pending_rewards and requested_status == CampaignStatuses.ENDED,
-            )
-            pending_task_ids.extend(pending_reward_retry_task_ids)
-
+    vela_campaigns_updated = []
+    carina_responses = {}
     if valid_campaigns:
-        await _campaign_status_change(
-            db_session=db_session,
-            campaigns=valid_campaigns,
-            requested_status=requested_status,
-        )
+        for campaign in valid_campaigns:
+            carina_status_code, carina_resp_msg = await put_carina_campaign(
+                retailer_slug=retailer.slug,
+                campaign_slug=campaign.slug,
+                reward_slug=campaign.reward_rule.reward_slug,
+                requested_status=requested_status.value,
+            )
+            carina_responses[campaign.slug] = carina_resp_msg
 
-        retry_tasks_ids = await crud.create_reward_status_adjustment_and_campaign_balances_tasks(
-            db_session=db_session,
-            campaigns=valid_campaigns,
-            retailer=retailer,
-            status=payload.requested_status,
-            balance_task_type=balance_task_type,
-        )
-        pending_task_ids.extend(retry_tasks_ids)
+            if 200 <= carina_status_code <= 300:
+                if campaign.reward_rule.allocation_window > 0:
+                    pending_reward_retry_task = await crud.create_pending_rewards_task(
+                        db_session=db_session,
+                        campaign=campaign,
+                        retailer=retailer,
+                        issue_pending_rewards=payload.issue_pending_rewards
+                        and requested_status == CampaignStatuses.ENDED,
+                    )
+                    tasks_to_run_ids.append(pending_reward_retry_task.retry_task_id)
+                await _campaign_status_change(
+                    db_session=db_session,
+                    campaign=campaign,
+                    requested_status=requested_status,
+                )
+                vela_campaigns_updated.append(campaign.slug)
+
+                retry_tasks_ids = await crud.create_reward_cancel_and_campaign_balances_tasks(
+                    db_session=db_session,
+                    campaign=campaign,
+                    retailer=retailer,
+                    status=payload.requested_status,
+                    balance_task_type=balance_task_type,
+                )
+                tasks_to_run_ids.extend(retry_tasks_ids)
+            else:
+                raise HTTPException(
+                    detail={
+                        "display_message": f"Unable to update campaign: {campaign.slug} due to upstream errors. Carina "
+                        f"responses: {carina_responses}. Successfully updated campaigns: {vela_campaigns_updated}.",
+                        "code": "CARINA_RESPONSE_ERROR",
+                    },
+                    status_code=carina_status_code,
+                )
 
         try:
-            await enqueue_many_retry_tasks(
-                db_session=db_session,
-                retry_tasks_ids=pending_task_ids,
-                connection=redis_raw,
-                raise_exc=True,
-            )
+            await enqueue_many_tasks(retry_tasks_ids=tasks_to_run_ids, raise_exc=True)
 
         except Exception:
 
             async def _clean_up() -> None:
                 await db_session.execute(
                     RetryTask.__table__.delete()
-                    .where(RetryTask.retry_task_id.in_(pending_task_ids))
+                    .where(RetryTask.retry_task_id.in_(tasks_to_run_ids))
                     .execution_options(synchronize_session=False)
                 )
                 await db_session.commit()
