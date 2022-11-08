@@ -46,7 +46,7 @@ def _process_reward_allocation(
             retailer_slug=retailer_slug,
             account_holder_uuid=account_holder_uuid,
         ),
-        "campaign_slug": campaign_slug,
+        "campaign_slug": campaign_slug.lower(),
     }
     response_audit: dict = {
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
