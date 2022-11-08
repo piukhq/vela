@@ -78,6 +78,7 @@ def test_update_campaign_active_status_to_ended(
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
     campaign.status = CampaignStatuses.ACTIVE
     db_session.commit()
@@ -171,6 +172,7 @@ def test_update_multiple_campaigns_ok(
     payload = {
         "requested_status": "ended",
         "campaign_slugs": campaigns_to_update,
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
     # Set up a fourth ACTIVE campaign just so we don't end up with no current ACTIVE campaigns (would produce 409 error)
     create_mock_campaign(
@@ -269,6 +271,7 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
     payload = {
         "requested_status": "ended",
         "campaign_slugs": ["WRONG_CAMPAIGN_SLUG_1", "WRONG_CAMPAIGN_SLUG_2"],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -297,6 +300,7 @@ def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, cr
     payload = {
         "requested_status": "active",
         "campaign_slugs": [campaign.slug],  # legitimate slug
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
     # Create a second retailer who should not be able to change status of the campaign above
     second_retailer: RetailerRewards = create_mock_retailer(
@@ -408,6 +412,7 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
     # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
     # (would produce an unrelated 409 error)
@@ -483,6 +488,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
     payload = {
         "requested_status": "cancelled",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
     # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
     # (would produce 409 error)
@@ -605,6 +611,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
             "NON_EXISTENT_CAMPAIGN_1",
             "NON_EXISTENT_CAMPAIGN_2",
         ],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
     # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
     # (would produce 409 error)
@@ -749,6 +756,7 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
             "NON_EXISTENT_CAMPAIGN_1",
             "NON_EXISTENT_CAMPAIGN_2",
         ],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
     # Set up an additional ACTIVE campaign just so we don't end up with no current ACTIVE campaigns
     # (would produce 409 error)
@@ -856,6 +864,7 @@ def test_leaving_no_active_campaigns_gives_error(
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug, third_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -893,6 +902,7 @@ def test_having_no_active_campaigns_gives_invalid_status_error(
     payload = {
         "requested_status": "ended",
         "campaign_slugs": [campaign.slug, second_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -931,6 +941,7 @@ def test_activating_a_campaign(
     payload = {
         "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -993,6 +1004,7 @@ def test_activating_a_campaign_carin_call_fails(
     payload = {
         "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -1035,6 +1047,7 @@ def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_ca
     payload = {
         "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -1068,6 +1081,7 @@ def test_activating_a_campaign_with_no_reward_rule(setup: SetupType, activable_c
     payload = {
         "requested_status": "active",
         "campaign_slugs": [activable_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -1104,6 +1118,7 @@ def test_activating_a_campaign_with_no_reward_rule_multiple_errors(
     payload = {
         "requested_status": "active",
         "campaign_slugs": [campaign.slug, activable_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
     }
 
     resp = client.post(
@@ -1167,7 +1182,12 @@ def test_ending_campaign_convert_pending_rewards(
     )
     db_session.commit()
 
-    payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug], "issue_pending_rewards": True}
+    payload = {
+        "requested_status": "ended",
+        "campaign_slugs": [second_campaign.slug],
+        "issue_pending_rewards": True,
+        "activity_metadata": {"sso_username": "Jane Doe"},
+    }
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
@@ -1253,7 +1273,11 @@ def test_cancelling_campaign_delete_pending_rewards(
     create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
     db_session.commit()
 
-    payload = {"requested_status": "cancelled", "campaign_slugs": [second_campaign.slug]}
+    payload = {
+        "requested_status": "cancelled",
+        "campaign_slugs": [second_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
+    }
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
@@ -1356,7 +1380,11 @@ def test_ending_campaign_delete_pending_rewards(
     create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id, allocation_window=5)
     db_session.commit()
 
-    payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug]}
+    payload = {
+        "requested_status": "ended",
+        "campaign_slugs": [second_campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
+    }
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
@@ -1444,7 +1472,12 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
     create_mock_reward_rule(reward_slug="second-reward-type", campaign_id=second_campaign.id)
     db_session.commit()
 
-    payload = {"requested_status": "ended", "campaign_slugs": [second_campaign.slug], "issue_pending_rewards": True}
+    payload = {
+        "requested_status": "ended",
+        "campaign_slugs": [second_campaign.slug],
+        "issue_pending_rewards": True,
+        "activity_metadata": {"sso_username": "Jane Doe"},
+    }
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
         json=payload,
