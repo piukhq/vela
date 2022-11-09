@@ -412,49 +412,31 @@ def test_post_transaction_account_holder_validation_errors(
     mock_async_send_activity.assert_has_calls(expected_calls)
 
 
-def _check_transaction_endpoint_422_response(retailer_slug: str, bad_payload: dict) -> None:
-    resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=bad_payload, headers=auth_headers)
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert resp.json() == {"display_message": "BPL Schema not matched.", "code": "INVALID_CONTENT"}
-
-
 def test_post_transaction_account_holder_empty_val_validation_errors(
     setup: SetupType, payload: dict, mocker: MockerFixture
 ) -> None:
+    def _check_transaction_endpoint_422_response(field_name: str, retailer_slug: str, bad_payload: dict) -> None:
+        resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=bad_payload, headers=auth_headers)
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert resp.json() == {
+            "display_message": "Submitted fields are missing or invalid.",
+            "code": "FIELD_VALIDATION_ERROR",
+            "fields": [field_name],
+        }
+
     retailer_slug = setup.retailer.slug
     mocked_session = mocker.patch("vela.internal_requests.send_async_request_with_retry")
     mocked_session.return_value = MagicMock(
         spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK
     )
 
-    bad_payload = deepcopy(payload)
+    for field_name in ["id", "transaction_id", "datetime", "MID", "loyalty_id"]:
+        bad_payload = deepcopy(payload)
+        bad_payload[field_name] = ""
+        _check_transaction_endpoint_422_response(field_name, retailer_slug, bad_payload)
 
-    bad_payload["id"] = ""
-    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
-    bad_payload = deepcopy(payload)
-
-    bad_payload["id"] = "  "
-    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
-    bad_payload = deepcopy(payload)
-
-    bad_payload["transaction_id"] = ""
-    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
-    bad_payload = deepcopy(payload)
-
-    bad_payload["datetime"] = ""
-    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
-    bad_payload = deepcopy(payload)
-
-    bad_payload["MID"] = ""
-    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
-    bad_payload = deepcopy(payload)
-
-    bad_payload["MID"] = "   "
-    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
-    bad_payload = deepcopy(payload)
-
-    bad_payload["loyalty_id"] = ""
-    _check_transaction_endpoint_422_response(retailer_slug, bad_payload)
+        bad_payload[field_name] = "  "
+        _check_transaction_endpoint_422_response(field_name, retailer_slug, bad_payload)
 
 
 def test_post_transaction_negative_amount(
