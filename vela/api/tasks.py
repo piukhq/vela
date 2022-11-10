@@ -4,7 +4,7 @@ from vela.core.config import redis_raw
 from vela.db.session import AsyncSessionMaker
 
 
-async def enqueue_many_tasks(retry_tasks_ids: list[int], raise_exc: bool | None = False) -> None:  # pragma: no cover
+async def enqueue_many_tasks(retry_tasks_ids: list[int], raise_exc: bool | None = True) -> None:  # pragma: no cover
     async with AsyncSessionMaker() as db_session:
         await enqueue_many_retry_tasks(
             db_session=db_session,

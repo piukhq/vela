@@ -108,27 +108,31 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
 
     url = f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/status"
     with sentry_sdk.start_span(op="http", description=f"GET {url}") as span:
-        status_code, resp_json = await send_async_request_with_retry(
-            method="GET",
-            url=url,
-            url_template="{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/status",
-            url_kwargs={
-                "base_url": settings.POLARIS_BASE_URL,
-                "retailer_slug": retailer_slug,
-                "account_holder_uuid": account_holder_uuid,
-            },
-            exclude_from_label_url=["retailer_slug", "account_holder_uuid"],
-            headers={"Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}"},
-        )
-        span.set_tag("http.status_code", status_code)
+        try:
+            status_code, resp_json = await send_async_request_with_retry(
+                method="GET",
+                url=url,
+                url_template="{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/status",
+                url_kwargs={
+                    "base_url": settings.POLARIS_BASE_URL,
+                    "retailer_slug": retailer_slug,
+                    "account_holder_uuid": account_holder_uuid,
+                },
+                exclude_from_label_url=["retailer_slug", "account_holder_uuid"],
+                headers={"Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}"},
+            )
+            span.set_tag("http.status_code", status_code)
+        except aiohttp.ClientError as ex:
+            logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
+            raise HttpErrors.GENERIC_HANDLED_ERROR.value
 
     if status_code == status.HTTP_404_NOT_FOUND:
         raise HttpErrors.USER_NOT_FOUND.value
 
     if not 200 <= status_code < 300:
-        ex = aiohttp.ClientError(f"Response returned {status_code}")
-        logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
-        raise ex
+        msg = aiohttp.ClientError(f"Response returned {status_code}")
+        logger.exception("Failed to fetch account holder status from Polaris.", exc_info=msg)
+        raise HttpErrors.GENERIC_HANDLED_ERROR.value
 
     if resp_json["status"] != "active":
         raise HttpErrors.USER_NOT_ACTIVE.value

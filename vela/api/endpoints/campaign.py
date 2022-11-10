@@ -169,7 +169,7 @@ async def campaigns_status_change(
                 )
 
         try:
-            await enqueue_many_tasks(retry_tasks_ids=tasks_to_run_ids, raise_exc=True)
+            await enqueue_many_tasks(retry_tasks_ids=tasks_to_run_ids)
 
         except Exception:
 

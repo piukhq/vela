@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from vela.db.base_class import async_run_query
-from vela.enums import CampaignStatuses, HttpErrors, TransactionProcessingStatuses
+from vela.enums import CampaignStatuses, HttpErrors
 from vela.models import Campaign, EarnRule, RetailerRewards, Transaction
 from vela.models.retailer import RetailerStore
 
@@ -60,14 +60,6 @@ async def get_active_campaigns(
     )
 
     if not campaigns:
-        if transaction:
-
-            async def _update_tx_status(*, tx: Transaction) -> None:
-                tx.status = TransactionProcessingStatuses.NO_ACTIVE_CAMPAIGNS
-                await db_session.commit()
-
-            await async_run_query(_update_tx_status, db_session, tx=transaction)
-
         raise HttpErrors.NO_ACTIVE_CAMPAIGNS.value
 
     return campaigns
