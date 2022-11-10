@@ -19,6 +19,7 @@ class TxImportReasons(Enum):
     NO_ACTIVE_CAMPAIGNS = "No active campaigns"
     NO_ACTIVE_USER = "No active user"
     DUPLICATE_TRANSACTION = "Transaction ID not unique"
+    GENERIC_HANDLED_ERROR = "Internal server error"
 
 
 class ActivityType(Enum):
@@ -36,6 +37,8 @@ class ActivityType(Enum):
                 reason = TxImportReasons.NO_ACTIVE_USER.value
             case HttpErrors.DUPLICATE_TRANSACTION.name:
                 reason = TxImportReasons.DUPLICATE_TRANSACTION.value
+            case _:
+                reason = TxImportReasons.GENERIC_HANDLED_ERROR.value
         return reason
 
     @classmethod

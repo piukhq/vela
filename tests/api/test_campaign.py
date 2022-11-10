@@ -124,7 +124,7 @@ def test_update_campaign_active_status_to_ended(
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ENDED
     assert campaign.end_date == fake_now.replace(tzinfo=None)
-    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[delete_campaign_balances_task_id], raise_exc=True)
+    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[delete_campaign_balances_task_id])
 
 
 def test_update_multiple_campaigns_ok(
@@ -211,7 +211,7 @@ def test_update_multiple_campaigns_ok(
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ENDED
     assert third_campaign.end_date == fake_now.replace(tzinfo=None)
-    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=delete_campaign_balances_task_ids, raise_exc=True)
+    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=delete_campaign_balances_task_ids)
     assert len(delete_campaign_balances_task_ids) == len(campaigns_to_update)
 
     assert mock_put_carina_campaign.call_count == len(campaigns_to_update)
@@ -538,9 +538,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
         reward_slug=reward_rule.reward_slug,
         requested_status=payload["requested_status"],
     )
-    mock_enqueue_many_tasks.assert_called_once_with(
-        retry_tasks_ids=[reward_cancel_task_id, deletion_task_id], raise_exc=True
-    )
+    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[reward_cancel_task_id, deletion_task_id])
     assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
 
     # Check that second and third failed validation and no status change
@@ -676,9 +674,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         reward_slug=reward_rule.reward_slug,
         requested_status=payload["requested_status"],
     )
-    mock_enqueue_many_tasks.assert_called_once_with(
-        retry_tasks_ids=[reward_cancel_task_id, deletion_task_id], raise_exc=True
-    )
+    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[reward_cancel_task_id, deletion_task_id])
     assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
 
     # Check that second and third failed validation and no status change
@@ -809,7 +805,6 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
             reward_cancel_task_id,
             deletion_task_id,
         ],
-        raise_exc=True,
     )
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.CANCELLED  # i.e. changed
@@ -975,7 +970,6 @@ def test_activating_a_campaign(
         retry_tasks_ids=[
             create_balance_task_id,
         ],
-        raise_exc=True,
     )
 
     db_session.refresh(activable_campaign)
@@ -1234,7 +1228,6 @@ def test_ending_campaign_convert_pending_rewards(
             pending_reward_task.retry_task_id,
             deletion_task.retry_task_id,
         ],
-        raise_exc=True,
     )
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
@@ -1341,7 +1334,6 @@ def test_cancelling_campaign_delete_pending_rewards(
             reward_cancel_task.retry_task_id,
             deletion_task.retry_task_id,
         ],
-        raise_exc=True,
     )
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
@@ -1434,7 +1426,6 @@ def test_ending_campaign_delete_pending_rewards(
             pending_reward_task.retry_task_id,
             deletion_task.retry_task_id,
         ],
-        raise_exc=True,
     )
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
@@ -1515,7 +1506,6 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
         retry_tasks_ids=[
             deletion_task.retry_task_id,
         ],
-        raise_exc=True,
     )
     assert deletion_task.status == RetryTaskStatuses.PENDING
 

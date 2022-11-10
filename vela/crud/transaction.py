@@ -20,11 +20,12 @@ async def create_transaction(
 ) -> Transaction:
     async def _query() -> Transaction:
         transaction = Transaction(retailer_id=retailer.id, **transaction_data)
+        nested_trans = await db_session.begin_nested()
+        db_session.add(transaction)
         try:
-            db_session.add(transaction)
-            await db_session.commit()
+            await nested_trans.commit()
         except IntegrityError:
-            await db_session.rollback()
+            await nested_trans.rollback()
             raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return transaction
@@ -35,7 +36,6 @@ async def create_transaction(
 async def delete_transaction(db_session: "AsyncSession", transaction: Transaction) -> None:
     async def _query() -> None:
         await db_session.delete(transaction)
-        await db_session.commit()
 
     await async_run_query(_query, db_session)
 
@@ -62,7 +62,6 @@ async def create_processed_transaction(
         except IntegrityError:
             await nested_trans.rollback()
             transaction.status = TransactionProcessingStatuses.DUPLICATE
-            await db_session.commit()
             raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
 
         return processed_transaction
@@ -92,7 +91,6 @@ async def create_reward_adjustment_tasks(
 
             adjustments.append(adjustment_task)
 
-        await db_session.commit()
         return adjustments
 
     return [task.retry_task_id for task in await async_run_query(_query, db_session)]

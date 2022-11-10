@@ -106,8 +106,8 @@ def test_post_transaction_happy_path(
     )
     mock_get_processed_tx_activity_data.assert_called_once()
     expected_calls = [  # The expected call stack for send_activity, in order
-        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
         call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
     ]
     mock_async_send_activity.assert_has_calls(expected_calls)
 
@@ -304,8 +304,8 @@ def test_post_transaction_existing_transaction(
     )
     mock_get_processed_tx_activity_data.assert_called_once()
     expected_calls = [  # The expected call stack for send_activity, in order
-        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
         call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
         call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
     ]
     mock_async_send_activity.assert_has_calls(expected_calls)
@@ -395,7 +395,7 @@ def test_post_transaction_account_holder_validation_errors(
         "retailer_slug": retailer_slug,
         "active_campaign_slugs": None,
         "refunds_valid": None,
-        "error": "Response returned 500",
+        "error": "INTERNAL_ERROR",
     }
     mock_get_tx_import_activity_data.assert_called_with(
         transaction=transaction_data,
@@ -564,8 +564,8 @@ def test_post_transaction_zero_amount(
     mock_get_processed_tx_activity_data.assert_called_once()
 
     expected_calls = [  # The expected call stack for send_activity, in order
-        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
         call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
     ]
     mock_async_send_activity.assert_has_calls(expected_calls)
 
@@ -647,8 +647,8 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
     mock_get_processed_tx_activity_data.assert_called_once()
 
     expected_calls = [  # The expected call stack for send_activity, in order
-        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
         call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
     ]
     mock_async_send_activity.assert_has_calls(expected_calls)
 
@@ -730,7 +730,7 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     mock_get_processed_tx_activity_data.assert_called_once()
 
     expected_calls = [  # The expected call stack for send_activity, in order
-        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
         call().send({"mock": "payload"}, routing_key=ActivityType.TX_HISTORY.value),
+        call().send({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value),
     ]
     mock_async_send_activity.assert_has_calls(expected_calls)
