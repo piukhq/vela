@@ -142,6 +142,7 @@ def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int, adjus
     return n_reward_achieved, trc_reached
 
 
+# pylint: disable=too-many-locals
 def _process_balance_adjustment(
     *,
     retailer_slug: str,
@@ -150,8 +151,9 @@ def _process_balance_adjustment(
     campaign_slug: str,
     idempotency_token: str,
     reason: str,
-    tx_datetime: datetime,
     is_transaction: bool = True,
+    tx_datetime: datetime | None = None,
+    tx_id: str | None = None,
 ) -> tuple[int, dict]:
     url_template = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments"
     url_kwargs = {
@@ -159,12 +161,24 @@ def _process_balance_adjustment(
         "retailer_slug": retailer_slug,
         "account_holder_uuid": account_holder_uuid,
     }
+    activity_metadata: dict[str, str | float] = {
+        "reason": reason,
+    }
+    if is_transaction:
+        # If is_transaction is True, tx_id and tx_datetime are required to be sent
+        if tx_datetime and tx_id:
+            activity_metadata.update(
+                {
+                    "transaction_datetime": tx_datetime.replace(tzinfo=timezone.utc).timestamp(),
+                    "transaction_id": tx_id,
+                }
+            )
+
     payload = {
         "balance_change": adjustment_amount,
         "campaign_slug": campaign_slug,
-        "reason": reason,
-        "transaction_datetime": tx_datetime.replace(tzinfo=timezone.utc).timestamp(),
         "is_transaction": is_transaction,
+        "activity_metadata": activity_metadata,
     }
 
     response_audit: dict = {
@@ -299,7 +313,6 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
         retry_task.update_task(db_session, status=RetryTaskStatuses.CANCELLED, clear_next_attempt_time=True)
         return
 
-    tx_datetime = task_params["transaction_datetime"]
     retailer_slug = task_params["retailer_slug"]
     campaign_slug = task_params["campaign_slug"]
     account_holder_uuid = task_params["account_holder_uuid"]
@@ -318,7 +331,8 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
         adjustment_amount=adjustment_amount,
         idempotency_token=pre_allocation_token,
         reason=f"Transaction {processed_tx_id}",
-        tx_datetime=tx_datetime,
+        tx_datetime=task_params["transaction_datetime"],
+        tx_id=processed_tx_id,
     )
     logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
     retry_task.update_task(db_session, response_audit=response_audit)
@@ -370,7 +384,6 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             idempotency_token=post_allocation_token,
             adjustment_amount=-tot_cost_to_user,
             reason=f"Reward goal: {reward_rule.reward_goal} Count: {rewards_achieved_n}",
-            tx_datetime=tx_datetime,
             is_transaction=False,
         )
         logger.info(f"Balance readjusted - new balance: {balance} {log_suffix}")
