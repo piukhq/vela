@@ -62,7 +62,6 @@ def test__process_adjustment_ok(
         campaign_slug=task_params["campaign_slug"],
         idempotency_token=task_params["pre_allocation_token"],
         reason="Transaction 1",
-        tx_datetime=task_params["transaction_datetime"],
         is_transaction=False,
     )
 
@@ -72,9 +71,10 @@ def test__process_adjustment_ok(
     assert json.loads(last_request.body) == {
         "balance_change": task_params["adjustment_amount"],
         "campaign_slug": task_params["campaign_slug"],
-        "reason": "Transaction 1",
-        "transaction_datetime": task_params["transaction_datetime"].timestamp(),
         "is_transaction": False,
+        "activity_metadata": {
+            "reason": "Transaction 1",
+        },
     }
 
     assert response_audit == {
@@ -83,9 +83,10 @@ def test__process_adjustment_ok(
                 {
                     "balance_change": 100,
                     "campaign_slug": "test-campaign",
-                    "reason": "Transaction 1",
-                    "transaction_datetime": task_params["transaction_datetime"].timestamp(),
                     "is_transaction": False,
+                    "activity_metadata": {
+                        "reason": "Transaction 1",
+                    },
                 }
             ),
             "url": "{0}/{1}/accounts/{2}/adjustments".format(
@@ -128,6 +129,7 @@ def test__process_adjustment_http_errors(
                 idempotency_token=task_params["pre_allocation_token"],
                 reason="Transaction 1",
                 tx_datetime=task_params["transaction_datetime"],
+                tx_id="tx_id",
             )
 
         assert isinstance(excinfo.value, requests.RequestException)
@@ -138,9 +140,12 @@ def test__process_adjustment_http_errors(
         assert json.loads(last_request.body) == {
             "balance_change": task_params["adjustment_amount"],
             "campaign_slug": task_params["campaign_slug"],
-            "reason": "Transaction 1",
-            "transaction_datetime": task_params["transaction_datetime"].timestamp(),
             "is_transaction": True,
+            "activity_metadata": {
+                "transaction_datetime": task_params["transaction_datetime"].timestamp(),
+                "reason": "Transaction 1",
+                "transaction_id": "tx_id",
+            },
         }
 
 
@@ -162,6 +167,7 @@ def test__process_adjustment_connection_error(
             idempotency_token=task_params["pre_allocation_token"],
             reason="Transaction 1",
             tx_datetime=task_params["transaction_datetime"],
+            tx_id="tx_id",
         )
 
     assert isinstance(excinfo.value, asyncio.TimeoutError)
@@ -169,7 +175,7 @@ def test__process_adjustment_connection_error(
 
 
 @mock.patch("vela.tasks.reward_adjustment.send_request_with_metrics")
-def test__process_reward_allocation_connection_error(
+def test__process_reward_allocation_connections_error(
     mock_send_request_with_metrics: mock.MagicMock,
     reward_adjustment_task: RetryTask,
 ) -> None:
@@ -390,9 +396,9 @@ def test_adjust_balance_multiple_rewards(
     transaction_request = list(httpretty.HTTPretty.latest_requests[1].parsed_body.values())
     reward_allocation_request = list(httpretty.HTTPretty.latest_requests[2].parsed_body.values())
     reward_request = list(httpretty.HTTPretty.latest_requests[-1].parsed_body.values())
-    assert transaction_request[2] == f"Transaction {processed_transaction.transaction_id}"
+    assert transaction_request[3]["reason"] == f"Transaction {processed_transaction.transaction_id}"
     assert reward_allocation_request[0] == expected_count
-    assert reward_request[2] == f"Reward goal: {reward_rule.reward_goal} Count: {expected_count}"
+    assert reward_request[3]["reason"] == f"Reward goal: {reward_rule.reward_goal} Count: {expected_count}"
 
     db_session.refresh(reward_adjustment_task)
 
