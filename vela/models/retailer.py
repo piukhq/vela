@@ -4,7 +4,7 @@ from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, Str
 from sqlalchemy.orm import relationship
 
 from vela.db.base_class import Base, TimestampMixin
-from vela.enums import CampaignStatuses, LoyaltyTypes, RewardCap
+from vela.enums import CampaignStatuses, LoyaltyTypes, RetailerStatuses, RewardCap
 
 if TYPE_CHECKING:  # pragma: no cover
     from .transaction import ProcessedTransaction, Transaction  # noqa 401
@@ -14,6 +14,7 @@ class RetailerRewards(Base):
     __tablename__ = "retailer_rewards"
 
     slug = Column(String(32), index=True, unique=True, nullable=False)
+    status = Column(Enum(RetailerStatuses), nullable=False, index=True, default=RetailerStatuses.TEST)
 
     campaigns = relationship("Campaign", back_populates="retailer")
     transactions = relationship("Transaction", back_populates="retailer")
