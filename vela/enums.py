@@ -134,3 +134,12 @@ class RewardCap(IntEnum):
     EIGHT = auto()
     NINE = auto()
     TEN = auto()
+
+
+class RetailerStatuses(Enum):
+    TEST = "Test"
+    ACTIVE = "Active"
+    INACTIVE = "Inactive"
+    DELETED = "Deleted"
+    ARCHIVED = "Archived"
+    SUSPENDED = "Suspended"
