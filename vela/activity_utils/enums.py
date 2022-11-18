@@ -3,9 +3,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from vela.activity_utils.schemas import ProcessedTXEventSchema, TxImportEventSchema
+from vela.activity_utils.schemas import CampaignStatusChangeActivitySchema, ProcessedTXEventSchema, TxImportEventSchema
 from vela.core.config import settings
-from vela.enums import HttpErrors
+from vela.enums import CampaignStatuses, HttpErrors
 
 from .utils import build_tx_history_earns, build_tx_history_reasons, pence_integer_to_currency_string
 
@@ -25,6 +25,7 @@ class TxImportReasons(Enum):
 class ActivityType(Enum):
     TX_HISTORY = f"activity.{settings.PROJECT_NAME}.tx.processed"
     TX_IMPORT = f"activity.{settings.PROJECT_NAME}.tx.import"
+    CAMPAIGN = f"activity.{settings.PROJECT_NAME}.campaign.status.change"
 
     @classmethod
     def _get_http_error_reason(cls, error: str) -> Any:
@@ -146,4 +147,40 @@ class ActivityType(Enum):
                 mid=processed_tx.mid,
                 earned=build_tx_history_earns(adjustment_amounts, currency),
             ).dict(),
+        )
+
+    @classmethod
+    def get_campaign_status_change_activity_data(
+        cls,
+        *,
+        updated_at: datetime,
+        campaign_name: str,
+        campaign_slug: str,
+        retailer_slug: str,
+        sso_username: str,
+        original_status: CampaignStatuses,
+        new_status: CampaignStatuses,
+    ) -> dict:
+
+        return cls._assemble_payload(
+            ActivityType.CAMPAIGN,
+            underlying_datetime=updated_at,
+            activity_datetime=datetime.now(tz=timezone.utc),
+            summary=f"{campaign_name} {new_status.value}",
+            reasons=[],
+            activity_identifier=campaign_slug,
+            user_id=sso_username,
+            associated_value=new_status.value,
+            retailer_slug=retailer_slug,
+            campaigns=[campaign_slug],
+            data=CampaignStatusChangeActivitySchema(
+                campaign={
+                    "new_values": {
+                        "status": new_status.value,
+                    },
+                    "original_values": {
+                        "status": original_status.value,
+                    },
+                }
+            ).dict(exclude_unset=True),
         )
