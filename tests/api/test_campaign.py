@@ -72,6 +72,7 @@ def test_update_campaign_active_status_to_ended(
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
@@ -125,6 +126,7 @@ def test_update_campaign_active_status_to_ended(
     assert campaign.status == CampaignStatuses.ENDED
     assert campaign.end_date == fake_now.replace(tzinfo=None)
     mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[delete_campaign_balances_task_id])
+    mock_async_send_activity.assert_called_once()
 
 
 def test_update_multiple_campaigns_ok(
@@ -145,6 +147,7 @@ def test_update_multiple_campaigns_ok(
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
@@ -215,6 +218,7 @@ def test_update_multiple_campaigns_ok(
     assert len(delete_campaign_balances_task_ids) == len(campaigns_to_update)
 
     assert mock_put_carina_campaign.call_count == len(campaigns_to_update)
+    assert mock_async_send_activity.call_count == len(campaigns_to_update)
 
 
 def test_status_change_mangled_json(setup: SetupType) -> None:
@@ -293,8 +297,13 @@ def test_status_change_none_of_the_campaigns_are_found(setup: SetupType) -> None
     )
 
 
-def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, create_mock_retailer: Callable) -> None:
+def test_status_change_campaign_does_not_belong_to_retailer(
+    setup: SetupType, create_mock_retailer: Callable, mocker: MockerFixture
+) -> None:
     db_session, _, campaign = setup
+
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
+
     campaign.status = CampaignStatuses.DRAFT  # Set to DRAFT just so the status transition requested won't trigger 409
     db_session.commit()
     payload = {
@@ -326,11 +335,17 @@ def test_status_change_campaign_does_not_belong_to_retailer(setup: SetupType, cr
             }
         ],
     )
+    mock_async_send_activity.assert_not_called()
 
 
 @pytest.mark.parametrize("campaign_slugs", [["    ", " "], ["\t\t\t\r"], ["\t\t\t\n"], ["\t\n", "  "], [""]])
-def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, setup: SetupType) -> None:
+def test_status_change_whitespace_validation_fail_is_422(
+    campaign_slugs: list, setup: SetupType, mocker: MockerFixture
+) -> None:
     retailer = setup.retailer
+
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
+
     payload = {
         "requested_status": "ended",
         "campaign_slugs": campaign_slugs,
@@ -347,10 +362,14 @@ def test_status_change_whitespace_validation_fail_is_422(campaign_slugs: list, s
         "display_message": "BPL Schema not matched.",
         "code": "INVALID_CONTENT",
     }
+    mock_async_send_activity.assert_not_called()
 
 
-def test_status_change_empty_strings_and_legit_campaign(setup: SetupType) -> None:
+def test_status_change_empty_strings_and_legit_campaign(setup: SetupType, mocker: MockerFixture) -> None:
     db_session, retailer, campaign = setup
+
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
+
     campaign.status = CampaignStatuses.ACTIVE
     db_session.commit()
 
@@ -372,10 +391,14 @@ def test_status_change_empty_strings_and_legit_campaign(setup: SetupType) -> Non
     }
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.ACTIVE  # i.e. not changed
+    mock_async_send_activity.assert_not_called()
 
 
-def test_status_change_fields_fail_validation(setup: SetupType) -> None:
+def test_status_change_fields_fail_validation(setup: SetupType, mocker: MockerFixture) -> None:
     db_session, retailer, campaign = setup
+
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
+
     payload = {
         "requested_status": "BAD_ACTION_TYPE",
         "campaign_slugs": [campaign.slug],
@@ -396,9 +419,16 @@ def test_status_change_fields_fail_validation(setup: SetupType) -> None:
         "code": "INVALID_CONTENT",
     }
 
+    mock_async_send_activity.assert_not_called()
 
-def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_campaign: Callable) -> None:
+
+def test_status_change_all_are_illegal_states(
+    setup: SetupType, create_mock_campaign: Callable, mocker: MockerFixture
+) -> None:
     db_session, retailer, campaign = setup
+
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
+
     campaign.status = CampaignStatuses.DRAFT
     db_session.commit()
     # Create second campaign
@@ -445,6 +475,8 @@ def test_status_change_all_are_illegal_states(setup: SetupType, create_mock_camp
     db_session.refresh(campaign)
     assert campaign.status == CampaignStatuses.DRAFT
 
+    mock_async_send_activity.assert_not_called()
+
 
 def test_mixed_status_changes_to_legal_and_illegal_states(
     setup: SetupType,
@@ -466,6 +498,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     campaign.status = CampaignStatuses.ACTIVE  # This should transition to CANCELLED ok
     db_session.commit()
@@ -557,6 +590,7 @@ def test_mixed_status_changes_to_legal_and_illegal_states(
             }
         ],
     )
+    mock_async_send_activity.assert_called_once()
 
 
 def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belonging_to_retailer(
@@ -581,6 +615,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     campaign.status = CampaignStatuses.ACTIVE  # This should transition to CANCELLED ok
     db_session.commit()
@@ -702,6 +737,7 @@ def test_mixed_status_changes_with_illegal_states_and_campaign_slugs_not_belongi
             },
         ],
     )
+    mock_async_send_activity.assert_called_once()
 
 
 def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
@@ -725,6 +761,7 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     campaign.status = CampaignStatuses.ACTIVE  # This should transition to CANCELLED ok
     db_session.commit()
@@ -831,6 +868,8 @@ def test_mixed_status_changes_with_illegal_states_and_no_campaign_found(
         ],
     )
 
+    mock_async_send_activity.assert_called_once()
+
 
 def test_leaving_no_active_campaigns_gives_error(
     setup: SetupType,
@@ -897,6 +936,7 @@ def test_ending_last_active_campaign_is_ok_for_test_retailer(
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
@@ -941,6 +981,7 @@ def test_ending_last_active_campaign_is_ok_for_test_retailer(
     assert campaign.status == CampaignStatuses.ENDED
     assert campaign.end_date == fake_now.replace(tzinfo=None)
     mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[delete_campaign_balances_task_id])
+    mock_async_send_activity.assert_called_once()
 
 
 def test_cancelling_last_active_campaign_is_ok_for_test_retailer(
@@ -961,6 +1002,7 @@ def test_cancelling_last_active_campaign_is_ok_for_test_retailer(
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
@@ -1018,6 +1060,7 @@ def test_cancelling_last_active_campaign_is_ok_for_test_retailer(
     mock_enqueue_many_tasks.assert_called_once_with(
         retry_tasks_ids=[account_holder_cancel_reward_task_id, delete_campaign_balances_task_id]
     )
+    mock_async_send_activity.assert_called_once()
 
 
 def test_having_no_active_campaigns_gives_invalid_status_error(
@@ -1073,6 +1116,7 @@ def test_activating_a_campaign(
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
     mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
     mock_datetime.now.return_value = now
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     payload = {
         "requested_status": "active",
@@ -1122,6 +1166,7 @@ def test_activating_a_campaign(
     assert activable_campaign.status == CampaignStatuses.ACTIVE
     assert activable_campaign.end_date is None
     assert activable_campaign.start_date == now.replace(tzinfo=None)
+    mock_async_send_activity.assert_called_once()
 
 
 def test_activating_a_campaign_carin_call_fails(
@@ -1139,6 +1184,7 @@ def test_activating_a_campaign_carin_call_fails(
         return_value=(mock_carina_resp_status_code, mock_carina_resp_msg),
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     payload = {
         "requested_status": "active",
@@ -1175,6 +1221,7 @@ def test_activating_a_campaign_carin_call_fails(
 
     db_session.refresh(activable_campaign)
     assert activable_campaign.status == CampaignStatuses.DRAFT  # not changed
+    mock_async_send_activity.assert_not_called()
 
 
 def test_activating_a_campaign_with_no_earn_rules(setup: SetupType, activable_campaign: Campaign) -> None:
@@ -1302,6 +1349,7 @@ def test_ending_campaign_convert_pending_rewards(
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
     mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
@@ -1376,6 +1424,7 @@ def test_ending_campaign_convert_pending_rewards(
     )
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
+    mock_async_send_activity.assert_called_once()
 
 
 def test_cancelling_campaign_delete_pending_rewards(
@@ -1394,6 +1443,7 @@ def test_cancelling_campaign_delete_pending_rewards(
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
     mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     db_session, retailer, campaign = setup
     campaign.status = CampaignStatuses.ACTIVE
@@ -1483,6 +1533,7 @@ def test_cancelling_campaign_delete_pending_rewards(
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
     assert reward_cancel_task.status == RetryTaskStatuses.PENDING
+    mock_async_send_activity.assert_called_once()
 
 
 def test_ending_campaign_delete_pending_rewards(
@@ -1500,6 +1551,7 @@ def test_ending_campaign_delete_pending_rewards(
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
     mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     db_session, retailer, campaign = setup
     campaign.status = CampaignStatuses.ACTIVE
@@ -1574,6 +1626,7 @@ def test_ending_campaign_delete_pending_rewards(
     )
     assert deletion_task.status == RetryTaskStatuses.PENDING
     assert pending_reward_task.status == RetryTaskStatuses.PENDING
+    mock_async_send_activity.assert_called_once()
 
 
 def test_ending_campaign_convert_pending_rewards_without_refund_window(
@@ -1591,6 +1644,7 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
     )
     mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
     mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.campaign.async_send_activity")
 
     fake_now = datetime.now(tz=timezone.utc)
     mock_datetime.now.return_value = fake_now
@@ -1653,6 +1707,7 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
         ],
     )
     assert deletion_task.status == RetryTaskStatuses.PENDING
+    mock_async_send_activity.assert_called_once()
 
 
 def test_delete_draft_campaign(

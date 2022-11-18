@@ -7,7 +7,8 @@ from pytest_mock import MockerFixture
 
 from tests.conftest import SetupType
 from vela.activity_utils.enums import ActivityType
-from vela.enums import LoyaltyTypes
+from vela.activity_utils.schemas import CampaignStatusChangeActivitySchema
+from vela.enums import CampaignStatuses, LoyaltyTypes
 from vela.models import ProcessedTransaction, RetailerStore
 
 
@@ -136,3 +137,50 @@ async def test_tx_import_activity_payload(
         data=tx_import_activity_data,
     )
     assert actual_payload == expected_payload
+
+
+@pytest.mark.asyncio
+async def test_campaign_status_change_activity_payload(setup: SetupType, mocker: MockerFixture) -> None:
+    db_session, _, campaign = setup
+    assert campaign.status == CampaignStatuses.ACTIVE
+    original_status = campaign.status
+    campaign.status = CampaignStatuses.ENDED
+    db_session.commit()
+
+    mock_datetime = mocker.patch("vela.activity_utils.enums.datetime")
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    mock_username = "testuser"
+
+    db_session.refresh(campaign)
+    payload = ActivityType.get_campaign_status_change_activity_data(
+        updated_at=campaign.updated_at,
+        campaign_name=campaign.name,
+        campaign_slug=campaign.slug,
+        retailer_slug=campaign.retailer.slug,
+        original_status=original_status,
+        new_status=campaign.status,
+        sso_username=mock_username,
+    )
+    assert payload == {
+        "type": ActivityType.CAMPAIGN.name,
+        "datetime": fake_now,
+        "underlying_datetime": campaign.updated_at,
+        "summary": f"{campaign.name} {campaign.status.value}",
+        "reasons": [],
+        "activity_identifier": campaign.slug,
+        "user_id": mock_username,
+        "associated_value": campaign.status.value,
+        "retailer": campaign.retailer.slug,
+        "campaigns": [campaign.slug],
+        "data": CampaignStatusChangeActivitySchema(
+            campaign={
+                "new_values": {
+                    "status": campaign.status.value,
+                },
+                "original_values": {
+                    "status": original_status.value,
+                },
+            }
+        ).dict(exclude_unset=True),
+    }

@@ -1,3 +1,5 @@
+import asyncio
+
 from datetime import datetime, timezone
 from typing import Any
 
@@ -7,6 +9,8 @@ from retry_tasks_lib.db.models import RetryTask
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vela import crud
+from vela.activity_utils.enums import ActivityType
+from vela.activity_utils.tasks import async_send_activity
 from vela.api.deps import get_session, retailer_is_valid, user_is_authorised
 from vela.api.tasks import enqueue_many_tasks
 from vela.core.config import settings
@@ -76,8 +80,11 @@ async def _check_valid_campaigns(
 
 
 async def _campaign_status_change(
-    db_session: "AsyncSession", campaign: Campaign, requested_status: CampaignStatuses
+    db_session: "AsyncSession", campaign: Campaign, requested_status: CampaignStatuses, sso_username: str
 ) -> None:
+
+    original_status = campaign.status
+
     async def _query(campaign: Campaign) -> None:
         campaign.status = requested_status
         now = datetime.now(tz=timezone.utc).replace(tzinfo=None)
@@ -89,6 +96,20 @@ async def _campaign_status_change(
         await db_session.commit()
 
     await async_run_query(_query, db_session, campaign=campaign)
+
+    await db_session.refresh(campaign)
+    campaigns_status_change_activity_payload = ActivityType.get_campaign_status_change_activity_data(
+        updated_at=campaign.updated_at,
+        campaign_name=campaign.name,
+        campaign_slug=campaign.slug,
+        retailer_slug=campaign.retailer.slug,
+        original_status=original_status,
+        new_status=campaign.status,
+        sso_username=sso_username,
+    )
+    asyncio.create_task(
+        async_send_activity(campaigns_status_change_activity_payload, routing_key=ActivityType.CAMPAIGN.value)
+    )
 
 
 # pylint: disable=too-many-locals
@@ -150,6 +171,7 @@ async def campaigns_status_change(
                     db_session=db_session,
                     campaign=campaign,
                     requested_status=requested_status,
+                    sso_username=payload.activity_metadata.sso_username,
                 )
                 vela_campaigns_updated.append(campaign.slug)
 

@@ -461,6 +461,7 @@ def test_post_transaction_negative_amount(
             "name": "negativetestcampaign",
             "slug": "negative-test-campaign",
             "loyalty_type": LoyaltyTypes.ACCUMULATOR,
+            "start_date": datetime.now(tz=timezone.utc) - timedelta(days=1),
         }
     )
     create_mock_reward_rule(
@@ -509,6 +510,7 @@ def test_post_transaction_zero_amount(
             "name": "zerotestcampaign",
             "slug": "zero-test-campaign",
             "loyalty_type": LoyaltyTypes.ACCUMULATOR,
+            "start_date": datetime.now(tz=timezone.utc) - timedelta(days=1),
         }
     )
     mock_get_tx_import_activity_data = mocker.patch(
@@ -601,6 +603,7 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
             "name": "negativetestcampaign",
             "slug": "negative-test-campaign",
             "loyalty_type": LoyaltyTypes.ACCUMULATOR,
+            "start_date": datetime.now(tz=timezone.utc) - timedelta(days=1),
         }
     )
     create_mock_reward_rule(
@@ -684,6 +687,7 @@ def test_post_transaction_negative_amount_but_not_accumulator(
             "name": "negativetestcampaign",
             "slug": "negative-test-campaign",
             "loyalty_type": LoyaltyTypes.STAMPS,
+            "start_date": datetime.now(tz=timezone.utc) - timedelta(days=1),
         }
     )
     create_mock_reward_rule(
