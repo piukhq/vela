@@ -134,7 +134,10 @@ async def campaigns_status_change(
             carina_responses[campaign.slug] = carina_resp_msg
 
             if 200 <= carina_status_code <= 300:
-                if campaign.reward_rule.allocation_window > 0:
+                if campaign.reward_rule.allocation_window > 0 and requested_status in [
+                    CampaignStatuses.CANCELLED,
+                    CampaignStatuses.ENDED,
+                ]:
                     pending_reward_retry_task = await crud.create_pending_rewards_task(
                         db_session=db_session,
                         campaign=campaign,

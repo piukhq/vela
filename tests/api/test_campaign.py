@@ -945,15 +945,15 @@ def test_activating_a_campaign(
         headers=auth_headers,
     )
 
-    create_balance_task_id = (
+    tasks_created = (
         db_session.execute(
-            select(RetryTask.retry_task_id).where(
+            select(RetryTask).where(
                 TaskType.task_type_id == RetryTask.task_type_id,
-                TaskType.name == settings.CREATE_CAMPAIGN_BALANCES_TASK_NAME,
             )
         )
         .unique()
-        .scalar_one()
+        .scalars()
+        .all()
     )
 
     assert resp.status_code == fastapi_http_status.HTTP_200_OK
@@ -966,9 +966,13 @@ def test_activating_a_campaign(
         reward_slug=activable_campaign.reward_rule.reward_slug,
         requested_status=payload["requested_status"],
     )
+
+    assert len(tasks_created) == 1
+    assert tasks_created[0].task_type.name == settings.CREATE_CAMPAIGN_BALANCES_TASK_NAME
+    assert tasks_created[0].task_type.name != settings.PENDING_REWARDS_TASK_NAME
     mock_enqueue_many_tasks.assert_called_once_with(
         retry_tasks_ids=[
-            create_balance_task_id,
+            tasks_created[0].retry_task_id,
         ],
     )
 
