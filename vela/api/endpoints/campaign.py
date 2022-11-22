@@ -11,7 +11,7 @@ from vela.api.deps import get_session, retailer_is_valid, user_is_authorised
 from vela.api.tasks import enqueue_many_tasks
 from vela.core.config import settings
 from vela.db.base_class import async_run_query
-from vela.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates
+from vela.enums import CampaignStatuses, HttpErrors, HttpsErrorTemplates, RetailerStatuses
 from vela.internal_requests import put_carina_campaign
 from vela.models.retailer import Campaign, RetailerRewards
 from vela.schemas import CampaignsStatusChangeSchema
@@ -35,7 +35,7 @@ async def _check_remaining_active_campaigns(
 
     # If you've requested to end or cancel all of your active campaigns..
     active_campaign_slugs = [campaign.slug for campaign in active_campaigns]
-    if set(active_campaign_slugs).issubset(set(campaign_slugs)):
+    if set(active_campaign_slugs).issubset(set(campaign_slugs)) and retailer.status is not RetailerStatuses.TEST:
         raise HttpErrors.INVALID_STATUS_REQUESTED.value
 
 
