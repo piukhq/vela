@@ -17,7 +17,7 @@ from sqlalchemy.future import select
 from asgi import app
 from tests.conftest import SetupType
 from vela.core.config import settings
-from vela.enums import CampaignStatuses, HttpErrors
+from vela.enums import CampaignStatuses, HttpErrors, RetailerStatuses
 from vela.models import Campaign, EarnRule, RetailerRewards, RewardRule
 
 client = TestClient(app, raise_server_exceptions=False)
@@ -840,6 +840,7 @@ def test_leaving_no_active_campaigns_gives_error(
     db_session, retailer, campaign = setup
     # Set the first campaign to ACTIVE, this should transition to ENDED ok
     campaign.status = CampaignStatuses.ACTIVE
+    retailer.status = RetailerStatuses.ACTIVE
     db_session.commit()
     # Create second and third campaigns
     second_campaign: Campaign = create_mock_campaign(
@@ -877,6 +878,146 @@ def test_leaving_no_active_campaigns_gives_error(
     assert second_campaign.status == CampaignStatuses.ACTIVE
     db_session.refresh(third_campaign)
     assert third_campaign.status == CampaignStatuses.ACTIVE
+
+
+def test_ending_last_active_campaign_is_ok_for_test_retailer(
+    setup: SetupType,
+    reward_rule: RewardRule,
+    delete_campaign_balances_task_type: TaskType,
+    mocker: MockerFixture,
+) -> None:
+    db_session, retailer, campaign = setup
+
+    # Set retailer status to test so you can leave no active campaigns
+    retailer.status = RetailerStatuses.TEST
+
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    payload = {
+        "requested_status": "ended",
+        "campaign_slugs": [campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
+    }
+    campaign.status = CampaignStatuses.ACTIVE
+    db_session.commit()
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    # Check which tasks were created
+    delete_campaign_balances_task_id = (
+        db_session.execute(
+            select(RetryTask.retry_task_id).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    expected_status_code = fastapi_http_status.HTTP_200_OK
+    assert resp.status_code == expected_status_code
+    assert resp.json() == {}
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=campaign.slug,
+        reward_slug=reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    db_session.refresh(campaign)
+    assert campaign.status == CampaignStatuses.ENDED
+    assert campaign.end_date == fake_now.replace(tzinfo=None)
+    mock_enqueue_many_tasks.assert_called_once_with(retry_tasks_ids=[delete_campaign_balances_task_id])
+
+
+def test_cancelling_last_active_campaign_is_ok_for_test_retailer(
+    setup: SetupType,
+    reward_rule: RewardRule,
+    account_holder_cancel_reward_task_type: TaskType,
+    delete_campaign_balances_task_type: TaskType,
+    mocker: MockerFixture,
+) -> None:
+    db_session, retailer, campaign = setup
+
+    # Set retailer status to test so you can leave no active campaigns
+    retailer.status = RetailerStatuses.TEST
+
+    mock_datetime = mocker.patch("vela.api.endpoints.campaign.datetime")
+    mock_put_carina_campaign = mocker.patch(
+        "vela.api.endpoints.campaign.put_carina_campaign",
+        return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
+    )
+    mock_enqueue_many_tasks = mocker.patch("vela.api.endpoints.campaign.enqueue_many_tasks")
+
+    fake_now = datetime.now(tz=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    payload = {
+        "requested_status": "cancelled",
+        "campaign_slugs": [campaign.slug],
+        "activity_metadata": {"sso_username": "Jane Doe"},
+    }
+    campaign.status = CampaignStatuses.ACTIVE
+    db_session.commit()
+
+    resp = client.post(
+        f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    # Check which tasks were created
+    delete_campaign_balances_task_id = (
+        db_session.execute(
+            select(RetryTask.retry_task_id).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.DELETE_CAMPAIGN_BALANCES_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    account_holder_cancel_reward_task_id = (
+        db_session.execute(
+            select(RetryTask.retry_task_id).where(
+                TaskType.task_type_id == RetryTask.task_type_id,
+                TaskType.name == settings.REWARD_CANCELLATION_TASK_NAME,
+            )
+        )
+        .unique()
+        .scalar_one()
+    )
+
+    expected_status_code = fastapi_http_status.HTTP_200_OK
+    assert resp.status_code == expected_status_code
+    assert resp.json() == {}
+
+    # PUT /campaign call to carina
+    mock_put_carina_campaign.assert_called_once_with(
+        retailer_slug=retailer.slug,
+        campaign_slug=campaign.slug,
+        reward_slug=reward_rule.reward_slug,
+        requested_status=payload["requested_status"],
+    )
+    db_session.refresh(campaign)
+    assert campaign.status == CampaignStatuses.CANCELLED
+    assert campaign.end_date == fake_now.replace(tzinfo=None)
+    mock_enqueue_many_tasks.assert_called_once_with(
+        retry_tasks_ids=[account_holder_cancel_reward_task_id, delete_campaign_balances_task_id]
+    )
 
 
 def test_having_no_active_campaigns_gives_invalid_status_error(
