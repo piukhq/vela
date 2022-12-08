@@ -129,6 +129,7 @@ def reward_cancellatin_task_params(mock_campaign: dict, mock_retailer: dict) -> 
     return {
         "retailer_slug": mock_retailer["slug"],
         "campaign_slug": mock_campaign["slug"],
+        "cancel_datetime": datetime.now(tz=timezone.utc).isoformat(),
     }
 
 

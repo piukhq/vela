@@ -53,6 +53,7 @@ async def create_reward_cancel_and_campaign_balances_tasks(
                     params={
                         "retailer_slug": retailer.slug,
                         "campaign_slug": campaign.slug,
+                        "cancel_datetime": campaign.updated_at,
                     },
                 )
             )

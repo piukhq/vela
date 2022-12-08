@@ -29,6 +29,7 @@ def _process_cancel_account_holder_rewards(task_params: dict) -> dict:
             "campaign_slug": task_params["campaign_slug"],
         },
         exclude_from_label_url=["retailer_slug", "campaign_slug"],
+        json={"activity_metadata": {"cancel_datetime": task_params["cancel_datetime"].timestamp()}},
         headers={"Authorization": f"Token {settings.POLARIS_API_AUTH_TOKEN}"},
     )
     resp.raise_for_status()
