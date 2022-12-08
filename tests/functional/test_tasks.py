@@ -858,8 +858,13 @@ def test__process_cancel_account_holder_rewards_ok(
 ) -> None:
     httpretty.register_uri("POST", reward_cancellation_url, body="OK", status=202)
 
-    response_audit = _process_cancel_account_holder_rewards(reward_cancellation_retry_task.get_params())
-    assert httpretty.last_request().method == "POST"
+    task_params = reward_cancellation_retry_task.get_params()
+    response_audit = _process_cancel_account_holder_rewards(task_params)
+    last_request = httpretty.last_request()
+    assert last_request.method == "POST"
+    assert json.loads(last_request.body) == {
+        "activity_metadata": {"cancel_datetime": task_params["cancel_datetime"].timestamp()}
+    }
     assert response_audit == {
         "timestamp": mock.ANY,
         "response": {

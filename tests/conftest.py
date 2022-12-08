@@ -387,6 +387,7 @@ def account_holder_cancel_reward_task_type(db_session: "Session") -> TaskType:
             for key_name, key_type in (
                 ("campaign_slug", "STRING"),
                 ("retailer_slug", "STRING"),
+                ("cancel_datetime", "DATETIME"),
             )
         ]
     )
