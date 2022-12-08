@@ -154,6 +154,7 @@ def _process_balance_adjustment(
     is_transaction: bool = True,
     tx_datetime: datetime | None = None,
     tx_id: str | None = None,
+    loyalty_type: str,
 ) -> tuple[int, dict]:
     url_template = "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/adjustments"
     url_kwargs = {
@@ -163,6 +164,7 @@ def _process_balance_adjustment(
     }
     activity_metadata: dict[str, str | float] = {
         "reason": reason,
+        "loyalty_type": loyalty_type,
     }
     if is_transaction:
         # If is_transaction is True, tx_id and tx_datetime are required to be sent
@@ -224,17 +226,17 @@ def _set_param_value(
     return sync_run_query(_query, db_session)
 
 
-def _get_campaign_status(db_session: "Session", retailer_slug: str, campaign_slug: str) -> CampaignStatuses:
-    campaign_status: CampaignStatuses = sync_run_query(
+def _get_campaign(db_session: "Session", retailer_slug: str, campaign_slug: str) -> Campaign:
+    campaign: Campaign = sync_run_query(
         lambda: db_session.execute(
-            select(Campaign.status)
+            select(Campaign)
             .join(RetailerRewards)
             .where(RetailerRewards.slug == retailer_slug, Campaign.slug == campaign_slug)
         ).scalar_one(),
         db_session,
         rollback_on_exc=False,
     )
-    return campaign_status
+    return campaign
 
 
 def _process_reward_path(
@@ -308,8 +310,8 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
     processed_tx_id = task_params["processed_transaction_id"]
     log_suffix = f"(tx_id: {processed_tx_id}, retry_task_id: {retry_task.retry_task_id})"
 
-    campaign_status = _get_campaign_status(db_session, task_params["retailer_slug"], task_params["campaign_slug"])
-    if campaign_status in (CampaignStatuses.ENDED, CampaignStatuses.CANCELLED):
+    campaign = _get_campaign(db_session, task_params["retailer_slug"], task_params["campaign_slug"])
+    if campaign.status in (CampaignStatuses.ENDED, CampaignStatuses.CANCELLED):
         retry_task.update_task(db_session, status=RetryTaskStatuses.CANCELLED, clear_next_attempt_time=True)
         return
 
@@ -324,15 +326,17 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
     pre_allocation_token = retry_task.get_params().get(TokenParamNames.PRE_ALLOCATION_TOKEN.value) or _set_param_value(
         db_session, retry_task, TokenParamNames.PRE_ALLOCATION_TOKEN.value, str(uuid4())
     )
+    reason = "Refund" if adjustment_amount < 0 else "Purchase"
     new_balance, response_audit = _process_balance_adjustment(
         account_holder_uuid=account_holder_uuid,
         retailer_slug=retailer_slug,
         campaign_slug=campaign_slug,
         adjustment_amount=adjustment_amount,
         idempotency_token=pre_allocation_token,
-        reason=f"Transaction {processed_tx_id}",
+        reason=f"{reason} transaction id: {processed_tx_id}",
         tx_datetime=task_params["transaction_datetime"],
         tx_id=processed_tx_id,
+        loyalty_type=campaign.loyalty_type.value,
     )
     logger.info("Balance adjusted - new balance: %s %s", new_balance, log_suffix)
     retry_task.update_task(db_session, response_audit=response_audit)
@@ -377,14 +381,17 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             TokenParamNames.POST_ALLOCATION_TOKEN.value
         ) or _set_param_value(db_session, retry_task, TokenParamNames.POST_ALLOCATION_TOKEN.value, str(uuid4()))
 
+        reward_type = "Reward" if campaign.reward_rule.allocation_window > 0 else "Pending Reward"
+
         balance, response_audit = _process_balance_adjustment(
             retailer_slug=retailer_slug,
             account_holder_uuid=account_holder_uuid,
             campaign_slug=campaign_slug,
             idempotency_token=post_allocation_token,
             adjustment_amount=-tot_cost_to_user,
-            reason=f"Reward goal: {reward_rule.reward_goal} Count: {rewards_achieved_n}",
+            reason=f"{reward_type} value {reward_rule.reward_goal}, {rewards_achieved_n} issued",
             is_transaction=False,
+            loyalty_type=campaign.loyalty_type.value,
         )
         logger.info(f"Balance readjusted - new balance: {balance} {log_suffix}")
         retry_task.update_task(db_session, response_audit=response_audit)

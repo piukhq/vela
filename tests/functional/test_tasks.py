@@ -63,6 +63,7 @@ def test__process_adjustment_ok(
         idempotency_token=task_params["pre_allocation_token"],
         reason="Transaction 1",
         is_transaction=False,
+        loyalty_type="accumulator",
     )
 
     last_request = httpretty.last_request()
@@ -72,9 +73,7 @@ def test__process_adjustment_ok(
         "balance_change": task_params["adjustment_amount"],
         "campaign_slug": task_params["campaign_slug"],
         "is_transaction": False,
-        "activity_metadata": {
-            "reason": "Transaction 1",
-        },
+        "activity_metadata": {"reason": "Transaction 1", "loyalty_type": "accumulator"},
     }
 
     assert response_audit == {
@@ -84,9 +83,7 @@ def test__process_adjustment_ok(
                     "balance_change": 100,
                     "campaign_slug": "test-campaign",
                     "is_transaction": False,
-                    "activity_metadata": {
-                        "reason": "Transaction 1",
-                    },
+                    "activity_metadata": {"reason": "Transaction 1", "loyalty_type": "accumulator"},
                 }
             ),
             "url": "{0}/{1}/accounts/{2}/adjustments".format(
@@ -130,6 +127,7 @@ def test__process_adjustment_http_errors(
                 reason="Transaction 1",
                 tx_datetime=task_params["transaction_datetime"],
                 tx_id="tx_id",
+                loyalty_type="accumulator",
             )
 
         assert isinstance(excinfo.value, requests.RequestException)
@@ -144,6 +142,7 @@ def test__process_adjustment_http_errors(
             "activity_metadata": {
                 "transaction_datetime": task_params["transaction_datetime"].timestamp(),
                 "reason": "Transaction 1",
+                "loyalty_type": "accumulator",
                 "transaction_id": "tx_id",
             },
         }
@@ -168,6 +167,7 @@ def test__process_adjustment_connection_error(
             reason="Transaction 1",
             tx_datetime=task_params["transaction_datetime"],
             tx_id="tx_id",
+            loyalty_type="accumulator",
         )
 
     assert isinstance(excinfo.value, asyncio.TimeoutError)
@@ -396,9 +396,9 @@ def test_adjust_balance_multiple_rewards(
     transaction_request = list(httpretty.HTTPretty.latest_requests[1].parsed_body.values())
     reward_allocation_request = list(httpretty.HTTPretty.latest_requests[2].parsed_body.values())
     reward_request = list(httpretty.HTTPretty.latest_requests[-1].parsed_body.values())
-    assert transaction_request[3]["reason"] == f"Transaction {processed_transaction.transaction_id}"
+    assert transaction_request[3]["reason"] == f"Purchase transaction id: {processed_transaction.transaction_id}"
     assert reward_allocation_request[0] == expected_count
-    assert reward_request[3]["reason"] == f"Reward goal: {reward_rule.reward_goal} Count: {expected_count}"
+    assert reward_request[3]["reason"] == f"Pending Reward value {reward_rule.reward_goal}, {expected_count} issued"
 
     db_session.refresh(reward_adjustment_task)
 
