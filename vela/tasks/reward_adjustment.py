@@ -10,6 +10,7 @@ from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import RetryTaskAdditionalQueryData, retryable_task
 from sqlalchemy.future import select
 
+from vela.activity_utils.utils import pence_integer_to_currency_string
 from vela.core.config import redis_raw, settings
 from vela.db.base_class import sync_run_query
 from vela.db.session import SyncSessionMaker
@@ -239,6 +240,22 @@ def _get_campaign(db_session: "Session", retailer_slug: str, campaign_slug: str)
     return campaign
 
 
+def _get_balance_adjustment_reason(
+    loyalty_type: str, reward_goal: int, rewards_achieved: int, allocation_window: int
+) -> str:
+    reward_type = "Pending reward" if allocation_window > 0 else "Reward"
+    if loyalty_type == "accumulator":
+        reason = (
+            f"{reward_type} value {pence_integer_to_currency_string(reward_goal, 'GBP')}, " f"{rewards_achieved} issued"
+        )
+    else:
+        formatted_value = int(reward_goal // 100)
+        plural_stamps = "s" if formatted_value != 1 else ""
+        reason = f"{reward_type} value {formatted_value} stamp{plural_stamps}, {rewards_achieved} issued"
+
+    return reason
+
+
 def _process_reward_path(
     *,
     log_suffix: str,
@@ -381,7 +398,12 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             TokenParamNames.POST_ALLOCATION_TOKEN.value
         ) or _set_param_value(db_session, retry_task, TokenParamNames.POST_ALLOCATION_TOKEN.value, str(uuid4()))
 
-        reward_type = "Reward" if campaign.reward_rule.allocation_window > 0 else "Pending Reward"
+        reason = _get_balance_adjustment_reason(
+            campaign.loyalty_type.value,
+            reward_rule.reward_goal,
+            rewards_achieved_n,
+            campaign.reward_rule.allocation_window,
+        )
 
         balance, response_audit = _process_balance_adjustment(
             retailer_slug=retailer_slug,
@@ -389,7 +411,7 @@ def adjust_balance(retry_task: RetryTask, db_session: "Session") -> None:
             campaign_slug=campaign_slug,
             idempotency_token=post_allocation_token,
             adjustment_amount=-tot_cost_to_user,
-            reason=f"{reward_type} value {reward_rule.reward_goal}, {rewards_achieved_n} issued",
+            reason=reason,
             is_transaction=False,
             loyalty_type=campaign.loyalty_type.value,
         )
