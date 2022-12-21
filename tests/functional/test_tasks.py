@@ -22,6 +22,7 @@ from vela.models import Campaign, ProcessedTransaction, RewardRule
 from vela.tasks.campaign_balances import update_campaign_balances
 from vela.tasks.pending_rewards import convert_or_delete_pending_rewards
 from vela.tasks.reward_adjustment import (
+    _get_balance_adjustment_reason,
     _number_of_rewards_achieved,
     _process_balance_adjustment,
     _process_reward_allocation,
@@ -353,6 +354,33 @@ def test_adjust_balance_pending_reward_with_trc_reaches_reward_cap_with_slush(
     assert pending_allocation_body.get("total_cost_to_user") == task_params["adjustment_amount"]
 
 
+def test__get_balance_adjustment_reason() -> None:
+    assert "Reward value 5 stamps, 1 issued" == _get_balance_adjustment_reason(
+        loyalty_type="stamps",
+        reward_goal=500,
+        rewards_achieved=1,
+        allocation_window=0,
+    )
+    assert "Reward value 1 stamp, 1 issued" == _get_balance_adjustment_reason(
+        loyalty_type="stamps",
+        reward_goal=100,
+        rewards_achieved=1,
+        allocation_window=0,
+    )
+    assert "Pending reward value £5.00, 3 issued" == _get_balance_adjustment_reason(
+        loyalty_type="accumulator",
+        reward_goal=500,
+        rewards_achieved=3,
+        allocation_window=30,
+    )
+    assert "Reward value £5.00, 3 issued" == _get_balance_adjustment_reason(
+        loyalty_type="accumulator",
+        reward_goal=500,
+        rewards_achieved=3,
+        allocation_window=0,
+    )
+
+
 @httpretty.activate
 def test_adjust_balance_multiple_rewards(
     db_session: "Session",
@@ -364,7 +392,7 @@ def test_adjust_balance_multiple_rewards(
 ) -> None:
     task_params = reward_adjustment_task.get_params()
 
-    reward_rule.reward_goal = 50
+    reward_rule.reward_goal = 100
     adj_amount = 100
     expected_count = adj_amount // reward_rule.reward_goal
     db_session.commit()
@@ -398,7 +426,7 @@ def test_adjust_balance_multiple_rewards(
     reward_request = list(httpretty.HTTPretty.latest_requests[-1].parsed_body.values())
     assert transaction_request[3]["reason"] == f"Purchase transaction id: {processed_transaction.transaction_id}"
     assert reward_allocation_request[0] == expected_count
-    assert reward_request[3]["reason"] == f"Pending Reward value {reward_rule.reward_goal}, {expected_count} issued"
+    assert reward_request[3]["reason"] == f"Reward value 1 stamp, {expected_count} issued"
 
     db_session.refresh(reward_adjustment_task)
 
