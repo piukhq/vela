@@ -64,6 +64,10 @@ class HttpErrors(Enum):
         status_code=status.HTTP_409_CONFLICT,
         detail={"display_message": "User Account not Active", "code": "USER_NOT_ACTIVE"},
     )
+    INVALID_TX_DATE = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={"display_message": "Transaction dated before user join.", "code": "INVALID_TX_DATE"},
+    )
     GENERIC_HANDLED_ERROR = HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail={

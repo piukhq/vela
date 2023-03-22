@@ -20,6 +20,7 @@ class TxImportReasons(Enum):
     NO_ACTIVE_USER = "No active user"
     DUPLICATE_TRANSACTION = "Transaction ID not unique"
     GENERIC_HANDLED_ERROR = "Internal server error"
+    INVALID_TX_DATE = "Transaction dated before user join"
 
 
 class ActivityType(Enum):
@@ -38,6 +39,8 @@ class ActivityType(Enum):
                 reason = TxImportReasons.NO_ACTIVE_USER.value
             case HttpErrors.DUPLICATE_TRANSACTION.name:
                 reason = TxImportReasons.DUPLICATE_TRANSACTION.value
+            case HttpErrors.INVALID_TX_DATE.name:
+                reason = TxImportReasons.INVALID_TX_DATE.value
             case _:
                 reason = TxImportReasons.GENERIC_HANDLED_ERROR.value
         return reason
