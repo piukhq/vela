@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
@@ -104,8 +105,7 @@ async def send_async_request_with_retry(
             return response.status, json_response
 
 
-async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) -> None:
-
+async def validate_account_holder(account_holder_uuid: UUID, retailer_slug: str, tx_datetime: datetime) -> None:
     url = f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/status"
     with sentry_sdk.start_span(op="http.client", description=f"GET {url}") as span:
         try:
@@ -124,7 +124,7 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
             span.set_tag("http.status_code", status_code)
         except aiohttp.ClientError as ex:
             logger.exception("Failed to fetch account holder status from Polaris.", exc_info=ex)
-            raise HttpErrors.GENERIC_HANDLED_ERROR.value
+            raise HttpErrors.GENERIC_HANDLED_ERROR.value from ex
 
     if status_code == status.HTTP_404_NOT_FOUND:
         raise HttpErrors.USER_NOT_FOUND.value
@@ -136,6 +136,9 @@ async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug:
 
     if resp_json["status"] != "active":
         raise HttpErrors.USER_NOT_ACTIVE.value
+
+    if resp_json["created_at"] > tx_datetime.timestamp():
+        raise HttpErrors.INVALID_TX_DATE.value
 
 
 async def put_carina_campaign(

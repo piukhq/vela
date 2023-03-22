@@ -32,6 +32,7 @@ auth_headers = {"Authorization": f"Token {settings.VELA_API_AUTH_TOKEN}"}
 account_holder_uuid = uuid4()
 datetime_now = datetime.now(tz=timezone.utc)
 timestamp_now = int(datetime_now.timestamp())
+account_holder_created_at = (datetime_now - timedelta(days=1)).timestamp()
 
 
 @pytest.fixture(scope="function")
@@ -58,7 +59,8 @@ def test_post_transaction_happy_path(
     db_session, retailer, campaign = setup
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_get_tx_import_activity_data = mocker.patch(
@@ -118,7 +120,8 @@ def test_post_transaction_not_awarded(
     db_session, retailer, _ = setup
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
 
     payload["transaction_total"] = 250
@@ -149,7 +152,8 @@ def test_post_transaction_no_active_campaigns(
     db_session.commit()
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
     mock_get_tx_import_activity_data = mocker.patch(
         "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
@@ -199,7 +203,8 @@ def test_post_transaction_no_active_campaigns_pre_start_date(
     payload["datetime"] = transaction_timestamp
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
@@ -224,7 +229,8 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     db_session.commit()
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
@@ -242,6 +248,56 @@ def test_post_transaction_no_active_campaigns_post_end_date(
     assert transaction.status == TransactionProcessingStatuses.NO_ACTIVE_CAMPAIGNS
 
 
+def test_post_transaction_account_holder_created_after_tx_datetime(
+    setup: SetupType,
+    payload: dict,
+    earn_rule: EarnRule,
+    mocker: MockerFixture,
+    create_mock_reward_rule: Callable,
+) -> None:
+    _, retailer, campaign = setup
+
+    future_datetime = datetime_now + timedelta(days=1)
+    invalid_account_holder_created_at = future_datetime.timestamp()
+    assert invalid_account_holder_created_at > float(payload["datetime"])
+
+    mocker.patch(
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": invalid_account_holder_created_at}),
+    )
+    mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
+    mock_get_tx_import_activity_data = mocker.patch(
+        "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
+        return_value={"mock": "payload"},
+    )
+    mock_async_send_activity = mocker.patch("vela.api.endpoints.transaction.async_send_activity")
+    create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
+
+    resp = client.post(f"{settings.API_PREFIX}/{retailer.slug}/transaction", json=payload, headers=auth_headers)
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+    assert resp.json() == {"display_message": "Transaction dated before user join.", "code": "INVALID_TX_DATE"}
+
+    transaction_data = {
+        "transaction_id": payload["id"],
+        "payment_transaction_id": "BPL123456789",
+        "amount": 1125,
+        "datetime": datetime_now.replace(microsecond=0),
+        "mid": "12345678",
+        "account_holder_uuid": account_holder_uuid,
+    }
+    tx_import_activity_data = {
+        "retailer_slug": retailer.slug,
+        "active_campaign_slugs": None,
+        "refunds_valid": None,
+        "error": "INVALID_TX_DATE",
+    }
+    mock_get_tx_import_activity_data.assert_called_once_with(
+        transaction=transaction_data,
+        data=tx_import_activity_data,
+    )
+    mock_async_send_activity.assert_called_once_with({"mock": "payload"}, routing_key=ActivityType.TX_IMPORT.value)
+
+
 def test_post_transaction_existing_transaction(
     setup: SetupType,
     earn_rule: EarnRule,
@@ -256,7 +312,8 @@ def test_post_transaction_existing_transaction(
     db_session = setup.db_session
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
     mock_get_tx_import_activity_data = mocker.patch(
         "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
@@ -350,7 +407,7 @@ def test_post_transaction_account_holder_validation_errors(
     create_mock_reward_rule(reward_slug="negative-test-reward", campaign_id=campaign.id, reward_goal=10)
 
     mocked_session = mocker.patch("vela.internal_requests.send_async_request_with_retry")
-    mocked_session.return_value = (status.HTTP_200_OK, {"status": "pending"})
+    mocked_session.return_value = (status.HTTP_200_OK, {"status": "pending", "created_at": account_holder_created_at})
 
     resp = client.post(f"{settings.API_PREFIX}/{retailer_slug}/transaction", json=payload, headers=auth_headers)
 
@@ -427,7 +484,9 @@ def test_post_transaction_account_holder_empty_val_validation_errors(
     retailer_slug = setup.retailer.slug
     mocked_session = mocker.patch("vela.internal_requests.send_async_request_with_retry")
     mocked_session.return_value = MagicMock(
-        spec=Response, json=lambda: {"status": "pending"}, status_code=status.HTTP_200_OK
+        spec=Response,
+        json=lambda: {"status": "pending", "created_at": account_holder_created_at},
+        status_code=status.HTTP_200_OK,
     )
 
     for field_name in ["id", "transaction_id", "datetime", "MID", "loyalty_id"]:
@@ -452,7 +511,8 @@ def test_post_transaction_negative_amount(
 ) -> None:
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_campaign = create_mock_campaign(
@@ -501,7 +561,8 @@ def test_post_transaction_zero_amount(
 ) -> None:
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_campaign = create_mock_campaign(
@@ -585,7 +646,8 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
 ) -> None:
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
     mock_get_tx_import_activity_data = mocker.patch(
         "vela.activity_utils.enums.ActivityType.get_tx_import_activity_data",
@@ -669,7 +731,8 @@ def test_post_transaction_negative_amount_but_not_accumulator(
 ) -> None:
 
     mocker.patch(
-        "vela.internal_requests.send_async_request_with_retry", return_value=(status.HTTP_200_OK, {"status": "active"})
+        "vela.internal_requests.send_async_request_with_retry",
+        return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
     )
     mocker.patch("retry_tasks_lib.utils.asynchronous.enqueue_many_retry_tasks")
     mock_get_tx_import_activity_data = mocker.patch(
