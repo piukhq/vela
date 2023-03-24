@@ -107,7 +107,7 @@ async def send_async_request_with_retry(
 async def validate_account_holder_uuid(account_holder_uuid: UUID, retailer_slug: str) -> None:
 
     url = f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/status"
-    with sentry_sdk.start_span(op="http", description=f"GET {url}") as span:
+    with sentry_sdk.start_span(op="http.client", description=f"GET {url}") as span:
         try:
             status_code, resp_json = await send_async_request_with_retry(
                 method="GET",
@@ -145,7 +145,7 @@ async def put_carina_campaign(
     endpoint_url = f"{settings.CARINA_BASE_URL}/{retailer_slug}/{reward_slug}/campaign"
     request_payload = {"campaign_slug": campaign_slug, "status": requested_status}
 
-    with sentry_sdk.start_span(op="http", description=f"{http_method} {endpoint_url}") as span:
+    with sentry_sdk.start_span(op="http.client", description=f"{http_method} {endpoint_url}") as span:
         status_code, resp_json = await send_async_request_with_retry(
             method=http_method,
             url=endpoint_url,
