@@ -1,14 +1,13 @@
-# pylint: disable=too-many-arguments,too-many-locals,import-outside-toplevel,too-many-lines
-
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Callable, cast
+from typing import cast
 
 import pytest
 
 from fastapi import status as fastapi_http_status
 from fastapi.testclient import TestClient
+from httpx import Response
 from pytest_mock import MockerFixture
-from requests import Response
 from retry_tasks_lib.db.models import RetryTask, TaskType
 from retry_tasks_lib.enums import RetryTaskStatuses
 from sqlalchemy import delete
@@ -51,7 +50,7 @@ def validate_error_response(response: Response, error: HttpErrors) -> None:
 
 
 def validate_composite_error_response(response: Response, exptected_errors: list[dict]) -> None:
-    for error, expected_error in zip(response.json(), exptected_errors):
+    for error, expected_error in zip(response.json(), exptected_errors, strict=True):
         assert error["code"] == expected_error["code"]
         assert error["display_message"] == expected_error["display_message"]
         assert sorted(error["campaigns"]) == sorted(expected_error["campaigns"])
@@ -226,7 +225,7 @@ def test_status_change_mangled_json(setup: SetupType) -> None:
 
     resp = client.post(
         f"{settings.API_PREFIX}/{retailer.slug}/campaigns/status_change",
-        data=b"{",
+        content=b"{",
         headers=auth_headers,
     )
 

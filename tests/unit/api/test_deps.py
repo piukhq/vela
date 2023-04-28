@@ -38,7 +38,7 @@ def test_get_authorization_token_raises_httpexception() -> None:
 def test_user_is_authorised_raises_httpexception(mocker: MockerFixture) -> None:
     # GIVEN
     test_token = "token BADTOKENBAD"
-    from vela.api import deps  # pylint: disable=import-outside-toplevel
+    from vela.api import deps
 
     spy = mocker.spy(deps, "get_authorization_token")
 

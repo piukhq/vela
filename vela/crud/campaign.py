@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.utils.asynchronous import async_create_task
@@ -79,7 +79,7 @@ async def create_pending_rewards_task(
     db_session: "AsyncSession",
     campaign: Campaign,
     retailer: RetailerRewards,
-    issue_pending_rewards: Optional[bool] = False,
+    issue_pending_rewards: bool | None = False,
 ) -> RetryTask:
     async def _query() -> list[RetryTask]:
         task = await async_create_task(

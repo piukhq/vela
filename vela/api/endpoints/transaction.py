@@ -22,17 +22,8 @@ router = APIRouter()
 
 async def _get_transaction_response(accepted_adjustments: dict, is_refund: bool) -> str:
     if accepted_adjustments:
-        if is_refund:
-            response = "Refund accepted"
-        else:
-            response = "Awarded"
-
-    else:
-        if is_refund:
-            response = "Refunds not accepted"
-        else:
-            response = "Threshold not met"
-    return response
+        return "Refund accepted" if is_refund else "Awarded"
+    return "Refunds not accepted" if is_refund else "Threshold not met"
 
 
 async def _process_transaction(
@@ -75,7 +66,6 @@ async def _process_transaction(
     response_model=str,
     dependencies=[Depends(user_is_authorised)],
 )
-# pylint: disable=too-many-locals
 async def record_transaction(
     payload: CreateTransactionSchema,
     retailer: RetailerRewards = Depends(retailer_is_valid),

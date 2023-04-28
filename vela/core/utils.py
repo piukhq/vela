@@ -4,7 +4,6 @@ from vela.models.retailer import Campaign, EarnRule, LoyaltyTypes
 def calculate_adjustment_amounts(campaigns: list[Campaign], tx_amount: int) -> dict:
     adjustment_amounts: dict[str, dict] = {}
 
-    # pylint: disable=chained-comparison
     for campaign in campaigns:
         adjustment_amounts[campaign.slug] = {
             "type": campaign.loyalty_type,

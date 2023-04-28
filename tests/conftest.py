@@ -1,7 +1,8 @@
 from collections import namedtuple
+from collections.abc import Callable, Generator
 from copy import deepcopy
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Callable, Generator
+from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -103,7 +104,7 @@ def mock_campaign() -> dict:
         "status": CampaignStatuses.ACTIVE,
         "name": "testcampaign",
         "slug": "test-campaign",
-        "start_date": datetime.utcnow() - timedelta(minutes=5),
+        "start_date": datetime.now(tz=timezone.utc) - timedelta(minutes=5),
     }
 
 
@@ -179,7 +180,7 @@ def create_mock_campaign(db_session: "Session", retailer: RetailerRewards, mock_
 @pytest.fixture(scope="function")
 def create_mock_reward_rule(db_session: "Session", retailer: RetailerRewards, mock_campaign: dict) -> Callable:
     def _create_mock_reward_rule(
-        reward_slug: str,  # pylint: disable=redefined-outer-name
+        reward_slug: str,
         campaign_id: int,
         reward_goal: int = 5,
         allocation_window: int = 0,
@@ -399,7 +400,7 @@ def account_holder_cancel_reward_task_type(db_session: "Session") -> TaskType:
 @pytest.fixture
 def run_task_with_metrics() -> Generator:
     val = settings.ACTIVATE_TASKS_METRICS
-    settings.ACTIVATE_TASKS_METRICS = True  # pylint: disable=invalid-name
+    settings.ACTIVATE_TASKS_METRICS = True
     yield
     settings.ACTIVATE_TASKS_METRICS = val
 

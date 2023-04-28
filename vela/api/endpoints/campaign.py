@@ -35,7 +35,7 @@ async def _check_remaining_active_campaigns(
     except HTTPException as ex:
         # This would actually be an invalid status request
         if ex.detail["code"] == "NO_ACTIVE_CAMPAIGNS":  # type: ignore [index]
-            raise HttpErrors.INVALID_STATUS_REQUESTED.value
+            raise HttpErrors.INVALID_STATUS_REQUESTED.value from None
 
     # If you've requested to end or cancel all of your active campaigns..
     active_campaign_slugs = [campaign.slug for campaign in active_campaigns]
@@ -55,9 +55,7 @@ async def _check_valid_campaigns(
         HttpsErrorTemplates.MISSING_CAMPAIGN_COMPONENTS: [],
     }
 
-    # Add in any campaigns that were not found
-    missing_campaigns = list(set(campaign_slugs) - {campaign.slug for campaign in campaigns})
-    if missing_campaigns:
+    if missing_campaigns := list(set(campaign_slugs) - {campaign.slug for campaign in campaigns}):
         errors[HttpsErrorTemplates.NO_CAMPAIGN_FOUND] = missing_campaigns
         status_code = status.HTTP_404_NOT_FOUND
 
@@ -112,7 +110,6 @@ async def _campaign_status_change(
     )
 
 
-# pylint: disable=too-many-locals
 @router.post(
     path="/{retailer_slug}/campaigns/status_change",
     status_code=status.HTTP_200_OK,
@@ -136,7 +133,7 @@ async def campaigns_status_change(
     tasks_to_run_ids: list[int] = []
 
     # Check that this retailer will not be left with no active campaigns
-    if requested_status in [CampaignStatuses.ENDED, CampaignStatuses.CANCELLED]:
+    if requested_status in (CampaignStatuses.ENDED, CampaignStatuses.CANCELLED):
         await _check_remaining_active_campaigns(
             db_session=db_session, campaign_slugs=payload.campaign_slugs, retailer=retailer
         )
@@ -155,10 +152,10 @@ async def campaigns_status_change(
             carina_responses[campaign.slug] = carina_resp_msg
 
             if 200 <= carina_status_code <= 300:
-                if campaign.reward_rule.allocation_window > 0 and requested_status in [
+                if campaign.reward_rule.allocation_window > 0 and requested_status in (
                     CampaignStatuses.CANCELLED,
                     CampaignStatuses.ENDED,
-                ]:
+                ):
                     pending_reward_retry_task = await crud.create_pending_rewards_task(
                         db_session=db_session,
                         campaign=campaign,
@@ -207,10 +204,9 @@ async def campaigns_status_change(
                 await db_session.commit()
 
             await async_run_query(_clean_up, db_session, rollback_on_exc=True)
-            raise HTTPException(  # pylint: disable=raise-missing-from
-                detail="Failed to enqueue tasks.",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            raise HTTPException(
+                detail="Failed to enqueue tasks.", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            ) from None
 
     if errors:  # pragma: no cover
         raise HTTPException(detail=errors, status_code=status_code)

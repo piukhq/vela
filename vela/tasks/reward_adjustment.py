@@ -143,7 +143,6 @@ def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int, adjus
     return n_reward_achieved, trc_reached
 
 
-# pylint: disable=too-many-locals
 def _process_balance_adjustment(
     *,
     retailer_slug: str,
@@ -167,15 +166,11 @@ def _process_balance_adjustment(
         "reason": reason,
         "loyalty_type": loyalty_type,
     }
-    if is_transaction:
-        # If is_transaction is True, tx_id and tx_datetime are required to be sent
-        if tx_datetime and tx_id:
-            activity_metadata.update(
-                {
-                    "transaction_datetime": tx_datetime.replace(tzinfo=timezone.utc).timestamp(),
-                    "transaction_id": tx_id,
-                }
-            )
+    if is_transaction and tx_datetime and tx_id:
+        activity_metadata |= {
+            "transaction_datetime": tx_datetime.replace(tzinfo=timezone.utc).timestamp(),
+            "transaction_id": tx_id,
+        }
 
     payload = {
         "balance_change": adjustment_amount,
@@ -245,15 +240,13 @@ def _get_balance_adjustment_reason(
 ) -> str:
     reward_type = "Pending reward" if allocation_window > 0 else "Reward"
     if loyalty_type == "accumulator":
-        reason = (
-            f"{reward_type} value {pence_integer_to_currency_string(reward_goal, 'GBP')}, " f"{rewards_achieved} issued"
+        return (
+            f"{reward_type} value {pence_integer_to_currency_string(reward_goal, 'GBP', currency_sign=True)},"
+            f" {rewards_achieved} issued"
         )
-    else:
-        formatted_value = int(reward_goal // 100)
-        plural_stamps = "s" if formatted_value != 1 else ""
-        reason = f"{reward_type} value {formatted_value} stamp{plural_stamps}, {rewards_achieved} issued"
-
-    return reason
+    formatted_value = int(reward_goal // 100)
+    plural_stamps = "s" if formatted_value != 1 else ""
+    return f"{reward_type} value {formatted_value} stamp{plural_stamps}, {rewards_achieved} issued"
 
 
 def _process_reward_path(
@@ -302,14 +295,13 @@ def update_metrics() -> None:
 
 
 class TokenParamNames(Enum):
-    PRE_ALLOCATION_TOKEN = "pre_allocation_token"
-    ALLOCATION_TOKEN = "allocation_token"
-    POST_ALLOCATION_TOKEN = "post_allocation_token"
+    PRE_ALLOCATION_TOKEN = "pre_allocation_token"  # noqa: S105
+    ALLOCATION_TOKEN = "allocation_token"  # noqa: S105
+    POST_ALLOCATION_TOKEN = "post_allocation_token"  # noqa: S105
 
 
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
 # it is relevantly reflected in the TaskType table
-# pylint: disable=too-many-locals
 @retryable_task(
     db_session_factory=SyncSessionMaker,
     exclusive_constraints=[

@@ -23,12 +23,11 @@ logger = logging.getLogger(__name__)
 timeout = aiohttp.ClientTimeout(total=10, connect=3.03)
 
 
-# pylint: disable=too-many-locals
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_fixed(0.1),
     reraise=True,
-    retry_error_callback=lambda retry_state: retry_state.outcome.result(),
+    retry_error_callback=lambda retry_state: retry_state.outcome.result() if retry_state.outcome else None,
     retry=retry_if_result(lambda result: 501 <= result[0] <= 504)
     | retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
 )  # pragma: no cover
@@ -85,11 +84,7 @@ async def send_async_request_with_retry(
 
     label_kwargs: dict = {}
     for k, v in url_kwargs.items():
-        if k in exclude_from_label_url:
-            label_kwargs[k] = f"[{k}]"
-        else:
-            label_kwargs[k] = v
-
+        label_kwargs[k] = f"[{k}]" if k in exclude_from_label_url else v
     label_url = url_template.format(**label_kwargs)
 
     def _trace_config_ctx_factory(trace_request_ctx: SimpleNamespace | None) -> SimpleNamespace:

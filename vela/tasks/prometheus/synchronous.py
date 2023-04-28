@@ -1,7 +1,7 @@
 import logging
 
-from asyncio.log import logger
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from vela.core.config import settings
 from vela.tasks.prometheus.metrics import outgoing_http_requests_total, tasks_processing_time_histogram
@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 def update_metrics_hook(url_label: str) -> Callable:  # pragma: no cover
-    # pylint: disable=unused-argument
     def update_metrics(resp: "Response", *args: Any, **kwargs: Any) -> None:
         outgoing_http_requests_total.labels(
             app=settings.PROJECT_NAME,

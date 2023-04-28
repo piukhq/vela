@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
     wait=wait_fixed(1),
     reraise=True,
     before=before_log(logger, logging.INFO),
-    retry_error_callback=lambda retry_state: retry_state.outcome.result(),
+    retry_error_callback=lambda retry_state: retry_state.outcome.result() if retry_state.outcome else None,
     retry=retry_if_result(lambda resp: 501 <= resp.status_code < 600)
     | retry_if_exception_type(requests.RequestException),
 )
@@ -74,19 +74,10 @@ def send_request_with_metrics(
 
     """
 
-    label_kwargs: dict = {}
-    for k, v in url_kwargs.items():
-        if k in exclude_from_label_url:
-            label_kwargs[k] = f"[{k}]"
-        else:
-            label_kwargs[k] = v
-
+    label_kwargs: dict = {k: f"[{k}]" if k in exclude_from_label_url else v for k, v in url_kwargs.items()}
     label_url = url_template.format(**label_kwargs)
 
-    if settings.ACTIVATE_TASKS_METRICS:
-        hooks = {"response": update_metrics_hook(label_url)}
-    else:
-        hooks = {}
+    hooks = {"response": update_metrics_hook(label_url)} if settings.ACTIVATE_TASKS_METRICS else {}
 
     try:
         return requests.request(
