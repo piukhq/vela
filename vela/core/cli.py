@@ -14,6 +14,7 @@ from rq import Worker
 from vela.core.config import redis_raw, settings
 from vela.db.session import SyncSessionMaker
 from vela.scheduled_tasks.scheduler import cron_scheduler as vela_cron_scheduler
+from vela.scheduled_tasks.task_cleanup import cleanup_old_tasks
 from vela.tasks.prometheus.metrics import job_queue_summary, task_statuses, tasks_summary
 
 cli = typer.Typer()
@@ -42,7 +43,9 @@ def task_worker(burst: bool = False) -> None:  # pragma: no cover
 
 
 @cli.command()
-def cron_scheduler(report_tasks: bool = True, report_rq_queues: bool = True) -> None:  # pragma: no cover
+def cron_scheduler(
+    report_tasks: bool = True, report_rq_queues: bool = True, task_cleanup: bool = True
+) -> None:  # pragma: no cover
 
     logger.info("Initialising scheduler...")
 
@@ -80,6 +83,12 @@ def cron_scheduler(report_tasks: bool = True, report_rq_queues: bool = True) -> 
                 "gauge": job_queue_summary,
             },
             schedule_fn=lambda: settings.REPORT_JOB_QUEUE_LENGTH_SCHEDULE,
+            coalesce_jobs=True,
+        )
+    if task_cleanup:
+        vela_cron_scheduler.add_job(
+            cleanup_old_tasks,
+            schedule_fn=lambda: settings.TASK_CLEANUP_SCHEDULE,
             coalesce_jobs=True,
         )
 
