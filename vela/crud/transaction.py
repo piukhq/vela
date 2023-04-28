@@ -26,7 +26,7 @@ async def create_transaction(
             await nested_trans.commit()
         except IntegrityError:
             await nested_trans.rollback()
-            raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
+            raise HttpErrors.DUPLICATE_TRANSACTION.value from None
 
         return transaction
 
@@ -62,7 +62,7 @@ async def create_processed_transaction(
         except IntegrityError:
             await nested_trans.rollback()
             transaction.status = TransactionProcessingStatuses.DUPLICATE
-            raise HttpErrors.DUPLICATE_TRANSACTION.value  # pylint: disable=raise-missing-from
+            raise HttpErrors.DUPLICATE_TRANSACTION.value from None
 
         return processed_transaction
 

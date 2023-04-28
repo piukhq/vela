@@ -27,7 +27,10 @@ async def get_retailer_by_slug(db_session: "AsyncSession", retailer_slug: str) -
 
 
 async def get_active_campaigns(
-    db_session: "AsyncSession", retailer: RetailerRewards, transaction: Transaction = None, join_rules: bool = False
+    db_session: "AsyncSession",
+    retailer: RetailerRewards,
+    transaction: Transaction | None = None,
+    join_rules: bool = False,
 ) -> list[Campaign]:
 
     opt = [joinedload(Campaign.earn_rules), joinedload(Campaign.reward_rule)] if join_rules else []

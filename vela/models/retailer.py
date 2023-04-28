@@ -67,7 +67,7 @@ class RewardRule(Base, TimestampMixin):
     reward_goal = Column(Integer, nullable=False)
     reward_slug = Column(String(32), index=True, unique=False, nullable=False)
     allocation_window = Column(Integer, nullable=False, server_default="0")
-    reward_cap = Column(Enum(RewardCap, values_callable=lambda x: [str(e.value) for e in RewardCap]), nullable=True)
+    reward_cap = Column(Enum(RewardCap, values_callable=lambda _: [str(e.value) for e in RewardCap]), nullable=True)
 
     campaign_id = Column(Integer, ForeignKey("campaign.id", ondelete="CASCADE"), nullable=False)
     campaign = relationship("Campaign", back_populates="reward_rule")

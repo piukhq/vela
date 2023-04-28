@@ -1,8 +1,7 @@
-# pylint: disable=too-many-arguments, too-many-locals
-
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, call
 from uuid import uuid4
 
@@ -489,7 +488,7 @@ def test_post_transaction_account_holder_empty_val_validation_errors(
         status_code=status.HTTP_200_OK,
     )
 
-    for field_name in ["id", "transaction_id", "datetime", "MID", "loyalty_id"]:
+    for field_name in ("id", "transaction_id", "datetime", "MID", "loyalty_id"):
         bad_payload = deepcopy(payload)
         bad_payload[field_name] = ""
         _check_transaction_endpoint_422_response(field_name, retailer_slug, bad_payload)

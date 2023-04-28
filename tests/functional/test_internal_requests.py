@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -13,7 +13,7 @@ from vela.internal_requests import put_carina_campaign, send_async_request_with_
 async def test_send_async_request_with_retry() -> None:
     mock_retailer_slug = "test-retailer"
     mock_account_holder_uuid = uuid4()
-    mock_payload = {"status": "active", "created_at": datetime.now().timestamp()}
+    mock_payload = {"status": "active", "created_at": datetime.now(tz=timezone.utc).timestamp()}
 
     mock_url = f"{settings.POLARIS_BASE_URL}/test-retailer/accounts/{mock_account_holder_uuid}/status"
     with aioresponses() as mocked_clientreq:

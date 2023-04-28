@@ -1,5 +1,3 @@
-# pylint: disable=too-many-arguments,no-value-for-parameter
-
 import asyncio
 import json
 
@@ -84,11 +82,15 @@ def test__process_adjustment_ok(
                     "balance_change": 100,
                     "campaign_slug": "test-campaign",
                     "is_transaction": False,
-                    "activity_metadata": {"reason": "Transaction 1", "loyalty_type": "accumulator"},
+                    "activity_metadata": {
+                        "reason": "Transaction 1",
+                        "loyalty_type": "accumulator",
+                    },
                 }
             ),
-            "url": "{0}/{1}/accounts/{2}/adjustments".format(
-                settings.POLARIS_BASE_URL, task_params["retailer_slug"], task_params["account_holder_uuid"]
+            "url": (
+                f'{settings.POLARIS_BASE_URL}/{task_params["retailer_slug"]}/accounts/'
+                f'{task_params["account_holder_uuid"]}/adjustments'
             ),
         },
         "timestamp": fake_now.isoformat(),
@@ -112,10 +114,10 @@ def test__process_adjustment_http_errors(
 
     task_params = reward_adjustment_task.get_params()
 
-    for status, body in [
+    for status, body in (
         (401, "Unauthorized"),
         (500, "Internal Server Error"),
-    ]:
+    ):
         httpretty.register_uri("POST", adjustment_url, body=body, status=status)
 
         with pytest.raises(requests.RequestException) as excinfo:
@@ -189,7 +191,7 @@ def test__process_reward_allocation_connections_error(
             reward_slug="slug",
             campaign_slug="campaign-slug",
             account_holder_uuid="uuid",
-            idempotency_token="token",
+            idempotency_token="token",  # noqa: S106
             count=1,
         )
 
@@ -355,29 +357,41 @@ def test_adjust_balance_pending_reward_with_trc_reaches_reward_cap_with_slush(
 
 
 def test__get_balance_adjustment_reason() -> None:
-    assert "Reward value 5 stamps, 1 issued" == _get_balance_adjustment_reason(
-        loyalty_type="stamps",
-        reward_goal=500,
-        rewards_achieved=1,
-        allocation_window=0,
+    assert (
+        _get_balance_adjustment_reason(
+            loyalty_type="stamps",
+            reward_goal=500,
+            rewards_achieved=1,
+            allocation_window=0,
+        )
+        == "Reward value 5 stamps, 1 issued"
     )
-    assert "Reward value 1 stamp, 1 issued" == _get_balance_adjustment_reason(
-        loyalty_type="stamps",
-        reward_goal=100,
-        rewards_achieved=1,
-        allocation_window=0,
+    assert (
+        _get_balance_adjustment_reason(
+            loyalty_type="stamps",
+            reward_goal=100,
+            rewards_achieved=1,
+            allocation_window=0,
+        )
+        == "Reward value 1 stamp, 1 issued"
     )
-    assert "Pending reward value £5.00, 3 issued" == _get_balance_adjustment_reason(
-        loyalty_type="accumulator",
-        reward_goal=500,
-        rewards_achieved=3,
-        allocation_window=30,
+    assert (
+        _get_balance_adjustment_reason(
+            loyalty_type="accumulator",
+            reward_goal=500,
+            rewards_achieved=3,
+            allocation_window=30,
+        )
+        == "Pending reward value £5.00, 3 issued"
     )
-    assert "Reward value £5.00, 3 issued" == _get_balance_adjustment_reason(
-        loyalty_type="accumulator",
-        reward_goal=500,
-        rewards_achieved=3,
-        allocation_window=0,
+    assert (
+        _get_balance_adjustment_reason(
+            loyalty_type="accumulator",
+            reward_goal=500,
+            rewards_achieved=3,
+            allocation_window=0,
+        )
+        == "Reward value £5.00, 3 issued"
     )
 
 
@@ -600,10 +614,10 @@ def test__process_reward_allocation_http_errors(
     retailer_slug = task_params["retailer_slug"]
     account_holder_uuid = task_params["account_holder_uuid"]
     idempotency_token = task_params["pre_allocation_token"]
-    for status, body in [
+    for status, body in (
         (401, "Unauthorized"),
         (500, "Internal Server Error"),
-    ]:
+    ):
         httpretty.register_uri("POST", allocation_url, body=body, status=status)
 
         with pytest.raises(requests.RequestException) as excinfo:
@@ -633,7 +647,7 @@ def test__number_of_rewards_achieved(reward_rule: RewardRule) -> None:
     assert reward_rule.reward_goal == 5
     assert reward_rule.reward_cap is None
 
-    for new_balance, adjustment, expected_res in [
+    for new_balance, adjustment, expected_res in (
         # (new balance, adjustment, (num of rewards achieved, cap reached))
         (1, 1, (0, False)),
         (0, 0, (0, False)),
@@ -641,7 +655,7 @@ def test__number_of_rewards_achieved(reward_rule: RewardRule) -> None:
         (10, 10, (2, False)),
         (13, 12, (2, False)),
         (15, 15, (3, False)),
-    ]:
+    ):
         assert _number_of_rewards_achieved(reward_rule, new_balance, adjustment) == expected_res
 
 
@@ -653,7 +667,7 @@ def test__number_of_rewards_achieved_with_trc(db_session: "Session", reward_rule
     assert reward_rule.reward_goal == 5
     assert reward_rule.reward_cap == 2
 
-    for new_balance, adjustment, expected_res in [
+    for new_balance, adjustment, expected_res in (
         # (new balance, adjustment, (num of rewards achieved, cap reached))
         (1, 1, (0, False)),
         (0, 0, (0, False)),
@@ -662,7 +676,7 @@ def test__number_of_rewards_achieved_with_trc(db_session: "Session", reward_rule
         (12, 10, (2, False)),
         (12, 12, (2, True)),
         (15, 15, (2, True)),
-    ]:
+    ):
         assert _number_of_rewards_achieved(reward_rule, new_balance, adjustment) == expected_res
 
 
@@ -696,10 +710,10 @@ def test__process_reward_status_adjustment_http_errors(
     reward_status_adjustment_url: str,
 ) -> None:
 
-    for status, body in [
+    for status, body in (
         (401, "Unauthorized"),
         (500, "Internal Server Error"),
-    ]:
+    ):
         httpretty.register_uri("PATCH", reward_status_adjustment_url, body=body, status=status)
 
         with pytest.raises(requests.RequestException) as excinfo:
@@ -729,7 +743,7 @@ def test__process_reward_status_adjustment_connection_error(
 
 def test__set_param_value(db_session: "Session", reward_adjustment_task: RetryTask) -> None:
     value = str(uuid4())
-    assert "999" == _set_param_value(db_session, reward_adjustment_task, "secondary_reward_retry_task_id", 999)
+    assert _set_param_value(db_session, reward_adjustment_task, "secondary_reward_retry_task_id", 999) == "999"
     assert value == _set_param_value(db_session, reward_adjustment_task, "post_allocation_token", value)
 
 
@@ -908,10 +922,10 @@ def test__process_cancel_account_holder_rewards_http_errors(
     reward_cancellation_url: str,
 ) -> None:
 
-    for status, body in [
+    for status, body in (
         (401, "Unauthorized"),
         (500, "Internal Server Error"),
-    ]:
+    ):
         httpretty.register_uri("POST", reward_cancellation_url, body=body, status=status)
 
         with pytest.raises(requests.RequestException) as excinfo:

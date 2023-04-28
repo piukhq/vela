@@ -1,5 +1,6 @@
 from collections import namedtuple
-from typing import TYPE_CHECKING, Any, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Any
 
 import pytest
 

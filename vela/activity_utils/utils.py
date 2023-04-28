@@ -15,11 +15,10 @@ def build_tx_history_reasons(tx_amount: int, adjustments: dict, is_refund: bool,
                 reasons.append(f"refund of {amount} accepted")
             else:
                 reasons.append(f"transaction amount {amount} meets the required threshold {threshold}")
+        elif is_refund:
+            reasons.append(f"refund of {amount} not accepted")
         else:
-            if is_refund:
-                reasons.append(f"refund of {amount} not accepted")
-            else:
-                reasons.append(f"transaction amount {amount} does no meet the required threshold {threshold}")
+            reasons.append(f"transaction amount {amount} does no meet the required threshold {threshold}")
 
     return reasons
 
@@ -38,8 +37,9 @@ def build_tx_history_earns(adjustments: dict, currency: str) -> list[dict[str, s
 
 
 def pence_integer_to_currency_string(value: int, currency: str, currency_sign: bool = True) -> str:
-    extras: dict = {}
-    if not currency_sign:
-        extras = {"format": "#,##0.##"}
-
-    return format_currency(value / 100, currency, locale="en_GB", **extras)
+    return format_currency(
+        number=value / 100,
+        currency=currency,
+        locale="en_GB",
+        format=None if currency_sign else "#,##0.##",
+    )

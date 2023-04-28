@@ -62,10 +62,10 @@ class ActivityType(Enum):
         user_id: UUID | str | None = None,
     ) -> dict:
 
-        activity_identifier = activity_identifier if activity_identifier else "N/A"
-        campaigns = campaigns if campaigns else []
-        reasons = reasons if reasons else []
-        payload = {
+        activity_identifier = activity_identifier or "N/A"
+        campaigns = campaigns or []
+        reasons = reasons or []
+        return {
             "type": activity_type.name,
             "datetime": activity_datetime,
             "underlying_datetime": underlying_datetime,
@@ -78,7 +78,6 @@ class ActivityType(Enum):
             "campaigns": campaigns,
             "data": data,
         }
-        return payload
 
     @classmethod
     def get_tx_import_activity_data(
@@ -128,8 +127,7 @@ class ActivityType(Enum):
         currency: str = "GBP",
     ) -> dict:
         # NOTE: retailer and processed_tx are not bound to this db_session
-        # so we can't use the relationships on those objects
-        # ie: retailer.stores and processed_tx.retailer
+        # so we can't use the relationships on those objects i.e: retailer.stores & processed_tx.retailer
         return cls._assemble_payload(
             ActivityType.TX_HISTORY,
             underlying_datetime=processed_tx.datetime,

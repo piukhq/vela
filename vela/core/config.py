@@ -37,7 +37,7 @@ class LogLevel(str):  # pragma: no cover
     @classmethod
     def validate(cls, value: str) -> str:
         v = value.upper()
-        if v not in ["CRITICAL", "FATAL", "ERROR", "WARN", "WARNING", "INFO", "DEBUG", "NOTSET"]:
+        if v not in ("CRITICAL", "FATAL", "ERROR", "WARN", "WARNING", "INFO", "DEBUG", "NOTSET"):
             raise ValueError(f"{value} is not a valid LOG_LEVEL value")
 
         return v
@@ -56,10 +56,7 @@ class Settings(BaseSettings):  # pragma: no cover
         if command == "poetry":
             command = sys.argv[2] if len(sys.argv) > 2 else "None"
 
-        if "test" in command:
-            return True
-
-        return v
+        return True if "test" in command else v
 
     MIGRATING: bool = False
 
@@ -68,9 +65,7 @@ class Settings(BaseSettings):  # pragma: no cover
     def is_migration(cls, v: bool) -> bool:
         command = sys.argv[0]
 
-        if "alembic" in command:
-            return True
-        return v
+        return True if "alembic" in command else v
 
     PROJECT_NAME: str = "vela"
     ROOT_LOG_LEVEL: LogLevel | None = None
@@ -84,9 +79,7 @@ class Settings(BaseSettings):  # pragma: no cover
     @validator("SENTRY_DSN", pre=True)
     @classmethod
     def sentry_dsn_can_be_blank(cls, v: str) -> str | None:
-        if v is not None and len(v) == 0:
-            return None
-        return v
+        return None if v is not None and not v else v
 
     @validator("SENTRY_TRACES_SAMPLE_RATE")
     @classmethod
@@ -108,11 +101,10 @@ class Settings(BaseSettings):  # pragma: no cover
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
     @classmethod
     def assemble_db_connection(cls, v: str, values: dict[str, Any]) -> Any:
-        if v != "":
-            db_uri = v.format(values["POSTGRES_DB"])
-
-        else:
-            db_uri = PostgresDsn.build(
+        db_uri = (
+            v.format(values["POSTGRES_DB"])
+            if v
+            else PostgresDsn.build(
                 scheme="postgresql",
                 user=values.get("POSTGRES_USER"),
                 password=values.get("POSTGRES_PASSWORD"),
@@ -120,26 +112,25 @@ class Settings(BaseSettings):  # pragma: no cover
                 port=values.get("POSTGRES_PORT"),
                 path="/" + values.get("POSTGRES_DB", ""),
             )
-
+        )
         if values["TESTING"]:
             parsed_uri = urlparse(db_uri)
-            db_uri = parsed_uri._replace(path=parsed_uri.path + "_test").geturl()
+            db_uri = parsed_uri._replace(path=f"{parsed_uri.path}_test").geturl()
 
         return db_uri
 
     @validator("SQLALCHEMY_DATABASE_URI_ASYNC", pre=True)
     @classmethod
     def adapt_db_connection_to_async(cls, v: str, values: dict[str, Any]) -> Any:
-        if v != "":
-            db_uri = v.format(values["POSTGRES_DB"])
-        else:
-            db_uri = (
+        return (
+            v.format(values["POSTGRES_DB"])
+            if v
+            else (
                 values["SQLALCHEMY_DATABASE_URI"]
                 .replace("postgresql://", "postgresql+asyncpg://")
                 .replace("sslmode=", "ssl=")
             )
-
-        return db_uri
+        )
 
     KEY_VAULT_URI: str = "https://bink-uksouth-dev-com.vault.azure.net/"
 
@@ -181,9 +172,7 @@ class Settings(BaseSettings):  # pragma: no cover
     @validator("POLARIS_BASE_URL")
     @classmethod
     def polaris_base_url(cls, v: str, values: dict[str, Any]) -> str:
-        if v != "":
-            return v
-        return f"{values['POLARIS_HOST']}/loyalty"
+        return v or f"{values['POLARIS_HOST']}/loyalty"
 
     REDIS_URL: str
 
@@ -239,15 +228,13 @@ class Settings(BaseSettings):  # pragma: no cover
     @validator("CARINA_BASE_URL")
     @classmethod
     def carina_base_url(cls, v: str, values: dict[str, Any]) -> str:
-        if v != "":
-            return v
-        return f"{values['CARINA_HOST']}/rewards"
+        return v or f"{values['CARINA_HOST']}/rewards"
 
     REPORT_ANOMALOUS_TASKS_SCHEDULE: str = "*/10 * * * *"
     REPORT_TASKS_SUMMARY_SCHEDULE: str = "5,20,35,50 */1 * * *"
     REPORT_JOB_QUEUE_LENGTH_SCHEDULE: str = "*/10 * * * *"
     REDIS_KEY_PREFIX: str = "vela:"
-    ACTIVATE_TASKS_METRICS: bool = True  # pylint: disable=invalid-name
+    ACTIVATE_TASKS_METRICS: bool = True
 
     RABBITMQ_URI: str = "amqp://guest:guest@localhost:5672//"
     MESSAGE_EXCHANGE_NAME: str = "hubble-activities"
@@ -336,7 +323,7 @@ redis_raw = Redis.from_url(
 
 
 if settings.SENTRY_DSN:  # pragma: no cover
-    sentry_sdk.init(  # pylint: disable=abstract-class-instantiated
+    sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         environment=settings.SENTRY_ENV,
         integrations=[
