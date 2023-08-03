@@ -179,7 +179,6 @@ class Settings(BaseSettings):  # pragma: no cover
     @validator("REDIS_URL")
     @classmethod
     def assemble_redis_url(cls, v: str, values: dict[str, Any]) -> str:
-
         if values["TESTING"]:
             base_url, db_n = v.rsplit("/", 1)
             return f"{base_url}/{int(db_n) + 1}"
@@ -238,7 +237,7 @@ class Settings(BaseSettings):  # pragma: no cover
     REDIS_KEY_PREFIX: str = "vela:"
     ACTIVATE_TASKS_METRICS: bool = True
 
-    RABBITMQ_URI: str = "amqp://guest:guest@localhost:5672//"
+    RABBITMQ_DSN: str = "amqp://guest:guest@localhost:5672//"
     MESSAGE_EXCHANGE_NAME: str = "hubble-activities"
 
     class Config:

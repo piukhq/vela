@@ -9,8 +9,7 @@ repository = "https://github.com/binkhq/vela"
 [[tool.poetry.source]]
 name = "bink-pypi"
 url = "https://pypi.gb.bink.com/simple"
-default = false
-secondary = false
+priority = "explicit"
 
 [tool.poetry.dependencies]
 python = "^3.10"
