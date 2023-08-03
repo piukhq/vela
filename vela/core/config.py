@@ -237,7 +237,7 @@ class Settings(BaseSettings):  # pragma: no cover
     REDIS_KEY_PREFIX: str = "vela:"
     ACTIVATE_TASKS_METRICS: bool = True
 
-    RABBITMQ_DSN: str = "amqp://guest:guest@localhost:5672//"
+    RABBITMQ_URI: str = "amqp://guest:guest@localhost:5672//"
     MESSAGE_EXCHANGE_NAME: str = "hubble-activities"
 
     class Config:

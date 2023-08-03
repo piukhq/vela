@@ -5,7 +5,7 @@ from cosmos_message_lib import get_connection_and_exchange, verify_payload_and_s
 from vela.core.config import settings
 
 connection, exchange = get_connection_and_exchange(
-    rabbitmq_dsn=settings.RABBITMQ_DSN,
+    rabbitmq_dsn=settings.RABBITMQ_URI,
     message_exchange_name=settings.MESSAGE_EXCHANGE_NAME,
 )
 
