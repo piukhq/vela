@@ -8,7 +8,7 @@ RUN poetry build
 
 FROM ghcr.io/binkhq/python:3.10
 
-ENV PIP_INDEX_URL=https://269fdc63-af3d-4eca-8101-8bddc22d6f14:b694b5b1-f97e-49e4-959e-f3c202e3ab91@pypi.tools.uksouth.bink.sh/simple
+ENV PIP_INDEX_URL=https://269fdc63-af3d-4eca-8101-8bddc22d6f14:b694b5b1-f97e-49e4-959e-f3c202e3ab91@pypi.gb.bink.com/simple
 WORKDIR /app
 ARG wheel=vela-*-py3-none-any.whl
 COPY --from=build /src/alembic/ ./alembic/
