@@ -97,7 +97,7 @@ def test_post_transaction_happy_path(
     }
     tx_import_activity_data = {
         "retailer_slug": retailer.slug,
-        "active_campaign_slugs": [f"{campaign.slug}"],
+        "active_campaign_slugs": [str(campaign.slug)],
         "refunds_valid": True,
         "error": "N/A",
     }
@@ -508,7 +508,6 @@ def test_post_transaction_negative_amount(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-
     mocker.patch(
         "vela.internal_requests.send_async_request_with_retry",
         return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
@@ -558,7 +557,6 @@ def test_post_transaction_zero_amount(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-
     mocker.patch(
         "vela.internal_requests.send_async_request_with_retry",
         return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
@@ -643,7 +641,6 @@ def test_post_transaction_negative_amount_but_no_allocation_window(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-
     mocker.patch(
         "vela.internal_requests.send_async_request_with_retry",
         return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),
@@ -728,7 +725,6 @@ def test_post_transaction_negative_amount_but_not_accumulator(
     create_mock_reward_rule: Callable,
     reward_status_adjustment_task_type: "TaskType",
 ) -> None:
-
     mocker.patch(
         "vela.internal_requests.send_async_request_with_retry",
         return_value=(status.HTTP_200_OK, {"status": "active", "created_at": account_holder_created_at}),

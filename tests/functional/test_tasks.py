@@ -111,7 +111,6 @@ def test__process_adjustment_http_errors(
     reward_adjustment_task: RetryTask,
     adjustment_url: str,
 ) -> None:
-
     task_params = reward_adjustment_task.get_params()
 
     for status, body in (
@@ -134,7 +133,7 @@ def test__process_adjustment_http_errors(
             )
 
         assert isinstance(excinfo.value, requests.RequestException)
-        assert excinfo.value.response.status_code == status
+        assert excinfo.value.response.status_code == status  # type: ignore [union-attr]
 
         last_request = httpretty.last_request()
         assert last_request.method == "POST"
@@ -156,7 +155,6 @@ def test__process_adjustment_connection_error(
     mock_send_request_with_metrics: mock.MagicMock,
     reward_adjustment_task: RetryTask,
 ) -> None:
-
     mock_send_request_with_metrics.side_effect = asyncio.TimeoutError("Request timed out")
     task_params = reward_adjustment_task.get_params()
 
@@ -182,7 +180,6 @@ def test__process_reward_allocation_connections_error(
     mock_send_request_with_metrics: mock.MagicMock,
     reward_adjustment_task: RetryTask,
 ) -> None:
-
     mock_send_request_with_metrics.side_effect = asyncio.TimeoutError("Request timed out")
 
     with pytest.raises(asyncio.TimeoutError) as excinfo:
@@ -631,7 +628,7 @@ def test__process_reward_allocation_http_errors(
             )
 
         assert isinstance(excinfo.value, requests.RequestException)
-        assert excinfo.value.response.status_code == status
+        assert excinfo.value.response.status_code == status  # type: ignore [union-attr]
 
         last_request = httpretty.last_request()
         assert last_request.method == "POST"
@@ -643,7 +640,6 @@ def test__process_reward_allocation_http_errors(
 
 
 def test__number_of_rewards_achieved(reward_rule: RewardRule) -> None:
-
     assert reward_rule.reward_goal == 5
     assert reward_rule.reward_cap is None
 
@@ -660,7 +656,6 @@ def test__number_of_rewards_achieved(reward_rule: RewardRule) -> None:
 
 
 def test__number_of_rewards_achieved_with_trc(db_session: "Session", reward_rule: RewardRule) -> None:
-
     reward_rule.reward_cap = 2
     db_session.commit()
 
@@ -686,7 +681,6 @@ def test__process_reward_status_adjustment_ok(
     reward_status_adjustment_expected_payload: dict,
     reward_status_adjustment_url: str,
 ) -> None:
-
     httpretty.register_uri("PATCH", reward_status_adjustment_url, body="OK", status=202)
 
     response_audit = _process_reward_status_adjustment(reward_status_adjustment_retry_task.get_params())
@@ -709,7 +703,6 @@ def test__process_reward_status_adjustment_http_errors(
     reward_status_adjustment_expected_payload: dict,
     reward_status_adjustment_url: str,
 ) -> None:
-
     for status, body in (
         (401, "Unauthorized"),
         (500, "Internal Server Error"),
@@ -720,7 +713,7 @@ def test__process_reward_status_adjustment_http_errors(
             _process_reward_status_adjustment(reward_status_adjustment_retry_task.get_params())
 
         assert isinstance(excinfo.value, requests.RequestException)
-        assert excinfo.value.response.status_code == status
+        assert excinfo.value.response.status_code == status  # type: ignore [union-attr]
 
         last_request = httpretty.last_request()
         assert last_request.method == "PATCH"
@@ -731,7 +724,6 @@ def test__process_reward_status_adjustment_http_errors(
 def test__process_reward_status_adjustment_connection_error(
     mock_send_request_with_metrics: mock.MagicMock, reward_status_adjustment_retry_task: RetryTask
 ) -> None:
-
     mock_send_request_with_metrics.side_effect = requests.Timeout("Request timed out")
 
     with pytest.raises(requests.RequestException) as excinfo:
@@ -751,7 +743,6 @@ def test__set_param_value(db_session: "Session", reward_adjustment_task: RetryTa
 def test_reward_status_adjustment(
     db_session: "Session", reward_status_adjustment_retry_task: RetryTask, reward_status_adjustment_url: str
 ) -> None:
-
     httpretty.register_uri("PATCH", reward_status_adjustment_url, body="OK", status=202)
 
     reward_status_adjustment(reward_status_adjustment_retry_task.retry_task_id)
@@ -881,7 +872,6 @@ def test_delete_pending_rewards_task(
 def test_reward_cancellation(
     db_session: "Session", reward_cancellation_retry_task: RetryTask, reward_cancellation_url: str
 ) -> None:
-
     httpretty.register_uri("POST", reward_cancellation_url, body="OK", status=202)
 
     cancel_account_holder_rewards(reward_cancellation_retry_task.retry_task_id)
@@ -921,7 +911,6 @@ def test__process_cancel_account_holder_rewards_http_errors(
     reward_cancellation_retry_task: RetryTask,
     reward_cancellation_url: str,
 ) -> None:
-
     for status, body in (
         (401, "Unauthorized"),
         (500, "Internal Server Error"),
@@ -932,6 +921,6 @@ def test__process_cancel_account_holder_rewards_http_errors(
             _process_cancel_account_holder_rewards(reward_cancellation_retry_task.get_params())
 
         assert isinstance(excinfo.value, requests.RequestException)
-        assert excinfo.value.response.status_code == status
+        assert excinfo.value.response.status_code == status  # type: ignore [union-attr]
 
         assert httpretty.last_request().method == "POST"
