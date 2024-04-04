@@ -7,7 +7,7 @@ def build_tx_history_reasons(tx_amount: int, adjustments: dict, is_refund: bool,
     reasons = []
     for v in adjustments.values():
 
-        amount = pence_integer_to_currency_string(abs(tx_amount), currency)
+        amount = v["amount"]
         threshold = pence_integer_to_currency_string(v["threshold"], currency)
 
         if v["accepted"]:
@@ -26,10 +26,7 @@ def build_tx_history_reasons(tx_amount: int, adjustments: dict, is_refund: bool,
 def build_tx_history_earns(adjustments: dict, currency: str) -> list[dict[str, str]]:
     earns = []
     for v in adjustments.values():
-        if v["type"] == LoyaltyTypes.ACCUMULATOR:
-            amount = pence_integer_to_currency_string(v["amount"], currency)
-        else:
-            amount = str(int(v["amount"] / 100))
+        amount = v["amount"] if v["type"] == LoyaltyTypes.ACCUMULATOR else str(int(v["amount"] / 100))
 
         earns.append({"value": amount, "type": v["type"]})
 
