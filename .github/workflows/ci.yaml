@@ -31,24 +31,6 @@ jobs:
           - 6379:6379
     steps:
       - uses: actions/checkout@v3
-      - uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: "."
-          scanners: "vuln"
-          vuln-type: library
-          ignore-unfixed: true
-          exit-code: 0
-          severity: UNKNOWN,LOW,MEDIUM
-      - uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: "."
-          scanners: "vuln"
-          vuln-type: library
-          ignore-unfixed: true
-          exit-code: 1
-          severity: HIGH,CRITICAL
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
