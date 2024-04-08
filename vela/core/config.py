@@ -174,7 +174,7 @@ class Settings(BaseSettings):  # pragma: no cover
     def polaris_base_url(cls, v: str, values: dict[str, Any]) -> str:
         return v or f"{values['POLARIS_HOST']}/loyalty"
 
-    REDIS_URL: str
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     @validator("REDIS_URL")
     @classmethod
