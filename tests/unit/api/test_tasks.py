@@ -34,12 +34,16 @@ def test_build_tx_history_earns() -> None:
         {
             1: {"type": LoyaltyTypes.ACCUMULATOR, "amount": 1199},
             2: {"type": LoyaltyTypes.ACCUMULATOR, "amount": -1199},
-            3: {"type": LoyaltyTypes.STAMPS, "amount": 500},
+            3: {"type": LoyaltyTypes.ACCUMULATOR, "amount": 110099},
+            4: {"type": LoyaltyTypes.ACCUMULATOR, "amount": -3210099},
+            5: {"type": LoyaltyTypes.STAMPS, "amount": 500},
         },
         "GBP",
     )
     assert res == [
         {"value": "£11.99", "type": LoyaltyTypes.ACCUMULATOR},
         {"value": "-£11.99", "type": LoyaltyTypes.ACCUMULATOR},
+        {"value": "£1,100.99", "type": LoyaltyTypes.ACCUMULATOR},
+        {"value": "-£32,100.99", "type": LoyaltyTypes.ACCUMULATOR},
         {"value": "5", "type": LoyaltyTypes.STAMPS},
     ]

@@ -6,7 +6,6 @@ from vela.enums import LoyaltyTypes
 def build_tx_history_reasons(tx_amount: int, adjustments: dict, is_refund: bool, currency: str) -> list[str]:
     reasons = []
     for v in adjustments.values():
-
         amount = pence_integer_to_currency_string(abs(tx_amount), currency)
         threshold = pence_integer_to_currency_string(v["threshold"], currency)
 
@@ -41,5 +40,5 @@ def pence_integer_to_currency_string(value: int, currency: str, currency_sign: b
         number=value / 100,
         currency=currency,
         locale="en_GB",
-        format=None if currency_sign else "#,##0.##",
+        format=None if currency_sign else "0.##",
     )
