@@ -40,5 +40,5 @@ def pence_integer_to_currency_string(value: int, currency: str, currency_sign: b
         number=value / 100,
         currency=currency,
         locale="en_GB",
-        format=None if currency_sign else "0.##",
+        format=None if currency_sign else "#,##0.##",
     )
