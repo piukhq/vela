@@ -1,7 +1,7 @@
 """v1 release squashed init
 
 Revision ID: 3b5af0db00a6
-Revises: 
+Revises:
 Create Date: 2022-03-05 10:59:55.653417
 
 """
@@ -9,9 +9,8 @@ from collections import namedtuple
 
 import sqlalchemy as sa
 
-from sqlalchemy.dialects import postgresql
-
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "3b5af0db00a6"
