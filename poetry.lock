@@ -2458,13 +2458,13 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "retry-tasks-lib"
-version = "2.1.0"
+version = "2.2.1"
 description = "helpers functions and models for setting up tasks with rq"
 optional = false
-python-versions = ">=3.10,<3.11"
+python-versions = ">=3.10,<4.0"
 files = [
-    {file = "retry_tasks_lib-2.1.0-py3-none-any.whl", hash = "sha256:08706ccdd6b5d52b7dd47c67336142c5fed3a62f888b02a300c97ccd0d002fda"},
-    {file = "retry_tasks_lib-2.1.0.tar.gz", hash = "sha256:662c1be74d97770cc8b3ca51fbabe98c84566309e8324e683238e9a3689c203a"},
+    {file = "retry_tasks_lib-2.2.1-py3-none-any.whl", hash = "sha256:cdbf38eb3dd1f8c6ce69cc22451268bbf04079de0afd1cc8c01c1522b645205c"},
+    {file = "retry_tasks_lib-2.2.1.tar.gz", hash = "sha256:51389b6958fbd76bf5c5e55bd73d542ffb8b82dbb24772ba6e2fd7de93a72dba"},
 ]
 
 [package.dependencies]
@@ -3362,4 +3362,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "3be8b5647daee376fa02649dbfaaba3fe5b2f41be6b7a91f15669ab87b6d4fae"
+content-hash = "b127fd5f5d8bbf107fe15755b79f0a0ed28cdbb2cedab2c3bde7075833e7970d"
