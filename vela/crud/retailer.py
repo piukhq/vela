@@ -9,7 +9,6 @@ from vela.models import Campaign, EarnRule, RetailerRewards, Transaction
 from vela.models.retailer import RetailerStore
 
 if TYPE_CHECKING:  # pragma: no cover
-
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -32,7 +31,6 @@ async def get_active_campaigns(
     transaction: Transaction | None = None,
     join_rules: bool = False,
 ) -> list[Campaign]:
-
     opt = [joinedload(Campaign.earn_rules), joinedload(Campaign.reward_rule)] if join_rules else []
 
     async def _query() -> list:

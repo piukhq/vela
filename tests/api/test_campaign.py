@@ -1341,7 +1341,6 @@ def test_ending_campaign_convert_pending_rewards(
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
-
     mock_put_carina_campaign = mocker.patch(
         "vela.api.endpoints.campaign.put_carina_campaign",
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
@@ -1435,7 +1434,6 @@ def test_cancelling_campaign_delete_pending_rewards(
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
-
     mock_put_carina_campaign = mocker.patch(
         "vela.api.endpoints.campaign.put_carina_campaign",
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
@@ -1543,7 +1541,6 @@ def test_ending_campaign_delete_pending_rewards(
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
-
     mock_put_carina_campaign = mocker.patch(
         "vela.api.endpoints.campaign.put_carina_campaign",
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),
@@ -1636,7 +1633,6 @@ def test_ending_campaign_convert_pending_rewards_without_refund_window(
     convert_or_delete_pending_rewards_task_type: TaskType,
     mocker: MockerFixture,
 ) -> None:
-
     mock_put_carina_campaign = mocker.patch(
         "vela.api.endpoints.campaign.put_carina_campaign",
         return_value=(fastapi_http_status.HTTP_200_OK, "Carina responded with: 200"),

@@ -43,7 +43,6 @@ def setup_db() -> Generator:
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_redis() -> Generator:
-
     yield
 
     # At end of all tests, delete the tasks from the queue

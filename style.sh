@@ -28,17 +28,14 @@ warn() {
     echo "${bold}${red}!! ${white}${@}${reset}"
 }
 
-info "black"
-black .
-
-info "isort"
-isort .
+info "ruff format"
+ruff format .
 
 info "xenon"
 xenon --no-assert -a A -m B -b B .
 
 info "ruff"
-ruff vela tests asgi.py
+ruff check vela tests asgi.py
 
 info "mypy"
 mypy .

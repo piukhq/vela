@@ -1,5 +1,4 @@
 import json
-
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -25,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
 
 
-def _process_reward_allocation(
+def _process_reward_allocation(  # noqa: PLR0913
     *,
     retailer_slug: str,
     reward_slug: str,
@@ -42,11 +41,7 @@ def _process_reward_allocation(
     }
     payload = {
         "count": count,
-        "account_url": "{base_url}/{retailer_slug}/accounts/{account_holder_uuid}/rewards".format(
-            base_url=settings.POLARIS_BASE_URL,
-            retailer_slug=retailer_slug,
-            account_holder_uuid=account_holder_uuid,
-        ),
+        "account_url": f"{settings.POLARIS_BASE_URL}/{retailer_slug}/accounts/{account_holder_uuid}/rewards",
         "campaign_slug": campaign_slug,
     }
     response_audit: dict = {
@@ -69,7 +64,7 @@ def _process_reward_allocation(
     return response_audit
 
 
-def _process_pending_reward_allocation(
+def _process_pending_reward_allocation(  # noqa: PLR0913
     *,
     retailer_slug: str,
     reward_slug: str,
@@ -143,7 +138,7 @@ def _number_of_rewards_achieved(reward_rule: RewardRule, new_balance: int, adjus
     return n_reward_achieved, trc_reached
 
 
-def _process_balance_adjustment(
+def _process_balance_adjustment(  # noqa: PLR0913
     *,
     retailer_slug: str,
     account_holder_uuid: str,
@@ -249,7 +244,7 @@ def _get_balance_adjustment_reason(
     return f"{reward_type} value {formatted_value} stamp{plural_stamps}, {rewards_achieved} issued"
 
 
-def _process_reward_path(
+def _process_reward_path(  # noqa: PLR0913
     *,
     log_suffix: str,
     task_params: dict,

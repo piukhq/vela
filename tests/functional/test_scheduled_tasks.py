@@ -19,7 +19,6 @@ def test_cleanup_old_tasks(
     db_session: "Session",
     mocker: MockerFixture,
 ) -> None:
-
     mock_logger = mocker.patch("vela.scheduled_tasks.task_cleanup.logger")
 
     now = datetime.now(tz=timezone.utc)

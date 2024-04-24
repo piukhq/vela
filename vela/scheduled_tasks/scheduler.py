@@ -1,5 +1,4 @@
 import logging
-
 from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import wraps
@@ -83,7 +82,7 @@ class CronScheduler:  # pragma: no cover
             )
             return CronTrigger.from_crontab(self.default_schedule, timezone=self.trigger_timezone)
 
-    def add_job(
+    def add_job(  # noqa: PLR0913
         self,
         job_func: Callable,
         *,

@@ -80,7 +80,6 @@ async def _check_valid_campaigns(
 async def _campaign_status_change(
     db_session: "AsyncSession", campaign: Campaign, requested_status: CampaignStatuses, sso_username: str
 ) -> None:
-
     original_status = campaign.status
 
     async def _query(campaign: Campaign) -> None:

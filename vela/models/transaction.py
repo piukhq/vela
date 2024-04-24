@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
@@ -26,7 +26,7 @@ class Transaction(Base, TimestampMixin):
     retailer = relationship("RetailerRewards", back_populates="transactions")
 
     __table_args__ = (UniqueConstraint("transaction_id", "retailer_id", name="transaction_retailer_unq"),)
-    __mapper_args__ = {"eager_defaults": True}
+    __mapper_args__: ClassVar[dict] = {"eager_defaults": True}
 
 
 class ProcessedTransaction(Base, TimestampMixin):
@@ -44,4 +44,4 @@ class ProcessedTransaction(Base, TimestampMixin):
     retailer = relationship("RetailerRewards", back_populates="processed_transactions")
 
     __table_args__ = (UniqueConstraint("transaction_id", "retailer_id", name="process_transaction_retailer_unq"),)
-    __mapper_args__ = {"eager_defaults": True}
+    __mapper_args__: ClassVar[dict] = {"eager_defaults": True}

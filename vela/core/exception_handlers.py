@@ -48,7 +48,6 @@ async def request_validation_handler(request: Request, exc: RequestValidationErr
 
 # customise Api HTTPException to remove "details" and handle manually raised ValidationErrors
 async def http_exception_handler(request: Request, exc: HTTPException) -> UJSONResponse:
-
     if exc.status_code == HTTP_422_UNPROCESSABLE_ENTITY and isinstance(exc.detail, list):
         status_code, content = _format_validation_errors(request.url.path, exc.detail)
     else:

@@ -46,7 +46,7 @@ class ActivityType(Enum):
         return reason
 
     @classmethod
-    def _assemble_payload(
+    def _assemble_payload(  # noqa: PLR0913
         cls,
         activity_type: "ActivityType",
         *,
@@ -61,7 +61,6 @@ class ActivityType(Enum):
         campaigns: list[str] | None = None,
         user_id: UUID | str | None = None,
     ) -> dict:
-
         activity_identifier = activity_identifier or "N/A"
         campaigns = campaigns or []
         reasons = reasons or []
@@ -116,7 +115,7 @@ class ActivityType(Enum):
         )
 
     @classmethod
-    def get_processed_tx_activity_data(
+    def get_processed_tx_activity_data(  # noqa: PLR0913
         cls,
         *,
         processed_tx: "ProcessedTransaction",
@@ -151,7 +150,7 @@ class ActivityType(Enum):
         )
 
     @classmethod
-    def get_campaign_status_change_activity_data(
+    def get_campaign_status_change_activity_data(  # noqa: PLR0913
         cls,
         *,
         updated_at: datetime,
@@ -162,7 +161,6 @@ class ActivityType(Enum):
         original_status: CampaignStatuses,
         new_status: CampaignStatuses,
     ) -> dict:
-
         return cls._assemble_payload(
             ActivityType.CAMPAIGN,
             underlying_datetime=updated_at,

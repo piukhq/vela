@@ -36,8 +36,7 @@ jobs:
       - run: poetry config http-basic.azure jeff ${{ secrets.AZURE_DEVOPS_PAT }}
       - run: poetry install
       - run: poetry run alembic upgrade head
-      - run: poetry run black --check .
-      - run: poetry run isort --check .
+      - run: poetry run ruff format --check --diff .
       - run: poetry run xenon --no-assert --max-average A --max-modules B --max-absolute B .
       - run: poetry run ruff vela tests asgi.py
       - run: poetry run mypy .

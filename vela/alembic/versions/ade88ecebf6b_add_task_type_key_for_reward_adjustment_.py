@@ -5,6 +5,7 @@ Revises: aebe2746a51d
 Create Date: 2022-07-14 09:38:15.221239
 
 """
+
 from typing import Any
 
 import sqlalchemy as sa

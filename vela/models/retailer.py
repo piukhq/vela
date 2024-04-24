@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
@@ -21,7 +21,7 @@ class RetailerRewards(Base):
     processed_transactions = relationship("ProcessedTransaction", back_populates="retailer")
     stores = relationship("RetailerStore", back_populates="retailer")
 
-    __mapper_args__ = {"eager_defaults": True}
+    __mapper_args__: ClassVar[dict] = {"eager_defaults": True}
 
     def __str__(self) -> str:
         return str(self.slug)  # pragma: no cover

@@ -5,6 +5,7 @@ Revises:
 Create Date: 2022-03-05 10:59:55.653417
 
 """
+
 from collections import namedtuple
 
 import sqlalchemy as sa

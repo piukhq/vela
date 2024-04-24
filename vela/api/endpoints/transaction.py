@@ -1,5 +1,4 @@
 import asyncio
-
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,7 +25,7 @@ async def _get_transaction_response(accepted_adjustments: dict, is_refund: bool)
     return "Refunds not accepted" if is_refund else "Threshold not met"
 
 
-async def _process_transaction(
+async def _process_transaction(  # noqa: PLR0913
     *,
     db_session: "AsyncSession",
     retailer: RetailerRewards,
