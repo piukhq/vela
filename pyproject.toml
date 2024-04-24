@@ -40,7 +40,7 @@ aiohttp = "^3.8.1"
 aiodns = "^3.0.0"
 Babel = "^2.10.3"
 retry-tasks-lib = { "version" = "==2.1.0", source = "azure" }
-cosmos-message-lib = { "version" = "^1.2.0", source = "azure" }
+cosmos-message-lib = { "version" = "^2.0.0", source = "azure" }
 fastapi-prometheus-metrics = { "version" = "^0.2.7", source = "azure" }
 tzdata = "^2023.4"
 
