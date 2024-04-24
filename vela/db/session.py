@@ -20,7 +20,7 @@ sync_engine = create_engine(
     pool_pre_ping=True,
     echo=settings.SQL_DEBUG,
     future=True,
-    **null_pool
+    **null_pool,
 )
 AsyncSessionMaker = sessionmaker(bind=async_engine, future=True, expire_on_commit=False, class_=AsyncSession)
 SyncSessionMaker = sessionmaker(bind=sync_engine, future=True, expire_on_commit=False)

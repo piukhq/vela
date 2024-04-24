@@ -15,7 +15,7 @@ from vela.core.config import settings
 
 
 class ModelBase:
-    id = Column(Integer, primary_key=True)  # noqa: A003
+    id = Column(Integer, primary_key=True)
 
 
 Base = declarative_base(cls=ModelBase)
@@ -47,7 +47,6 @@ def sync_run_query(
     rollback_on_exc: bool = True,
     **fn_kwargs: Any,
 ) -> Any:  # pragma: no cover
-
     while attempts > 0:
         attempts -= 1
         try:

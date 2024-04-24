@@ -1,6 +1,5 @@
 import asyncio
 import logging
-
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
@@ -8,7 +7,6 @@ from uuid import UUID
 
 import aiohttp
 import sentry_sdk
-
 from fastapi import status
 from tenacity import retry
 from tenacity.retry import retry_if_exception_type, retry_if_result
@@ -31,7 +29,7 @@ timeout = aiohttp.ClientTimeout(total=10, connect=3.03)
     retry=retry_if_result(lambda result: 501 <= result[0] <= 504)
     | retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
 )  # pragma: no cover
-async def send_async_request_with_retry(
+async def send_async_request_with_retry(  # noqa: PLR0913
     method: str,
     url: str,
     url_template: str,
@@ -94,10 +92,12 @@ async def send_async_request_with_retry(
     trace_config.on_request_end.append(on_request_end)
     trace_config.on_request_exception.append(on_request_exception)
 
-    async with aiohttp.ClientSession(raise_for_status=False, trace_configs=[trace_config]) as session:
-        async with session.request(method, url, headers=headers, json=json, timeout=timeout) as response:
-            json_response = await response.json()
-            return response.status, json_response
+    async with (
+        aiohttp.ClientSession(raise_for_status=False, trace_configs=[trace_config]) as session,
+        session.request(method, url, headers=headers, json=json, timeout=timeout) as response,
+    ):
+        json_response = await response.json()
+        return response.status, json_response
 
 
 async def validate_account_holder(account_holder_uuid: UUID, retailer_slug: str, tx_datetime: datetime) -> None:

@@ -67,7 +67,6 @@ def adjustment_url(reward_adjustment_task: RetryTask) -> str:
 
 @pytest.fixture(scope="function")
 def allocation_url(reward_adjustment_task: RetryTask, reward_slug: str) -> str:
-
     return "{base_url}/{retailer_slug}/rewards/{reward_slug}/allocation".format(
         base_url=settings.CARINA_BASE_URL,
         retailer_slug=reward_adjustment_task.get_params()["retailer_slug"],

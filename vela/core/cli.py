@@ -46,7 +46,6 @@ def task_worker(burst: bool = False) -> None:  # pragma: no cover
 def cron_scheduler(
     report_tasks: bool = True, report_rq_queues: bool = True, task_cleanup: bool = True
 ) -> None:  # pragma: no cover
-
     logger.info("Initialising scheduler...")
 
     if report_tasks:

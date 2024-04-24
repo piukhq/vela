@@ -1,7 +1,6 @@
 import logging
 
 import requests
-
 from tenacity import retry
 from tenacity.before import before_log
 from tenacity.retry import retry_if_exception_type, retry_if_result
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
     retry=retry_if_result(lambda resp: 501 <= resp.status_code < 600)
     | retry_if_exception_type(requests.RequestException),
 )
-def send_request_with_metrics(
+def send_request_with_metrics(  # noqa: PLR0913
     method: str,
     url_template: str,
     url_kwargs: dict,

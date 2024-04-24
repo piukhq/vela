@@ -6,7 +6,7 @@ from vela.enums import LoyaltyTypes
 
 class EarnedSchema(BaseModel):
     value: str
-    type: LoyaltyTypes  # noqa: A003
+    type: LoyaltyTypes
 
     @validator("type")
     @classmethod

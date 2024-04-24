@@ -1,4 +1,5 @@
 from enum import Enum, IntEnum, auto
+from typing import ClassVar
 
 from fastapi import HTTPException, status
 
@@ -99,23 +100,23 @@ class HttpErrors(Enum):
 
 
 class HttpsErrorTemplates(Enum):
-    INVALID_STATUS_REQUESTED = {
+    INVALID_STATUS_REQUESTED: ClassVar[dict] = {
         "display_message": "The requested status change could not be performed.",
         "code": "INVALID_STATUS_REQUESTED",
     }
 
-    NO_CAMPAIGN_FOUND = {
+    NO_CAMPAIGN_FOUND: ClassVar[dict] = {
         "display_message": "Campaign not found for provided slug.",
         "code": "NO_CAMPAIGN_FOUND",
     }
 
-    MISSING_CAMPAIGN_COMPONENTS = {
+    MISSING_CAMPAIGN_COMPONENTS: ClassVar[dict] = {
         "display_message": "the provided campaign(s) could not be made active",
         "code": "MISSING_CAMPAIGN_COMPONENTS",
     }
 
     def value_with_slugs(self, campaign_slugs: list[str]) -> dict:
-        self.value["campaigns"] = campaign_slugs  # type: ignore [assignment]
+        self.value["campaigns"] = campaign_slugs
         return self.value
 
 
