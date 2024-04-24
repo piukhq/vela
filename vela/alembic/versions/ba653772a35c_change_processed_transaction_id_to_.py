@@ -7,9 +7,9 @@ Create Date: 2022-09-20 13:48:18.801600
 """
 import sqlalchemy as sa
 
-from alembic import op
 from retry_tasks_lib.enums import TaskParamsKeyTypes
 
+from alembic import op
 from vela import settings
 
 # revision identifiers, used by Alembic.

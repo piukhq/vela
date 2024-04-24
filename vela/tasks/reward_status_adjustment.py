@@ -5,7 +5,7 @@ from retry_tasks_lib.db.models import RetryTask
 from retry_tasks_lib.enums import RetryTaskStatuses
 from retry_tasks_lib.utils.synchronous import retryable_task
 
-from vela.core.config import settings
+from vela.core.config import redis_raw, settings
 from vela.db.session import SyncSessionMaker
 from vela.tasks.prometheus.metrics import tasks_run_total
 from vela.tasks.prometheus.synchronous import task_processing_time_callback_fn
@@ -43,7 +43,11 @@ def _process_reward_status_adjustment(task_params: dict) -> dict:
 
 # NOTE: Inter-dependency: If this function's name or module changes, ensure that
 # it is relevantly reflected in the TaskType table
-@retryable_task(db_session_factory=SyncSessionMaker, metrics_callback_fn=task_processing_time_callback_fn)
+@retryable_task(
+    db_session_factory=SyncSessionMaker,
+    redis_connection=redis_raw,
+    metrics_callback_fn=task_processing_time_callback_fn,
+)
 def reward_status_adjustment(retry_task: RetryTask, db_session: "Session") -> None:
     if settings.ACTIVATE_TASKS_METRICS:
         tasks_run_total.labels(app=settings.PROJECT_NAME, task_name=settings.REWARD_STATUS_ADJUSTMENT_TASK_NAME).inc()
